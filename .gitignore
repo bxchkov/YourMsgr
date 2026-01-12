@@ -1,0 +1,41 @@
+/.qodo/
+/node_modules/
+/.idea/
+
+# Dependencies
+server/node_modules/
+client/node_modules/
+bun.lockb
+package-lock.json
+yarn.lock
+
+# Environment
+server/.env
+.env.local
+.env.*.local
+
+# Build outputs
+client/dist/
+dist/
+build/
+*.log
+
+# IDE
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Old files (deprecated)
+server.js
+config.js
+socket.io.min.js
+
+# Database
+*.sql
+*.sqlite
+*.db

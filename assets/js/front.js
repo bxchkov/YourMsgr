@@ -372,13 +372,12 @@ document.addEventListener('click', e=>{
 })
 
 // Кнопка отправки сообщения
-let messageInput = document.querySelector('.message-send__field');
 document.addEventListener("input", e => {
-    let sendButton = document.querySelector('.message-send__button');
-    if (!sendButton)
-        return;
-    if (messageInput.value !== '')
-        sendButton.classList.add('active');
-    else
-        sendButton.classList.remove('active');
+    const messageInputField = e.target.closest('.message-input__textarea');
+    if (!messageInputField) return
+
+    const messageInputBlock = messageInputField.closest('.message-input');
+    const messageSendButton = messageInputBlock.querySelector('.message-input__button');
+
+    messageSendButton.classList.toggle('active', messageInputField.value.length);
 })

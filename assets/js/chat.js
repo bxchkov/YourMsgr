@@ -14,8 +14,11 @@ function socketConnection() {
 }
 
 const messages = document.querySelector('.chat__messages'); // Блок сообщений
-const messageField = document.querySelector('.message-send__field'); // Поле отправки сообщения
-const messageSendButton = document.querySelector('.message-send__button'); // Кнопка отправки сообщения
+const messageField = document.querySelector('.message-input__textarea'); // Поле отправки сообщения
+const messageSendButton = document.querySelector('.message-input__button'); // Кнопка отправки сообщения
+
+const userLocale = navigator.language || 'ru-RU';
+const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 // Ф-ия, которая вызывает событие отправки сообщения через сокет
 function sendMessage(message) {
@@ -41,49 +44,77 @@ messageField.addEventListener("keyup", e=> {
         messageField.value = '';
     }
 });
-// Ф-ия, которая добавляет проверенное сообщение(я) в вёрстке
+
+function formatMessageDateTime(timestamp, locale = userLocale, timeZone = userTimeZone) {
+    const date = new Date(timestamp);
+
+    // Форматы для разных случаев
+
+    return {
+        time: date.toLocaleTimeString(locale, {
+            timeZone,
+            hour: '2-digit',
+            minute: '2-digit'
+        }),
+        date: date.toLocaleDateString(locale, {
+            timeZone,
+            day: 'numeric',
+            month: 'long',
+            year: timestamp < new Date().setFullYear(new Date().getFullYear()) ? 'numeric' : undefined
+        }),
+        fullDateTime: date.toLocaleString(locale, {
+            timeZone,
+            hour: '2-digit',
+            minute: '2-digit',
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        })
+    };
+}
+
+// Функция, которая добавляет проверенное сообщение(я) в вёрстке
 function addMessage(data) {
-    const currentDate = new Date();
-    const hours = currentDate.getHours();
-    const minutes = ("0" + currentDate.getMinutes()).slice(-2);
-    const currentTime = hours + ":" + minutes;
-    let cssClass = "";
-    let deleteButtonBlock = "";
-    const deleteButton = `<button class="message__delete">
-                            <svg viewBox="0 0 24 24" 
-                            fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M10 12V17" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M14 12V17" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M4 7H20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M6 10V18C6 19.6569 7.34315 21 9 21H15C16.6569 21 18 19.6569 18 18V10" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M9 5C9 3.89543 9.89543 3 11 3H13C14.1046 3 15 3.89543 15 5V7H9V5Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                       </button>`
-    if (data.user_id-0 === localStorage.userId-0) {
-        cssClass = " my-message";
-        // messages.scrollTo({ todo мб потом со скроллом что-нибудь придумать
+    console.log(data);
+    const messageDateTime = formatMessageDateTime(data.date);
+
+    const currentTime = messageDateTime.time;
+    const deleteButton = `
+        <button class="message__delete">
+            <svg viewBox="0 0 24 24" 
+            fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M10 12V17" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M14 12V17" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M4 7H20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M6 10V18C6 19.6569 7.34315 21 9 21H15C16.6569 21 18 19.6569 18 18V10" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M9 5C9 3.89543 9.89543 3 11 3H13C14.1046 3 15 3.89543 15 5V7H9V5Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+       </button>`
+    const isUserOwnMessage = data.user_id-0 === localStorage.userId-0; // todo degenerat
+    const isUserAdmin = localStorage.userRole >= 3;
+
+    // if (isUserOwnMessage) { todo мб потом со скроллом что-нибудь придумать
+        // messages.scrollTo({
         //     top: 0,
         //     behavior: "smooth",
         // });
-        deleteButtonBlock = deleteButton;
-    }
-    if (localStorage.userRole >= 3) {
-        deleteButtonBlock = deleteButton;
-    }
-    messages.insertAdjacentHTML('afterbegin',
-        `<div id="${data.id}" class="message${cssClass}">
-                 <div class="message__username">
-                    ${data.username}
-                 </div>
-                 <div class="message__text">
-                    ${data.message}
-                 </div>
-                 ${deleteButtonBlock}
-                 <div class="message__time">
-                    ${currentTime}
-                 </div>
-             </div>`
-    );
+    // }
+
+    const message =
+        `<div id="${data.id}" class="message ${isUserOwnMessage ? 'my-message' : ''}">
+             <div class="message__username">
+                ${data.username}
+             </div>
+             <div class="message__text">
+                ${data.message}
+             </div>
+             ${(isUserOwnMessage || isUserAdmin) ? deleteButton : ''}
+             <div class="message__time">
+                ${currentTime}
+             </div>
+         </div>`
+
+    messages.insertAdjacentHTML('afterbegin', message);
 }
 
 // Ф-ия, которая вызывает событие удаления сообщения через сокет
@@ -106,7 +137,7 @@ document.addEventListener('click', async e => {
 })
 
 // Здесь отслеживаем события socket io
-function addSocketListeners() {
+async function addSocketListeners() {
     socketConnection().on('send_message', data => {
         addMessage(data);
     });

@@ -96,7 +96,7 @@ function generateTokens(userId, userName, userRole = 1) {
 }
 // Сохранение refreshToken
 async function saveRefreshToken (response, userId, refreshToken) {
-    response.cookie('refreshToken', refreshToken, {maxAge: 30 * 24 * 60 * 60 * 1000, httpOnly: true}); //todo secure: true (https)
+    response.cookie('refreshToken', refreshToken, {maxAge: 30 * 24 * 60 * 60 * 1000, httpOnly: true}); // todo secure: true (https)
     const dbSaveToken = await conn.promise().query(
         `UPDATE Users SET refresh_token = '${refreshToken}' WHERE id = '${userId}';`
     );
@@ -421,21 +421,33 @@ io.sockets.on('connection', async socket => {
 
     socket.on('send_message', async data => {
         const accessToken = await checkSession(data);
-        if (!accessToken) {
-            return
-        }
-        const message = data.message;
+        if (!accessToken) return
+
         const decodedAccessToken = jwt.decode(accessToken);
         const userId = decodedAccessToken.userId;
         const userName = decodedAccessToken.userName;
+        const messageText = data.message;
+
         // const userRole = decodedAccessToken.userRole;
-        const dbNewMessage = await conn.promise().query(
+
+        const timestamp = Date.now();
+
+        const [dbNewMessage] = await conn.promise().query(
             `INSERT INTO Messages(user_id, username, message, date)
-             VALUES ('${userId}', '${userName}', '${message}', '01.01.1970')`
+             VALUES (?, ?, ?, ?)`,
+            [userId, userName, messageText, timestamp]
         );
-        const dbNewMessageId = dbNewMessage[0].insertId;
-        socket.emit('send_message', {username: userName, message: message, id: dbNewMessageId, user_id: userId});
-        socket.broadcast.emit('send_message', {username: userName, message: message, id: dbNewMessageId, user_id: userId});
+
+        const newMessage = {
+            id: dbNewMessage.insertId,
+            user_id: userId,
+            username: userName,
+            message: messageText,
+            date: timestamp
+        }
+
+        socket.emit('send_message', newMessage);
+        socket.broadcast.emit('send_message', newMessage);
     });
 
     socket.on('delete_message', async data => {

@@ -1,0 +1,19 @@
+{
+  "name": "chat-client",
+  "version": "2.0.0",
+  "description": "Secure private chat client",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.7.0",
+    "libsodium-wrappers": "^0.7.13"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "sass": "^1.70.0"
+  }
+}
