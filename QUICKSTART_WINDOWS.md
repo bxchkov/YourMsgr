@@ -37,8 +37,14 @@ bun run dev
 **Новый терминал:**
 ```powershell
 cd client
+bun install
+bun run dev
+```
+
+**Или через npm:**
+```powershell
 npm install
-npm run dev
+npm run dev:npm
 ```
 
 ## 5️⃣ Откройте

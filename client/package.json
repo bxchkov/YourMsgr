@@ -4,9 +4,11 @@
   "description": "Secure private chat client",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "bunx --bun vite",
+    "build": "bunx --bun vite build",
+    "preview": "bunx --bun vite preview",
+    "dev:npm": "vite",
+    "build:npm": "vite build"
   },
   "dependencies": {
     "socket.io-client": "^4.7.0",

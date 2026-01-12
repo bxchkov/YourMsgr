@@ -1,8 +1,6 @@
 import "dotenv/config";
 import { Hono } from "hono";
-import { serve } from "@hono/node-server";
 import { Server } from "socket.io";
-import { createServer } from "http";
 import { corsMiddleware } from "./middleware/cors";
 import { rateLimiter } from "./middleware/rateLimit";
 import authRoutes from "./routes/auth.routes";
@@ -27,9 +25,10 @@ app.route("/auth", authRoutes);
 
 app.get("/", (c) => c.text("Chat Server Running"));
 
-// HTTP Server
-const server = createServer((req, res) => {
-  serve({ fetch: app.fetch, port }, (info) => {})(req, res);
+// HTTP Server (Bun native)
+const server = Bun.serve({
+  port,
+  fetch: app.fetch,
 });
 
 // Socket.IO
@@ -112,6 +111,4 @@ io.on("connection", async (socket) => {
   });
 });
 
-server.listen(port, () => {
-  console.log(`🚀 Server running on http://localhost:${port}`);
-});
+console.log(`🚀 Server running on http://localhost:${port}`);
