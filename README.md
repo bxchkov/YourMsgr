@@ -2,6 +2,16 @@
 
 Приватный мессенджер с end-to-end шифрованием для быстрого развёртывания на собственном сервере.
 
+## 📚 Документация
+
+- **[Быстрый старт](#-быстрый-старт)** - Установка и запуск
+- **[Windows разработка](docs/WINDOWS_DEV.md)** - Локальная разработка на Windows
+- **[API документация](docs/API.md)** - REST API endpoints
+- **[Архитектура](docs/ARCHITECTURE.md)** - Структура проекта
+- **[Безопасность](docs/SECURITY.md)** - E2EE и защита данных
+- **[CLI команды](docs/CLI.md)** - Админ-панель
+- **[Деплой](docs/DEPLOY.md)** - Production развёртывание
+
 ## 🚀 Быстрый старт
 
 ### Автоматическая установка (Linux)
@@ -102,6 +112,23 @@ docker-compose up -d
 │
 ├── install.sh
 └── docker-compose.yml
+```
+
+## 🎯 CLI Админ-панель
+
+```bash
+cd server
+bun run admin users:list           # Список пользователей
+bun run admin users:create         # Создать пользователя
+bun run admin users:delete <login> # Удалить пользователя
+bun run admin messages:count       # Количество сообщений
+bun run admin help                 # Полный список команд
+```
+
+## 🗑️ Удаление
+
+```bash
+bash uninstall.sh
 ```
 
 ## 📝 License

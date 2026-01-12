@@ -8,7 +8,8 @@
     "start": "bun src/index.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun src/db/migrate.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "admin": "bun src/cli/admin.ts"
   },
   "dependencies": {
     "hono": "^4.0.0",

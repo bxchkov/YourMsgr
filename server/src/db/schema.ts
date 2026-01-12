@@ -7,6 +7,7 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   role: integer("role").notNull().default(1),
   refreshToken: text("refresh_token"),
+  publicKey: text("public_key"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

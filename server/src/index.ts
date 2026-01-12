@@ -4,6 +4,7 @@ import { serve } from "@hono/node-server";
 import { Server } from "socket.io";
 import { createServer } from "http";
 import { corsMiddleware } from "./middleware/cors";
+import { rateLimiter } from "./middleware/rateLimit";
 import authRoutes from "./routes/auth.routes";
 import { MessageService } from "./services/message.service";
 import { verifyAccessToken } from "./utils/jwt";
@@ -13,6 +14,13 @@ const port = Number(process.env.PORT) || 3000;
 
 // Middleware
 app.use("*", corsMiddleware);
+app.use(
+  "*",
+  rateLimiter({
+    windowMs: Number(process.env.RATE_LIMIT_WINDOW || 15) * 60 * 1000,
+    max: Number(process.env.RATE_LIMIT_MAX || 100),
+  })
+);
 
 // Routes
 app.route("/auth", authRoutes);
