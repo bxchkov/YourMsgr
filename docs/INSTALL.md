@@ -3,7 +3,7 @@
 ## One-command install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/bxchkov/.Chat/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/bxchkov/YourMsgr/main/install.sh | sudo bash
 ```
 
 ## Что создаёт installer
@@ -22,7 +22,7 @@ curl -fsSL https://raw.githubusercontent.com/bxchkov/.Chat/main/install.sh | sud
 export YOURMSGR_PUBLIC_HOST=example.com
 export YOURMSGR_CLIENT_PORT=8080
 export YOURMSGR_INSTALL_DIR=/srv/yourmsgr
-curl -fsSL https://raw.githubusercontent.com/bxchkov/.Chat/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/bxchkov/YourMsgr/main/install.sh | sudo bash
 ```
 
 Поддерживаемые переменные:

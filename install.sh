@@ -4,7 +4,7 @@ set -euo pipefail
 
 APP_NAME="YourMsgr"
 PROJECT_NAME="yourmsgr"
-REPO_URL="${YOURMSGR_REPO_URL:-https://github.com/bxchkov/.Chat.git}"
+REPO_URL="${YOURMSGR_REPO_URL:-https://github.com/bxchkov/YourMsgr.git}"
 REPO_BRANCH="${YOURMSGR_REPO_BRANCH:-main}"
 INSTALL_DIR="${YOURMSGR_INSTALL_DIR:-/opt/yourmsgr}"
 HELPER_TARGET="/usr/local/bin/yourmsgr"

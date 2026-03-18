@@ -7,7 +7,7 @@
 После публикации `install.sh` в GitHub установка на VPS будет выглядеть так:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/bxchkov/.Chat/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/bxchkov/YourMsgr/main/install.sh | sudo bash
 ```
 
 Что делает скрипт:
