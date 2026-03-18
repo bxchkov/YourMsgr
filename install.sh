@@ -269,12 +269,12 @@ resolve_bind_port() {
       input_port="${input_port:-$desired_port}"
 
       if [[ ! "$input_port" =~ ^[0-9]+$ ]]; then
-        echo "Please enter a numeric port"
+        echo "Please enter a numeric port" >&2
         continue
       fi
 
       if port_in_use "$input_port"; then
-        echo "Port $input_port is already in use"
+        echo "Port $input_port is already in use" >&2
         continue
       fi
 
@@ -285,7 +285,7 @@ resolve_bind_port() {
 
   fallback_port="$(find_available_port "$@" || true)"
   if [[ -n "$fallback_port" ]]; then
-    log "$port_kind port $desired_port is busy, using $fallback_port"
+    log "$port_kind port $desired_port is busy, using $fallback_port" >&2
     printf '%s' "$fallback_port"
     return
   fi
