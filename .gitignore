@@ -33,4 +33,6 @@ Desktop.ini
 
 # Misc
 /.qodo/
+deploy/certs/*
+!deploy/certs/.gitkeep
 
