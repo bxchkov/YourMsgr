@@ -246,13 +246,15 @@ find_available_port() {
 
   for candidate in "$@"; do
     if ! port_in_use "$candidate"; then
-      printf '%s' "$candidate"
+      RESOLVED_PORT="$candidate"
       return 0
     fi
   done
 
   return 1
 }
+
+RESOLVED_PORT=""
 
 resolve_bind_port() {
   local port_kind="$1"
@@ -262,8 +264,10 @@ resolve_bind_port() {
   local fallback_port=""
   local input_port=""
 
+  RESOLVED_PORT=""
+
   if ! port_in_use "$desired_port"; then
-    printf '%s' "$desired_port"
+    RESOLVED_PORT="$desired_port"
     return
   fi
 
@@ -282,15 +286,17 @@ resolve_bind_port() {
         continue
       fi
 
-      printf '%s' "$input_port"
+      RESOLVED_PORT="$input_port"
       return
     done
   fi
 
-  fallback_port="$(find_available_port "$@" || true)"
+  if find_available_port "$@"; then
+    fallback_port="$RESOLVED_PORT"
+  fi
+
   if [[ -n "$fallback_port" ]]; then
     warn "$port_kind port $desired_port is busy, using $fallback_port"
-    printf '%s' "$fallback_port"
     return
   fi
 
@@ -403,8 +409,13 @@ write_compose_env() {
   postgres_user="${YOURMSGR_POSTGRES_USER:-$(read_env_value "$env_path" POSTGRES_USER "chat_user")}"
   postgres_db="${YOURMSGR_POSTGRES_DB:-$(read_env_value "$env_path" POSTGRES_DB "chat")}"
   restart_policy="${YOURMSGR_RESTART_POLICY:-$(read_env_value "$env_path" RESTART_POLICY "unless-stopped")}"
-  client_http_port="$(resolve_bind_port "HTTP" "${YOURMSGR_CLIENT_HTTP_PORT:-${existing_http_port:-80}}" "HTTP redirect port" 80 8080 8000 18080)"
-  client_https_port="$(resolve_bind_port "HTTPS" "${YOURMSGR_CLIENT_HTTPS_PORT:-${existing_https_port:-443}}" "HTTPS panel port" 443 8443 9443 10443)"
+
+  resolve_bind_port "HTTP" "${YOURMSGR_CLIENT_HTTP_PORT:-${existing_http_port:-80}}" "HTTP redirect port" 80 8080 8000 18080
+  client_http_port="$RESOLVED_PORT"
+
+  resolve_bind_port "HTTPS" "${YOURMSGR_CLIENT_HTTPS_PORT:-${existing_https_port:-443}}" "HTTPS panel port" 443 8443 9443 10443
+  client_https_port="$RESOLVED_PORT"
+
   public_url="$(build_public_url "$public_host" "$client_https_port")"
   tls_alt_names="$(build_tls_alt_names "$public_host" "$detected_ip")"
 
