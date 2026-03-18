@@ -75,10 +75,38 @@ install_docker_if_needed() {
   fi
 
   if command -v systemctl >/dev/null 2>&1; then
-    systemctl enable --now docker
+    if systemctl list-unit-files docker.socket >/dev/null 2>&1; then
+      systemctl unmask docker.socket >/dev/null 2>&1 || true
+      systemctl enable --now docker.socket
+    fi
+
+    systemctl unmask docker.service >/dev/null 2>&1 || true
+    systemctl enable docker.service >/dev/null 2>&1 || true
+    systemctl start docker.service >/dev/null 2>&1 || true
   fi
 
   docker compose version >/dev/null 2>&1 || fail "Docker Compose plugin is required"
+  wait_for_docker_daemon
+}
+
+wait_for_docker_daemon() {
+  local attempt
+
+  for attempt in $(seq 1 30); do
+    if docker info >/dev/null 2>&1; then
+      log "Docker daemon is ready"
+      return
+    fi
+
+    sleep 2
+  done
+
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl status docker --no-pager || true
+    systemctl status docker.socket --no-pager || true
+  fi
+
+  fail "Docker daemon did not become ready in time"
 }
 
 random_secret() {
