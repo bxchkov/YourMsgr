@@ -195,7 +195,7 @@ update_stack() {
 
   git -C "$INSTALL_DIR" fetch --all --tags
   git -C "$INSTALL_DIR" pull --ff-only
-  install_helper
+  install -m 0755 "$INSTALL_DIR/scripts/yourmsgr.sh" "$HELPER_TARGET"
   compose up -d --build
   show_version
 }
