@@ -158,6 +158,7 @@ read_env_value() {
 
   local value
   value="$(grep "^${key}=" "$env_path" | head -n 1 | cut -d '=' -f 2- || true)"
+  value="${value//$'\r'/}"
   printf '%s' "${value:-$default_value}"
 }
 
