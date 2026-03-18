@@ -18,6 +18,10 @@ log() {
   printf '[%s] %s\n' "$APP_NAME" "$1"
 }
 
+warn() {
+  printf '[%s] %s\n' "$APP_NAME" "$1" >&2
+}
+
 fail() {
   printf '[%s] ERROR: %s\n' "$APP_NAME" "$1" >&2
   exit 1
@@ -285,7 +289,7 @@ resolve_bind_port() {
 
   fallback_port="$(find_available_port "$@" || true)"
   if [[ -n "$fallback_port" ]]; then
-    log "$port_kind port $desired_port is busy, using $fallback_port" >&2
+    warn "$port_kind port $desired_port is busy, using $fallback_port"
     printf '%s' "$fallback_port"
     return
   fi
