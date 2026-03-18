@@ -1,0 +1,169 @@
+@use 'variables' as *;
+@use 'mixins' as *;
+
+@mixin render {
+  // ============================================
+  // BASE
+  // ============================================
+
+  body {
+    background-color: $color-bg-body;
+    color: $color-text-primary;
+    font-family: $font-primary;
+    font-size: $font-size-base;
+    height: 100vh;
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+  }
+
+  // ============================================
+  // Main Content Area & Header
+  // ============================================
+
+  .main-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .chat-header {
+    @include flex-between;
+    height: $header-height;
+    padding: 0 $spacing-4;
+    background-color: $color-bg-header;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+
+    &__info {
+      @include flex-column;
+      gap: $spacing-1;
+    }
+
+    &__title {
+      font-size: $font-size-lg;
+      font-weight: $font-weight-semibold;
+      color: $color-text-primary;
+    }
+
+    &__status {
+      font-size: $font-size-xs;
+      color: $color-text-tertiary;
+    }
+  }
+
+  // ============================================
+  // LAYOUT (Р‘Р­Рњ)
+  // ============================================
+
+  .container {
+    max-width: $max-width-lg;
+    margin: 0 auto;
+    padding: 0 $spacing-4;
+    width: 100%;
+  }
+
+  .app {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  // ============================================
+  // HEADER (Р‘Р­Рњ)
+  // ============================================
+
+  .header {
+    display: flex;
+    align-items: center;
+    gap: $spacing-3;
+    height: $header-height;
+    background-color: $color-bg-header;
+    backdrop-filter: none;
+    position: relative;
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100vw;
+      height: 100%;
+      background-color: $color-bg-header;
+      z-index: -1;
+    }
+
+    &__logo {
+      font-family: $font-display;
+      font-size: $font-size-xl;
+      font-weight: $font-weight-bold;
+      color: $color-text-primary;
+      text-decoration: none;
+      @include no-select;
+
+      &:hover {
+        color: $color-primary;
+      }
+    }
+
+    &__nav {
+      @include flex-center;
+      gap: $spacing-4;
+      flex: 1;
+      font-size: $font-size-lg;
+      font-weight: $font-weight-medium;
+      white-space: nowrap;
+    }
+
+    &__actions {
+      display: flex;
+      gap: $spacing-3;
+    }
+
+    &__button {
+      @include reset-button;
+      @include flex-center;
+      height: 32px;
+      padding: 0 $spacing-3;
+      font-size: $font-size-base;
+      font-weight: $font-weight-medium;
+      color: $color-text-primary;
+      border-radius: $radius-md;
+      transition: color $transition-slow, background-color $transition-slow;
+
+      &:hover {
+        color: $color-primary;
+        background-color: $color-primary-soft-dark;
+      }
+    }
+  }
+
+  // ============================================
+  // CHAT (Р‘Р­Рњ)
+  // ============================================
+
+  .chat {
+    flex: 1;
+    overflow: hidden;
+
+    &__wrapper {
+      height: 100%;
+      background-color: $color-bg-chat;
+      padding: 0 $spacing-5;
+      @include flex-column;
+    }
+
+    &__messages {
+      @include flex-column;
+      flex-direction: column-reverse;
+      flex: 1;
+      padding: $spacing-4 0;
+      gap: $spacing-2;
+      overflow-y: auto;
+      overflow-x: hidden;
+      @include scrollbar-custom;
+    }
+  }
+}
+

@@ -1,0 +1,365 @@
+@use 'variables' as *;
+@use 'mixins' as *;
+
+@mixin render {
+  :root {
+    --hover-filter-brightness: 1.1;
+    --hover-backdrop-brightness: 1.1;
+  }
+
+  :root.theme-switching,
+  :root.theme-switching *,
+  :root.theme-switching *::before,
+  :root.theme-switching *::after {
+    transition:
+      background 0.76s ease,
+      background-color 0.76s ease,
+      border-color 0.76s ease,
+      color 0.76s ease,
+      fill 0.76s ease,
+      stroke 0.76s ease,
+      opacity 0.76s ease,
+      box-shadow 0.76s ease,
+      filter 0.76s ease,
+      backdrop-filter 0.76s ease;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root.theme-switching,
+    :root.theme-switching *,
+    :root.theme-switching *::before,
+    :root.theme-switching *::after {
+      transition: none !important;
+    }
+  }
+
+  .chat-header {
+    &__actions {
+      display: flex;
+      align-items: center;
+      gap: $spacing-2;
+      margin-left: auto;
+    }
+
+    &__title {
+      color: #ffffff;
+    }
+
+    &__theme-toggle {
+      flex-shrink: 0;
+    }
+
+    &__theme-icon {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+  }
+
+  .chat-header .icon-button,
+  .sidebar__header .icon-button {
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  .modal .modal__close {
+    transition: color $transition-fast, filter $transition-fast;
+
+    &:hover:not(:disabled) {
+      filter: brightness(var(--hover-filter-brightness, 1.1));
+      backdrop-filter: none;
+    }
+  }
+
+  [data-theme='light'] {
+    --hover-filter-brightness: 0.95;
+    --hover-backdrop-brightness: 0.95;
+    color-scheme: light;
+
+    body,
+    .auth-screen,
+    .chat-screen,
+    .main-content {
+      background-color: #dde1e6;
+      color: #1b1d1f;
+    }
+
+    .chat__wrapper {
+      background-color: #f7f8fa;
+      color: #1b1d1f;
+    }
+
+    .chat-header {
+      background-color: $color-primary;
+      border-bottom-color: $color-border-light;
+    }
+
+    .sidebar {
+      background-color: #e4e7eb;
+      border-right-color: $color-border-light;
+
+      &__header {
+        background-color: $color-primary;
+        border-bottom-color: $color-border-light;
+      }
+
+      &__header-side {
+        background-color: $color-primary;
+        border-right-color: $color-border-light;
+      }
+
+      &__header-main {
+        background-color: $color-primary;
+      }
+
+      &__content,
+      &__chats {
+        background-color: #f7f8fa;
+      }
+
+      &__filters {
+        background-color: #e4e7eb;
+        border-right-color: $color-border-light;
+      }
+
+      &__filter {
+        color: #5a5f66;
+        border-bottom-color: $color-border-light;
+
+        &--active {
+          background-color: $color-primary-soft-strong-light;
+          color: $color-primary-dark;
+        }
+      }
+
+      &__footer {
+        background-color: #e4e7eb;
+        border-top-color: $color-border-light;
+      }
+
+      &__user-info {
+        background-color: #f7f8fa;
+        border-color: $color-border-light;
+      }
+
+      &__user-avatar {
+        background-color: $color-primary-soft-light;
+        color: $color-primary;
+      }
+
+      &__logout-button {
+        color: $color-error;
+      }
+
+      &__user-name {
+        color: #1b1d1f;
+      }
+
+      &__user-login,
+      &__app-info {
+        color: #6a7077;
+      }
+
+      &__resize-handle::before {
+        background-color: $color-primary-soft-strong-light;
+      }
+    }
+
+    .chat-item {
+      border-bottom-color: $color-border-light;
+
+      &--active {
+        background-color: $color-primary-soft-strong-light;
+      }
+
+      &__avatar {
+        background-color: $color-primary-soft-light;
+        color: $color-primary;
+      }
+
+      &__name {
+        color: #1b1d1f;
+      }
+
+      &__time,
+      &__message {
+        color: #666d75;
+      }
+    }
+
+    .message {
+      background-color: #dfe4ea;
+      color: #1b1d1f;
+
+      &__reply {
+        background-color: #e7ebf0;
+      }
+
+      &__reply-preview,
+      &__time,
+      &__encrypted,
+      &__time-fake,
+      &__encrypted-fake {
+        color: #666d75;
+        stroke: currentColor;
+      }
+
+      &--own {
+        background-color: $color-primary-soft-light;
+        color: #1b1d1f;
+
+        .message__reply {
+          background-color: $color-primary-wash-light;
+        }
+
+        .message__reply-author,
+        .message__username {
+          color: #1b1d1f;
+        }
+
+        .message__reply-preview,
+        .message__time,
+        .message__encrypted,
+        .message__time-fake,
+        .message__encrypted-fake {
+          color: #5b6168;
+          stroke: currentColor;
+        }
+      }
+    }
+
+    .chat-item--active .chat-item__avatar {
+      background-color: $color-primary;
+      color: #ffffff;
+    }
+
+    .message-input {
+      background-color: #e4e7eb;
+      border-top-color: $color-border-light;
+
+      &__reply {
+        border-color: $color-border-light;
+        background-color: #f7f8fa;
+      }
+
+      &__reply-text {
+        color: #666d75;
+      }
+
+      &__reply-close {
+        color: #666d75;
+      }
+
+      &__wrapper {
+        border-color: $color-border-light;
+        background-color: #f7f8fa;
+      }
+
+      &__field {
+        color: #1b1d1f;
+
+        &::placeholder {
+          color: #8a9098;
+        }
+      }
+    }
+
+    .chat__reply-highlight {
+      background-color: $color-primary-wash-light;
+    }
+
+    .modal-backdrop,
+    .modal__backdrop {
+      background-color: rgba(25, 28, 31, 0.18);
+    }
+
+    .modal__content {
+      background-color: #e7eaee;
+      color: #1b1d1f;
+      border-color: $color-border-light;
+      box-shadow: none;
+    }
+
+    .modal__header,
+    .modal__form,
+    .modal__footer {
+      background-color: #f7f8fa;
+      color: #1b1d1f;
+      border-color: transparent;
+    }
+
+    .modal__close {
+      color: #70767e;
+    }
+
+    .form {
+      &__label {
+        color: #202224;
+      }
+
+      &__input {
+        background-color: $color-ui-inactive-light;
+        border-color: $color-ui-inactive-light;
+        color: #1b1d1f;
+
+        &::placeholder {
+          color: #8a9098;
+        }
+
+        &:focus {
+          border-color: $color-primary;
+        }
+
+        &:disabled {
+          background-color: $color-ui-inactive-light;
+          border-color: $color-ui-inactive-light;
+          color: $color-ui-disabled-text-light;
+        }
+
+        &--error,
+        &--error:focus {
+          border-color: $color-error;
+        }
+      }
+
+      &__button {
+        background-color: $color-ui-inactive-light;
+        color: $color-ui-disabled-text-light;
+
+        &:disabled {
+          background-color: $color-ui-inactive-light;
+          color: $color-ui-disabled-text-light;
+        }
+
+        &--active {
+          background-color: $color-primary;
+          color: #ffffff;
+        }
+      }
+
+      &__link {
+        color: $color-primary-dark;
+      }
+    }
+
+    .context-menu {
+      background-color: #f7f8fa;
+      border-color: $color-border-light;
+
+      &__item {
+        color: #202224;
+
+        &--danger {
+          color: $color-error;
+        }
+      }
+    }
+  }
+
+  @include respond-to(sm) {
+    .chat-header__theme-toggle {
+      width: 40px;
+      height: 40px;
+      padding: 0;
+    }
+  }
+}

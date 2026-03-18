@@ -4,10 +4,11 @@ export interface TokenPayload {
   userId: number;
   userName: string;
   userRole: number;
+  login?: string;
 }
 
-export const generateTokens = (userId: number, userName: string, userRole: number = 1) => {
-  const payload: TokenPayload = { userId, userName, userRole };
+export const generateTokens = (userId: number, userName: string, userRole: number = 1, login?: string) => {
+  const payload: TokenPayload = { userId, userName, userRole, login };
 
   const accessToken = jwt.sign(payload, process.env.JWT_ACCESS_SECRET!, {
     expiresIn: "15m",
@@ -31,14 +32,6 @@ export const verifyAccessToken = (token: string): TokenPayload | null => {
 export const verifyRefreshToken = (token: string): TokenPayload | null => {
   try {
     return jwt.verify(token, process.env.JWT_REFRESH_SECRET!) as TokenPayload;
-  } catch {
-    return null;
-  }
-};
-
-export const decodeToken = (token: string): TokenPayload | null => {
-  try {
-    return jwt.decode(token) as TokenPayload;
   } catch {
     return null;
   }

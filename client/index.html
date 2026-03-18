@@ -1,0 +1,19 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Secure private messenger with end-to-end encryption">
+    <script>
+        const storedTheme = localStorage.getItem('yourmsgr-theme')
+        const initialTheme = storedTheme === 'light' ? 'light' : 'dark'
+        document.documentElement.dataset.theme = initialTheme
+        document.documentElement.style.colorScheme = initialTheme
+    </script>
+    <title>YourMsgr — Безопасный мессенджер</title>
+</head>
+<body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

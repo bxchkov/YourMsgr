@@ -1,0 +1,38 @@
+@use 'variables' as *;
+@use 'mixins' as *;
+
+@mixin render {
+  .auth-screen {
+    @include flex-center;
+    height: 100vh;
+    width: 100%;
+    position: relative;
+  }
+
+  .chat-screen {
+    height: 100vh;
+    width: 100%;
+    position: relative;
+  }
+
+  .chat-area-wrapper {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .mobile-menu-btn {
+    display: none;
+
+    @include respond-to(sm) {
+      display: flex;
+    }
+  }
+
+  .chat-header__info {
+    display: flex;
+    align-items: center;
+    gap: $spacing-3;
+  }
+}

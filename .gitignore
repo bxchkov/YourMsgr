@@ -1,27 +1,23 @@
-/.qodo/
-/node_modules/
-/.idea/
-
 # Dependencies
-server/node_modules/
-client/node_modules/
+node_modules/
+bun.lock
 bun.lockb
 package-lock.json
 yarn.lock
 
 # Environment
-server/.env
+.env
 .env.local
 .env.*.local
 
 # Build outputs
-client/dist/
 dist/
 build/
 *.log
 
 # IDE
 .vscode/
+.idea/
 *.swp
 *.swo
 *~
@@ -29,13 +25,12 @@ build/
 # OS
 .DS_Store
 Thumbs.db
-
-# Old files (deprecated)
-server.js
-config.js
-socket.io.min.js
+Desktop.ini
 
 # Database
-*.sql
 *.sqlite
 *.db
+
+# Misc
+/.qodo/
+

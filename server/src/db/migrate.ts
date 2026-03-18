@@ -14,6 +14,11 @@ const runMigrations = async () => {
 };
 
 runMigrations().catch((err) => {
-  console.error("Migration failed:", err);
-  process.exit(1);
+  // PostgreSQL error 42P07 = "relation already exists" — safe to ignore on re-runs
+  if (err?.code === "42P07" || (err?.message && err.message.includes("already exists"))) {
+    console.log("Migrations: objects already exist, skipping. Server will start normally.");
+  } else {
+    console.error("Migration failed:", err);
+    process.exit(1);
+  }
 });

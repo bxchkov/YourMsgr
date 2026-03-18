@@ -1,0 +1,67 @@
+import { useAuthStore } from '@/stores/auth'
+import { useChatStore } from '@/stores/chat'
+import { disconnectSocket } from '@/composables/useWebSocket'
+import { authService } from '@/services/auth'
+import router from '@/router'
+
+const API_BASE = window.location.origin
+const SESSION_ERROR_MESSAGES = new Set([
+    'Unauthorized',
+    'Invalid or expired token',
+    'Session expired',
+    'Token mismatch',
+    'Missing refresh token',
+    'Invalid refresh token',
+])
+const RETRYABLE_AUTH_MESSAGES = new Set([
+    'Unauthorized',
+    'Invalid or expired token',
+])
+
+export async function apiFetch(endpoint: string, options: RequestInit = {}, retry = true): Promise<any> {
+    const auth = useAuthStore()
+    const chatStore = useChatStore()
+    const headers: Record<string, string> = {
+        ...(options.headers as Record<string, string> || {}),
+    }
+
+    // Add auth token if available and not already set
+    if (auth.token && !headers.authorization && !headers.Authorization) {
+        headers.Authorization = `Bearer ${auth.token}`
+    }
+
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers,
+        credentials: 'include',
+    })
+
+    const data = await response.json()
+    const errorMessage = data.message || data.error || 'Request failed'
+
+    if (!response.ok) {
+        if (retry && response.status === 401 && RETRYABLE_AUTH_MESSAGES.has(errorMessage)) {
+            const refreshResponse = await authService.refreshTokens()
+            if (refreshResponse.success && refreshResponse.data?.accessToken) {
+                auth.setAuth(refreshResponse.data.accessToken)
+                return apiFetch(endpoint, options, false)
+            }
+        }
+
+        const shouldLogout = response.status === 401
+            || (response.status === 403 && SESSION_ERROR_MESSAGES.has(errorMessage))
+
+        if (shouldLogout) {
+            disconnectSocket()
+            chatStore.cleanup()
+            auth.logout()
+            if (router.currentRoute.value.name !== 'auth') {
+                void router.replace('/auth')
+            }
+        }
+
+        throw new Error(errorMessage)
+    }
+
+    return data
+}

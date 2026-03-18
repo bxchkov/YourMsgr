@@ -1,0 +1,212 @@
+import { ref } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import { useChatStore, type Message } from '@/stores/chat'
+import { authService } from '@/services/auth'
+import router from '@/router'
+
+let socket: WebSocket | null = null
+let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
+let isIntentionalClose = false
+const eventHandlers = new Map<string, (data: any) => void>()
+
+export const isConnected = ref(false)
+
+export function onSocketEvent(eventType: string, callback: (data: any) => void) {
+    eventHandlers.set(eventType, callback)
+}
+
+export function emitSocketEvent(eventType: string, data: Record<string, any>) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: eventType, ...data }))
+    }
+}
+
+export function initSocket() {
+    const auth = useAuthStore()
+    if (!auth.token) return null
+    if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+        return socket
+    }
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsUrl = `${protocol}//${window.location.host}/ws`
+    isIntentionalClose = false
+    socket = new WebSocket(wsUrl)
+
+    socket.onopen = () => {
+        console.log('WebSocket connected')
+        isConnected.value = true
+        if (reconnectTimeout) {
+            clearTimeout(reconnectTimeout)
+            reconnectTimeout = null
+        }
+    }
+
+    socket.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data)
+            const handler = eventHandlers.get(data.type)
+            if (handler) {
+                handler(data)
+            }
+        } catch (error) {
+            console.error('WebSocket message error:', error)
+        }
+    }
+
+    socket.onerror = (error) => {
+        console.error('WebSocket error:', error)
+    }
+
+    socket.onclose = () => {
+        console.log('WebSocket disconnected')
+        isConnected.value = false
+        socket = null
+
+        if (isIntentionalClose) {
+            isIntentionalClose = false
+            return
+        }
+
+        // Auto-reconnect after 3 seconds
+        const auth = useAuthStore()
+        reconnectTimeout = setTimeout(() => {
+            if (auth.token) {
+                initSocket()
+            }
+        }, 3000)
+    }
+
+    return socket
+}
+
+export function disconnectSocket() {
+    if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout)
+        reconnectTimeout = null
+    }
+    if (socket) {
+        isIntentionalClose = true
+        socket.close()
+        socket = null
+    }
+    isConnected.value = false
+}
+
+/**
+ * Setup standard WebSocket event handlers for chat functionality
+ */
+export function setupSocketHandlers() {
+    const chatStore = useChatStore()
+    const auth = useAuthStore()
+
+    onSocketEvent('load_messages', (data: { messages: Message[]; isPagination?: boolean; chatType?: 'group' | 'private' }) => {
+        if (data.chatType === 'private') {
+            if (data.isPagination) {
+                chatStore.appendPrivateMessages(data.messages)
+            } else {
+                chatStore.setPrivateMessages(data.messages)
+            }
+            return
+        }
+
+        const groupMsgs = data.messages.filter(
+            (msg: Message) => !msg.chatType || msg.chatType === 'group'
+        )
+
+        if (data.isPagination) {
+            chatStore.appendGroupMessages(groupMsgs)
+        } else {
+            chatStore.setGroupMessages(groupMsgs)
+        }
+    })
+
+    onSocketEvent('send_message', (msg: Message) => {
+        if (msg.senderPublicKey && Number(msg.userId) !== auth.userId) {
+            chatStore.setPublicKeys({
+                ...chatStore.publicKeys,
+                [msg.userId]: msg.senderPublicKey,
+            })
+
+            const privateChat = msg.chatId
+                ? chatStore.privateChats.find(chat => chat.chatId === msg.chatId)
+                : null
+
+            if (privateChat && !privateChat.otherUser.publicKey) {
+                privateChat.otherUser.publicKey = msg.senderPublicKey
+            }
+        }
+
+        chatStore.addMessage(msg)
+
+        // Update sidebar last message for private chats
+        if (msg.chatId && msg.chatType === 'private') {
+            chatStore.updateChatLastMessage(
+                msg.chatId,
+                msg.message,
+                msg.date,
+                msg.isEncrypted,
+                msg.nonce || undefined,
+                msg.senderPublicKey || undefined
+            )
+
+            // If this private chat doesn't exist in our list, add it
+            const exists = chatStore.privateChats.find(c => c.chatId === msg.chatId)
+            if (!exists && Number(msg.userId) !== auth.userId) {
+                chatStore.addPrivateChat({
+                    chatId: msg.chatId,
+                    otherUser: {
+                        id: msg.userId,
+                        username: msg.username,
+                        login: msg.username,
+                        publicKey: chatStore.publicKeys[msg.userId] || msg.senderPublicKey || null,
+                    },
+                    lastMessage: msg.message,
+                    lastMessageDate: msg.date,
+                    lastMessageNonce: msg.nonce || null,
+                    lastMessageIsEncrypted: msg.isEncrypted || 0,
+                    lastMessageSenderPublicKey: msg.senderPublicKey || null,
+                    createdAt: msg.date,
+                })
+            }
+        }
+    })
+
+    onSocketEvent('delete_message', (data: { id: number }) => {
+        chatStore.deleteMessage(data.id)
+    })
+
+    onSocketEvent('check_session', async () => {
+        const result = await authService.checkSession()
+        if (result.success) {
+            // Session restored with new tokens
+            if (result.data?.accessToken) {
+                auth.setAuth(result.data.accessToken)
+            }
+        } else {
+            disconnectSocket()
+            chatStore.cleanup()
+            auth.logout()
+            if (router.currentRoute.value.name !== 'auth') {
+                void router.replace('/auth')
+            }
+        }
+    })
+
+    onSocketEvent('refresh_tokens', async () => {
+        const result = await authService.refreshTokens()
+        if (result.success && result.data?.accessToken) {
+            auth.setAuth(result.data.accessToken)
+        }
+    })
+
+    onSocketEvent('client_logout', async () => {
+        await authService.logout()
+        disconnectSocket()
+        chatStore.cleanup()
+        auth.logout()
+        if (router.currentRoute.value.name !== 'auth') {
+            void router.replace('/auth')
+        }
+    })
+}

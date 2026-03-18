@@ -11,7 +11,7 @@
 }
 
 a {
-  color: #000;
+  color: inherit;
 }
 
 a, a:link, a:visited {
@@ -20,7 +20,7 @@ a, a:link, a:visited {
 
 a:hover {
   text-decoration: none;
-  color: initial;
+  color: inherit;
 }
 
 aside, nav, footer, header, section, main {

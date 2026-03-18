@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1769121807674,
+      "tag": "0000_wandering_absorbing_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1769121832066,
+      "tag": "0001_far_the_watchers",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773053732585,
+      "tag": "0002_bitter_ink",
+      "breakpoints": true
+    }
+  ]
+}

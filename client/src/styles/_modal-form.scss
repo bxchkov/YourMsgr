@@ -1,0 +1,304 @@
+@use 'variables' as *;
+@use 'mixins' as *;
+
+@mixin render {
+  .modal-backdrop {
+    @include full-screen-overlay;
+    position: fixed;
+    z-index: $z-auth-modal-backdrop;
+    background-color: $color-overlay;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .modal {
+    @include full-screen-overlay;
+    @include flex-center;
+    position: fixed;
+    z-index: $z-modal-backdrop;
+    pointer-events: auto;
+
+    &--auth {
+      background-color: transparent;
+      z-index: $z-auth-modal;
+
+      .modal__content {
+        background-color: $color-bg-body;
+      }
+
+      .modal__header,
+      .modal__form,
+      .modal__footer {
+        background-color: $color-bg-chat;
+      }
+
+      .form__input {
+        background-color: $color-bg-message;
+        border-color: $color-bg-message;
+
+        &:focus {
+          border-color: $color-primary;
+        }
+
+        &--error,
+        &--error:focus {
+          border-color: $color-error;
+        }
+      }
+    }
+
+    &--settings {
+      z-index: $z-modal;
+    }
+
+    &__backdrop {
+      @include full-screen-overlay;
+      background-color: $color-overlay;
+      opacity: 1;
+    }
+
+    &__content {
+      @include flex-column;
+      position: relative;
+      z-index: $z-modal;
+      width: 350px;
+      max-width: 90vw;
+      background-color: $color-bg-header;
+      border: none;
+      border-radius: $radius-lg;
+      padding: $spacing-4;
+      gap: $spacing-3;
+
+      &--settings {
+        width: 380px;
+      }
+    }
+
+    &__header {
+      font-family: $font-display;
+      font-size: $font-size-3xl;
+      font-weight: $font-weight-semibold;
+      text-align: center;
+      @include no-select;
+      background-color: $color-bg-content;
+      border: none;
+      border-radius: $radius-md;
+      padding: $spacing-3;
+    }
+
+    &__form {
+      @include flex-column;
+      background-color: $color-bg-content;
+      border: none;
+      border-radius: $radius-md;
+      padding: $spacing-3;
+      gap: 0;
+    }
+
+    &__footer {
+      @include flex-between;
+      gap: $spacing-2;
+      background-color: $color-bg-content;
+      border: none;
+      border-radius: $radius-md;
+      padding: $spacing-3;
+      @include no-select;
+
+      &--actions,
+      &--single-action {
+        justify-content: stretch;
+      }
+    }
+
+    &__close {
+      position: absolute;
+      top: $spacing-3;
+      right: $spacing-3;
+      color: $color-text-muted;
+      transition: color $transition-fast, filter $transition-fast;
+
+      &:hover:not(:disabled) {
+        filter: brightness(var(--hover-filter-brightness, 1.1));
+        backdrop-filter: none;
+      }
+
+      svg {
+        width: 24px;
+        height: 24px;
+        fill: currentColor;
+      }
+    }
+
+    &__app-info {
+      @include flex-between;
+      padding: 0 $spacing-1;
+      font-size: $font-size-xs;
+      color: $color-text-muted;
+    }
+
+    &__app-name {
+      font-weight: $font-weight-semibold;
+    }
+
+    &__app-version {
+      font-family: $font-mono;
+    }
+  }
+
+  .modal-fade-enter-active,
+  .modal-fade-leave-active,
+  .modal-swap-enter-active,
+  .modal-swap-leave-active {
+    transition: opacity $transition-slow, transform $transition-slow;
+  }
+
+  .modal-fade-enter-from,
+  .modal-fade-leave-to,
+  .modal-swap-enter-from,
+  .modal-swap-leave-to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+
+  .form {
+    &--settings {
+      gap: 0;
+    }
+
+    &__label {
+      @include no-select;
+      display: block;
+      cursor: pointer;
+      margin: 0 0 0.5rem;
+      font-size: $font-size-base;
+      font-weight: $font-weight-medium;
+      color: $color-text-primary;
+
+      &--footer {
+        margin-bottom: 0;
+        font-size: $font-size-base;
+      }
+    }
+
+    &__input {
+      @include reset-input;
+      width: 100%;
+      height: 40px;
+      padding: $spacing-3;
+      margin-bottom: 0.75rem;
+      background-color: $color-bg-field;
+      color: $color-text-primary;
+      border: 1px solid $color-border-dark;
+      border-radius: $radius-sm;
+      font-size: $font-size-base;
+      transition: border-color $transition-fast, color $transition-fast;
+
+      &::placeholder {
+        color: $color-text-muted;
+      }
+
+      &:focus {
+        border-color: $color-primary;
+      }
+
+      &:disabled {
+        background-color: $color-ui-inactive-dark;
+        border-color: $color-ui-inactive-dark;
+        color: $color-ui-disabled-text-dark;
+        cursor: not-allowed;
+      }
+
+      &--error {
+        border-color: $color-error;
+      }
+
+      &--error:focus {
+        border-color: $color-error;
+      }
+    }
+
+    &__button {
+      @include reset-button;
+      width: 100%;
+      height: 40px;
+      margin-top: 0;
+      border-radius: $radius-sm;
+      font-size: $font-size-2xl;
+      font-weight: $font-weight-semibold;
+      background-color: $color-ui-inactive-dark;
+      color: $color-ui-disabled-text-dark;
+      cursor: not-allowed;
+      transition:
+        background-color $transition-fast,
+        color $transition-fast,
+        filter $transition-fast;
+
+      &:disabled {
+        background-color: $color-ui-inactive-dark;
+        color: $color-ui-disabled-text-dark;
+      }
+
+      &--active {
+        cursor: pointer;
+        background-color: $color-primary;
+        color: #ffffff;
+
+        &:hover:not(:disabled) {
+          filter: brightness(var(--hover-filter-brightness, 1.1));
+        }
+      }
+
+      &--full {
+        width: 100%;
+      }
+
+      &--compact {
+        font-size: $font-size-xl;
+      }
+    }
+
+    &__response-shell {
+      display: grid;
+      grid-template-rows: 0fr;
+      margin: 0;
+      transition: grid-template-rows $transition-slow, margin-top $transition-slow;
+
+      &--active {
+        grid-template-rows: 1fr;
+        margin-top: 0.75rem;
+      }
+    }
+
+    &__response {
+      min-height: 0;
+      overflow: hidden;
+      opacity: 0;
+      transform: translateY(-4px);
+      font-size: $font-size-sm;
+      line-height: 1.35;
+      @include no-select;
+      transition: opacity $transition-slow, transform $transition-slow;
+
+      &--active {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      &--error {
+        color: $color-error;
+      }
+
+      &--success {
+        color: $color-success;
+      }
+    }
+
+    &__link {
+      @include reset-button;
+      font-size: $font-size-base;
+      font-weight: $font-weight-medium;
+      color: $color-primary-dark;
+      @include hover-brightness;
+    }
+  }
+}

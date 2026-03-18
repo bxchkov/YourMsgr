@@ -15,21 +15,32 @@ export const rateLimiter = (options: {
   max: number;
   message?: string;
 }) => {
-  const { windowMs, max, message = "Too many requests" } = options;
+  const { windowMs, max, message = "Слишком много запросов" } = options;
 
   return async (c: Context, next: Next) => {
-    const ip = c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown";
+    if (
+      c.req.path === "/auth/session"
+      || c.req.path === "/auth/refresh"
+      || c.req.path === "/healthz"
+    ) {
+      await next();
+      return;
+    }
+
+    const forwardedFor = c.req.header("x-forwarded-for")?.split(",")[0]?.trim();
+    const ip = forwardedFor || c.req.header("x-real-ip") || "unknown";
+    const key = `${ip}:${c.req.method}:${c.req.path}`;
     const now = Date.now();
 
-    if (!store[ip]) {
-      store[ip] = { count: 1, resetTime: now + windowMs };
+    if (!store[key]) {
+      store[key] = { count: 1, resetTime: now + windowMs };
     } else {
-      if (now > store[ip].resetTime) {
-        store[ip] = { count: 1, resetTime: now + windowMs };
+      if (now > store[key].resetTime) {
+        store[key] = { count: 1, resetTime: now + windowMs };
       } else {
-        store[ip].count++;
+        store[key].count++;
 
-        if (store[ip].count > max) {
+        if (store[key].count > max) {
           return sendError(c, 429, message);
         }
       }

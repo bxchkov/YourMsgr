@@ -1,0 +1,159 @@
+// ============================================
+// ЦВЕТОВАЯ ПАЛИТРА (текущая оранжевая)
+// ============================================
+
+// Основные цвета (оранжевый акцент из текущего дизайна)
+$color-primary: #ee9d08;        // orange
+$color-primary-hover: #f4b02a;  // Lighter hover
+$color-primary-dark: #cf8700;   // Darker active
+$color-primary-light: #ee9d08;  // Accent background
+$color-primary-muted: #ffd27a;  // Muted accent text
+
+// Вариации прозрачности (непрозрачные готовые цвета)
+$color-primary-wash-dark: #5a4311;
+$color-primary-soft-dark: #7b560f;
+$color-primary-soft-hover-dark: #8e6511;
+$color-primary-soft-strong-dark: #5a4311;
+$color-primary-wash-light: #fff6e2;
+$color-primary-soft-light: #f0dfb5;
+$color-primary-soft-hover-light: #e8d3a1;
+$color-primary-soft-strong-light: #e3c884;
+
+// Фон (из текущего дизайна)
+$color-bg-modal: #252020;       // Modal window
+$color-bg-header: #252020;      // Header
+$color-bg-chat: #252020;        // Chat wrapper
+$color-bg-body: #1c1818;        // Body / outer surfaces
+$color-bg-content: #312727;     // Inner panels / cards
+$color-bg-input-area: #1c1818;  // Message input area / outer footer
+$color-bg-message: #403333;     // Message bubbles
+$color-bg-field: #312727;       // Input/textarea fields
+
+// Текст
+$color-text-primary: #ffffff;   // Белый
+$color-text-secondary: #ddd1d1; // Secondary text
+$color-text-tertiary: #b9aaaa;  // Tertiary text
+$color-text-muted: #857474;     // Muted text
+
+// Состояния
+$color-error: #ff0707;          // Ошибки
+$color-success: #10B981;        // Успех
+$color-warning: #F59E0B;        // Предупреждение
+
+// Дополнительные
+$color-border: rgba(255, 255, 255, 0.25);
+$color-border-hover: rgba(255, 255, 255, 0.3);
+$color-overlay: rgba(0, 0, 0, 0.2);
+$color-border-dark: #4a3c3c;
+$color-border-light: #c9cfd7;
+$color-ui-inactive-dark: #3b2f2f;
+$color-ui-inactive-light: #e9e9e9;
+$color-ui-disabled-text-dark: #8f7e7e;
+$color-ui-disabled-text-light: #8d949c;
+
+// ============================================
+// ТИПОГРАФИКА
+// ============================================
+
+// Шрифты
+$font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+$font-display: 'Space Grotesk', 'Inter', sans-serif;
+$font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+// Размеры шрифтов
+$font-size-xs: 0.75rem;    // 12px
+$font-size-sm: 0.875rem;   // 14px
+$font-size-base: 1rem;     // 16px
+$font-size-lg: 1.125rem;   // 18px
+$font-size-xl: 1.25rem;    // 20px
+$font-size-2xl: 1.5rem;    // 24px
+$font-size-3xl: 1.875rem;  // 30px
+$font-size-4xl: 2.25rem;   // 36px
+
+// Веса шрифтов
+$font-weight-normal: 400;
+$font-weight-medium: 500;
+$font-weight-semibold: 600;
+$font-weight-bold: 700;
+
+// Высота строки
+$line-height-tight: 1.25;
+$line-height-normal: 1.5;
+$line-height-relaxed: 1.75;
+
+// ============================================
+// РАЗМЕРЫ И ОТСТУПЫ
+// ============================================
+
+$spacing-1: 0.25rem;   // 4px
+$spacing-2: 0.5rem;    // 8px
+$spacing-3: 0.75rem;   // 12px
+$spacing-4: 1rem;      // 16px
+$spacing-5: 1.25rem;   // 20px
+$spacing-6: 1.5rem;    // 24px
+$spacing-8: 2rem;      // 32px
+$spacing-10: 2.5rem;   // 40px
+$spacing-12: 3rem;     // 48px
+
+// ============================================
+// РАДИУСЫ
+// ============================================
+
+$radius-sm: 0.375rem;  // 6px
+$radius-md: 0.5rem;    // 8px
+$radius-lg: 0.75rem;   // 12px
+$radius-xl: 1rem;      // 16px
+$radius-full: 9999px;  // Полный круг
+
+// ============================================
+// ТЕНИ
+// ============================================
+
+$shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+$shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+$shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+$shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+$shadow-glow: 0 0 20px rgba($color-primary, 0.3);
+
+// ============================================
+// ПЕРЕХОДЫ
+// ============================================
+
+$transition-fast: 0.1s ease;
+$transition-base: 0.15s ease;
+$transition-slow: 0.2s ease;
+
+// ============================================
+// Z-INDEX
+// ============================================
+
+$z-base: 1;
+$z-dropdown: 10;
+$z-sticky: 20;
+$z-modal-backdrop: 40;
+$z-modal: 50;
+$z-tooltip: 60;
+$z-auth-modal-backdrop: 70;
+$z-auth-modal: 80;
+
+// ============================================
+// BREAKPOINTS
+// ============================================
+
+$breakpoint-xs: 475px;
+$breakpoint-sm: 640px;
+$breakpoint-md: 768px;
+$breakpoint-lg: 1024px;
+$breakpoint-xl: 1280px;
+
+// ============================================
+// LAYOUT
+// ============================================
+
+$max-width-sm: 640px;
+$max-width-md: 768px;
+$max-width-lg: 1024px;
+$max-width-xl: 1280px;
+
+$header-height: 60px;
+$input-height: 56px;

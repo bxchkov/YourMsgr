@@ -1,0 +1,281 @@
+@use 'variables' as *;
+@use 'mixins' as *;
+
+@mixin render {
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    width: 420px;
+    height: 100vh;
+    background-color: $color-bg-body;
+    border-right: 1px solid $color-border-dark;
+    flex-shrink: 0;
+
+    @include respond-to(md) {
+      width: 320px;
+    }
+
+    @include respond-to(sm) {
+      position: fixed;
+      left: 0;
+      top: 0;
+      z-index: $z-sticky;
+      transform: translateX(-100%);
+      transition: transform $transition-base;
+
+      &--open {
+        transform: translateX(0);
+      }
+    }
+
+    &__header {
+      display: flex;
+      height: $header-height;
+      background-color: $color-primary;
+      border-bottom: 1px solid $color-border-dark;
+    }
+
+    &__header-side {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 80px;
+      background-color: $color-primary;
+      border-right: 1px solid $color-border-dark;
+      flex-shrink: 0;
+    }
+
+    &__header-main {
+      flex: 1;
+      min-width: 0;
+      background-color: $color-primary;
+    }
+
+    &__menu-button,
+    &__settings-button {
+      color: rgba(255, 255, 255, 0.88);
+      @include hover-brightness;
+    }
+
+    &__content {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    &__filters {
+      @include flex-column;
+      width: 80px;
+      background-color: $color-bg-body;
+      border-right: 1px solid $color-border-dark;
+      flex-shrink: 0;
+    }
+
+    &__filter {
+      @include reset-button;
+      @include flex-column;
+      @include flex-center;
+      height: 70px;
+      gap: $spacing-1;
+      color: $color-text-tertiary;
+      font-size: $font-size-xs;
+      font-weight: $font-weight-medium;
+      background-color: transparent;
+      border-bottom: 1px solid $color-border-dark;
+      position: relative;
+      @include hover-brightness;
+
+      svg {
+        width: 24px;
+        height: 24px;
+        stroke-width: 2;
+      }
+
+      span {
+        text-align: center;
+        line-height: 1.2;
+      }
+
+      &--active {
+        color: $color-primary;
+        background-color: $color-primary-soft-strong-dark;
+      }
+    }
+
+    &__chats {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow: hidden;
+      background-color: $color-bg-chat;
+    }
+
+    &__chats-list {
+      flex: 1;
+      overflow-y: auto;
+      @include scrollbar-custom;
+    }
+
+    &__footer {
+      @include flex-column;
+      justify-content: center;
+      min-height: calc(#{$input-height} + #{$spacing-3} + #{$spacing-4});
+      padding: $spacing-3 $spacing-4 14px;
+      border-top: 1px solid $color-border-dark;
+      background-color: $color-bg-input-area;
+    }
+
+    &__user-info {
+      display: flex;
+      gap: $spacing-3;
+      align-items: center;
+      padding: $spacing-2;
+      border-radius: $radius-md;
+      background-color: $color-bg-content;
+      border: 1px solid $color-border-dark;
+    }
+
+    &__user-avatar {
+      @include flex-center;
+      width: 40px;
+      height: 40px;
+      border-radius: $radius-full;
+      background-color: $color-primary-soft-dark;
+      color: $color-primary;
+      flex-shrink: 0;
+
+      svg {
+        width: 20px;
+        height: 20px;
+        stroke-width: 2;
+      }
+    }
+
+    &__user-details {
+      @include flex-column;
+      gap: $spacing-1;
+      flex: 1;
+      min-width: 0;
+    }
+
+    &__logout-button {
+      width: 36px;
+      height: 36px;
+      margin-left: auto;
+      flex-shrink: 0;
+      background-color: transparent;
+      border: none;
+      color: $color-error;
+      @include hover-brightness;
+
+      svg {
+        width: 18px;
+        height: 18px;
+        stroke: currentColor;
+      }
+    }
+
+    &__user-name {
+      font-size: $font-size-sm;
+      font-weight: $font-weight-semibold;
+      color: $color-text-primary;
+      @include text-ellipsis;
+    }
+
+    &__user-login {
+      font-size: $font-size-xs;
+      color: $color-text-tertiary;
+      @include text-ellipsis;
+    }
+
+  }
+
+  @include respond-to(sm) {
+    .sidebar__footer {
+      min-height: calc(#{$input-height} + #{$spacing-2} + #{$spacing-3});
+      padding: $spacing-2 $spacing-4 10px;
+    }
+  }
+
+  .chat-item {
+    @include flex-center;
+    gap: $spacing-3;
+    padding: 0 $spacing-4;
+    height: 70px;
+    cursor: pointer;
+    background-color: transparent;
+    border-bottom: 1px solid $color-border-dark;
+    @include hover-brightness;
+
+    &--active {
+      background-color: $color-primary-soft-strong-dark;
+    }
+
+    &__avatar {
+      @include flex-center;
+      width: 48px;
+      height: 48px;
+      border-radius: $radius-full;
+      background-color: $color-primary-soft-dark;
+      color: $color-primary;
+      flex-shrink: 0;
+
+      svg {
+        width: 24px;
+        height: 24px;
+      }
+    }
+
+    &__content {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: $spacing-1;
+    }
+
+    &__header {
+      @include flex-between;
+      gap: $spacing-2;
+    }
+
+    &__name {
+      font-weight: $font-weight-semibold;
+      font-size: $font-size-base;
+      color: $color-text-primary;
+      @include text-ellipsis;
+    }
+
+    &__time {
+      font-size: $font-size-xs;
+      color: $color-text-tertiary;
+      flex-shrink: 0;
+    }
+
+    &__preview {
+      display: flex;
+      gap: $spacing-2;
+    }
+
+    &__message {
+      font-size: $font-size-sm;
+      color: $color-text-tertiary;
+      @include text-ellipsis;
+    }
+
+    &__unread {
+      @include flex-center;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 6px;
+      background-color: $color-primary;
+      color: #ffffff;
+      font-size: $font-size-xs;
+      font-weight: $font-weight-bold;
+      border-radius: $radius-full;
+      flex-shrink: 0;
+    }
+  }
+}
