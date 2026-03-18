@@ -59,7 +59,6 @@ yourmsgr health
 yourmsgr logs
 yourmsgr restart
 yourmsgr update
-yourmsgr backup
 yourmsgr shell
 yourmsgr admin stats
 yourmsgr uninstall
@@ -84,6 +83,6 @@ yourmsgr update
 
 Поведение:
 
-- `yourmsgr update` по умолчанию делает backup, затем выполняет `git pull` и `docker compose up -d --build`;
-- `yourmsgr uninstall` удаляет проект, но сохраняет Docker volume с данными;
-- `yourmsgr uninstall-purge` удаляет проект полностью вместе с volume и backup-файлами.
+- `yourmsgr update` выполняет `git pull` и `docker compose up -d --build`;
+- `yourmsgr uninstall` удаляет проект полностью: stack, Docker volume, каталог установки и helper;
+- `yourmsgr uninstall-purge` оставлен как совместимый алиас и ведёт себя так же, как `yourmsgr uninstall`.

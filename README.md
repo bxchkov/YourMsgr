@@ -29,7 +29,6 @@ yourmsgr status
 yourmsgr health
 yourmsgr logs
 yourmsgr restart
-yourmsgr backup
 yourmsgr update
 yourmsgr admin stats
 yourmsgr admin users:list
@@ -133,9 +132,9 @@ bun run admin users:delete <login>
 ## Как тестировать правки на сервере
 
 - Для обычного цикла доработок не нужно удалять проект и ставить его заново. Нормальный путь теперь такой: правки в GitHub -> `yourmsgr check-update` -> `yourmsgr update`.
-- `yourmsgr update` перед обновлением автоматически делает backup, затем подтягивает код и пересобирает стек.
-- `yourmsgr uninstall` удаляет проект и helper, но по умолчанию оставляет Docker volume с данными.
-- `yourmsgr uninstall-purge` удаляет проект полностью вместе с volume и backup-файлами.
+- `yourmsgr update` подтягивает код и пересобирает стек через `docker compose up -d --build`.
+- `yourmsgr uninstall` удаляет проект полностью: stack, Docker volume, каталог установки и helper.
+- `yourmsgr uninstall-purge` оставлен как совместимый алиас и ведёт себя так же, как `yourmsgr uninstall`.
 
 ## Технологии
 

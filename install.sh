@@ -358,7 +358,6 @@ print_summary() {
   echo "  yourmsgr health"
   echo "  yourmsgr logs"
   echo "  yourmsgr update"
-  echo "  yourmsgr backup"
   echo "  yourmsgr admin stats"
   echo "  yourmsgr admin users:list"
 }

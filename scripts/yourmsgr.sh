@@ -5,11 +5,32 @@ set -euo pipefail
 INSTALL_DIR="${YOURMSGR_INSTALL_DIR:-/opt/yourmsgr}"
 PROJECT_NAME="yourmsgr"
 HELPER_TARGET="/usr/local/bin/yourmsgr"
-BACKUP_DIR="${YOURMSGR_BACKUP_DIR:-$INSTALL_DIR/backups}"
 
 if [[ ! -d "$INSTALL_DIR" ]]; then
   echo "Install directory '$INSTALL_DIR' not found"
   exit 1
+fi
+
+if [[ -t 1 ]]; then
+  COLOR_RESET=$'\033[0m'
+  COLOR_ACCENT=$'\033[38;5;201m'
+  COLOR_TITLE=$'\033[38;5;220m'
+  COLOR_INFO=$'\033[38;5;45m'
+  COLOR_OK=$'\033[38;5;46m'
+  COLOR_WARN=$'\033[38;5;214m'
+  COLOR_ERROR=$'\033[38;5;196m'
+  COLOR_DIM=$'\033[38;5;250m'
+  COLOR_HIGHLIGHT=$'\033[1m'
+else
+  COLOR_RESET=""
+  COLOR_ACCENT=""
+  COLOR_TITLE=""
+  COLOR_INFO=""
+  COLOR_OK=""
+  COLOR_WARN=""
+  COLOR_ERROR=""
+  COLOR_DIM=""
+  COLOR_HIGHLIGHT=""
 fi
 
 load_env() {
@@ -92,46 +113,272 @@ Commands:
   restart [service]
   logs [service]
   update
-  backup
   shell [service]
   admin <command> [args]
   uninstall
-  uninstall-purge
 EOF
+}
+
+clear_screen() {
+  if [[ -t 1 ]] && command -v clear >/dev/null 2>&1; then
+    clear
+  fi
+}
+
+draw_line() {
+  printf "%s%s%s\n" "$COLOR_ACCENT" "------------------------------------------------------------" "$COLOR_RESET"
+}
+
+draw_section() {
+  local title="$1"
+  draw_line
+  printf "%s* %s *%s\n" "$COLOR_TITLE" "$title" "$COLOR_RESET"
+  draw_line
+}
+
+format_value() {
+  local color="$1"
+  local value="$2"
+  printf "%s%s%s" "$color" "$value" "$COLOR_RESET"
+}
+
+detect_os() {
+  if [[ -r /etc/os-release ]]; then
+    # shellcheck disable=SC1091
+    source /etc/os-release
+    printf '%s' "${PRETTY_NAME:-${NAME:-unknown}}"
+    return
+  fi
+
+  uname -s
+}
+
+detect_arch() {
+  uname -m
+}
+
+detect_ip() {
+  hostname -I 2>/dev/null | awk '{print $1}' || echo "unknown"
+}
+
+detect_cpu_usage() {
+  top -bn1 2>/dev/null | awk -F'[, ]+' '/^%?Cpu/ {
+    for (i = 1; i <= NF; i++) {
+      if ($i == "id" && (i - 1) >= 1) {
+        printf "%.1f%%", 100 - $(i - 1)
+        exit
+      }
+    }
+  }'
+}
+
+detect_ram_usage() {
+  free 2>/dev/null | awk '/Mem:/ { printf "%.1f%%", ($3 / $2) * 100 }'
+}
+
+container_state() {
+  local service="$1"
+  local name="${PROJECT_NAME}-${service}-1"
+  local status health
+
+  if ! docker inspect "$name" >/dev/null 2>&1; then
+    echo "inactive"
+    return
+  fi
+
+  status="$(docker inspect -f '{{.State.Status}}' "$name" 2>/dev/null || echo "unknown")"
+  health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$name" 2>/dev/null || true)"
+
+  case "$status:$health" in
+    running:healthy|running:)
+      echo "active"
+      ;;
+    running:starting|created:*)
+      echo "starting"
+      ;;
+    running:unhealthy|restarting:*|exited:*|dead:*|unknown:*)
+      echo "error"
+      ;;
+    *)
+      echo "inactive"
+      ;;
+  esac
+}
+
+systemd_service_state() {
+  local service="$1"
+
+  if ! command -v systemctl >/dev/null 2>&1; then
+    echo "unknown"
+    return
+  fi
+
+  if systemctl is-active --quiet "$service"; then
+    echo "active"
+  else
+    echo "inactive"
+  fi
+}
+
+render_state() {
+  local state="$1"
+
+  case "$state" in
+    active)
+      format_value "$COLOR_OK" "Active"
+      ;;
+    starting)
+      format_value "$COLOR_WARN" "Starting"
+      ;;
+    error)
+      format_value "$COLOR_ERROR" "Error"
+      ;;
+    inactive)
+      format_value "$COLOR_ERROR" "Inactive"
+      ;;
+    *)
+      format_value "$COLOR_DIM" "$state"
+      ;;
+  esac
+}
+
+print_system_overview() {
+  local os arch ip cpu ram
+
+  os="$(detect_os)"
+  arch="$(detect_arch)"
+  ip="$(detect_ip)"
+  cpu="$(detect_cpu_usage)"
+  ram="$(detect_ram_usage)"
+
+  draw_section "System Overview"
+  printf "%sOS:%s   %s\n" "$COLOR_OK" "$COLOR_RESET" "$os"
+  printf "%sARCH:%s %s\n" "$COLOR_OK" "$COLOR_RESET" "$arch"
+  printf "%sIP:%s   %s\n" "$COLOR_OK" "$COLOR_RESET" "$ip"
+  printf "%sCPU:%s  %s\n" "$COLOR_OK" "$COLOR_RESET" "${cpu:-unknown}"
+  printf "%sRAM:%s  %s\n" "$COLOR_OK" "$COLOR_RESET" "${ram:-unknown}"
+  echo
+  printf "%sVersion:%s %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(current_version)"
+  printf "%sBranch:%s  %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(current_branch)"
+  printf "%sCommit:%s  %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(current_commit)"
+}
+
+print_service_overview() {
+  draw_section "Services Status"
+  printf "Docker:   %s\n" "$(render_state "$(systemd_service_state docker.service)")"
+  printf "Client:   %s\n" "$(render_state "$(container_state client)")"
+  printf "Server:   %s\n" "$(render_state "$(container_state server)")"
+  printf "Postgres: %s\n" "$(render_state "$(container_state postgres)")"
+}
+
+pause_any_key() {
+  if [[ ! -t 0 || ! -t 1 ]]; then
+    return
+  fi
+
+  echo
+  printf "%s>%s Press any key to return..." "$COLOR_TITLE" "$COLOR_RESET"
+  IFS= read -rsn1 _ || true
+  echo
+}
+
+confirm_action() {
+  local prompt="$1"
+  local answer=""
+
+  if [[ ! -t 0 || ! -t 1 ]]; then
+    return 0
+  fi
+
+  printf "%s>%s %s [y/N]: " "$COLOR_TITLE" "$COLOR_RESET" "$prompt"
+  IFS= read -rsn1 answer || true
+  echo
+
+  [[ "$answer" == "y" || "$answer" == "Y" ]]
 }
 
 show_menu() {
   while true; do
-    cat <<'EOF'
+    clear_screen
+    print_system_overview
+    echo
+    print_service_overview
+    echo
+    draw_section "Main Menu"
+    printf "%s[1]%s Status\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[2]%s Health\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[3]%s Logs\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[4]%s Check update\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[5]%s Update\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[6]%s Admin stats\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[7]%s Users list\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[8]%s Server shell\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[9]%s Uninstall\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[0]%s Exit\n" "$COLOR_INFO" "$COLOR_RESET"
+    echo
+    printf "%s>%s Press a digit: " "$COLOR_TITLE" "$COLOR_RESET"
 
-YourMsgr menu
-  1) Status
-  2) Health
-  3) Logs
-  4) Check update
-  5) Update
-  6) Backup
-  7) Admin stats
-  8) Users list
-  9) Shell
- 10) Uninstall
-  0) Exit
-EOF
-    read -r -p "Choose an action: " choice
+    local choice=""
+    IFS= read -rsn1 choice || true
+    echo
 
     case "$choice" in
-      1) show_status ;;
-      2) show_health ;;
-      3) show_logs ;;
-      4) check_update ;;
-      5) update_stack ;;
-      6) create_backup ;;
-      7) compose exec server bun src/cli/admin.ts stats ;;
-      8) compose exec server bun src/cli/admin.ts users:list ;;
-      9) open_shell "server" ;;
-      10) uninstall_stack ;;
-      0) exit 0 ;;
-      *) echo "Unknown option" ;;
+      1)
+        clear_screen
+        draw_section "Status"
+        show_status
+        pause_any_key
+        ;;
+      2)
+        clear_screen
+        draw_section "Health"
+        show_health
+        pause_any_key
+        ;;
+      3)
+        clear_screen
+        draw_section "Logs"
+        show_logs
+        ;;
+      4)
+        clear_screen
+        draw_section "Check Update"
+        check_update
+        pause_any_key
+        ;;
+      5)
+        clear_screen
+        draw_section "Update"
+        update_stack
+        pause_any_key
+        ;;
+      6)
+        clear_screen
+        draw_section "Admin Stats"
+        compose exec server bun src/cli/admin.ts stats
+        pause_any_key
+        ;;
+      7)
+        clear_screen
+        draw_section "Users List"
+        compose exec server bun src/cli/admin.ts users:list
+        pause_any_key
+        ;;
+      8)
+        clear_screen
+        draw_section "Server Shell"
+        open_shell "server"
+        ;;
+      9)
+        if confirm_action "Remove stack, volumes, install directory and helper command?"; then
+          uninstall_stack
+        fi
+        ;;
+      0)
+        exit 0
+        ;;
+      *)
+        ;;
     esac
   done
 }
@@ -187,38 +434,11 @@ show_logs() {
 }
 
 update_stack() {
-  local auto_backup="${YOURMSGR_SKIP_AUTO_BACKUP:-0}"
-
-  if [[ "$auto_backup" != "1" ]]; then
-    create_backup
-  fi
-
   git -C "$INSTALL_DIR" fetch --all --tags
   git -C "$INSTALL_DIR" pull --ff-only
   install -m 0755 "$INSTALL_DIR/scripts/yourmsgr.sh" "$HELPER_TARGET"
   compose up -d --build
   show_version
-}
-
-create_backup() {
-  load_env
-
-  mkdir -p "$BACKUP_DIR"
-
-  local timestamp archive_path temp_dir
-  timestamp="$(date +%Y%m%d-%H%M%S)"
-  archive_path="$BACKUP_DIR/yourmsgr-backup-$timestamp.tar.gz"
-  temp_dir="$(mktemp -d)"
-
-  cp "$INSTALL_DIR/.env" "$temp_dir/root.env"
-  cp "$INSTALL_DIR/server/.env" "$temp_dir/server.env"
-
-  compose exec -T postgres pg_dump -U "${POSTGRES_USER:-chat_user}" "${POSTGRES_DB:-chat}" > "$temp_dir/database.sql"
-
-  tar -czf "$archive_path" -C "$temp_dir" .
-  rm -rf "$temp_dir"
-
-  echo "Backup created: $archive_path"
 }
 
 open_shell() {
@@ -228,28 +448,7 @@ open_shell() {
 }
 
 uninstall_stack() {
-  local purge_data="${1:-0}"
-  local description="Remove stack, project directory and helper command"
-
-  if [[ "$purge_data" == "1" ]]; then
-    description="${description}, including Docker volumes and backups"
-  else
-    description="${description}, while keeping Docker volumes/backups"
-  fi
-
-  read -r -p "${description}? (yes/no): " answer
-  if [[ "$answer" != "yes" ]]; then
-    echo "Cancelled"
-    return
-  fi
-
-  if [[ "$purge_data" == "1" ]]; then
-    compose down -v --remove-orphans || true
-    rm -rf "$BACKUP_DIR"
-  else
-    compose down --remove-orphans || true
-  fi
-
+  compose down -v --remove-orphans || true
   rm -rf "$INSTALL_DIR"
   rm -f "$HELPER_TARGET"
   echo "YourMsgr uninstalled"
@@ -312,10 +511,6 @@ case "$command_name" in
     update_stack
     ;;
 
-  backup)
-    create_backup
-    ;;
-
   shell)
     open_shell "$@"
     ;;
@@ -333,20 +528,23 @@ case "$command_name" in
     fi
     ;;
 
-  uninstall)
-    uninstall_stack 0
+  uninstall|uninstall-purge)
+    if [[ -t 0 && -t 1 ]]; then
+      if ! confirm_action "Remove stack, volumes, install directory and helper command?"; then
+        echo "Cancelled"
+        exit 0
+      fi
+    fi
+    uninstall_stack
     ;;
 
-  uninstall-purge)
-    uninstall_stack 1
-    ;;
-
-  help)
+  help|--help|-h)
     usage
     ;;
 
   *)
     echo "Unknown command: $command_name"
+    echo
     usage
     exit 1
     ;;
