@@ -98,6 +98,7 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
   'Invalid or expired token': 'Сессия устарела. Повторите действие',
   'Session expired': 'Сессия истекла. Войдите снова',
   'Token mismatch': 'Сессия устарела. Войдите снова',
+  'Legacy private key requires HTTPS': 'Для входа в этот аккаунт нужен HTTPS: ключ был зашифрован старым способом',
 }
 
 async function loadCrypto() {
@@ -207,7 +208,13 @@ async function handleLogin() {
         savePublicKey(derivePublicKeyFromPrivateKey(decryptedPrivateKey))
       } catch (decryptError) {
         console.error('[Login] Failed to decrypt private key:', decryptError)
-        error.value = 'Не удалось расшифровать приватный ключ'
+        const decryptMessage = decryptError instanceof Error
+          ? decryptError.message
+          : undefined
+        error.value = localizeAuthError(
+          decryptMessage,
+          'Не удалось расшифровать приватный ключ',
+        )
         return
       }
     }

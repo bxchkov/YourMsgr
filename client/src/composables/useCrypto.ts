@@ -4,6 +4,8 @@ let sodiumReady = false
 
 export const PRIVATE_KEY_STORAGE_KEY = 'e2ee_private_key'
 export const PUBLIC_KEY_STORAGE_KEY = 'e2ee_public_key'
+const PASSWORD_CIPHER_VERSION = 'v2'
+export const LEGACY_PRIVATE_KEY_HTTPS_ERROR = 'Legacy private key requires HTTPS'
 
 function getCryptoStorage() {
     if (typeof window === 'undefined') {
@@ -37,6 +39,121 @@ export async function initCrypto(): Promise<void> {
     if (sodiumReady) return
     await _sodium.ready
     sodiumReady = true
+}
+
+function encodeVersionedCiphertext(ciphertextBase64: string): string {
+    return `${PASSWORD_CIPHER_VERSION}:${ciphertextBase64}`
+}
+
+function decodeVersionedCiphertext(ciphertext: string): { version: string; payload: string } | null {
+    const separatorIndex = ciphertext.indexOf(':')
+    if (separatorIndex <= 0) {
+        return null
+    }
+
+    return {
+        version: ciphertext.slice(0, separatorIndex),
+        payload: ciphertext.slice(separatorIndex + 1),
+    }
+}
+
+function hasWebCryptoSubtleSupport(): boolean {
+    return typeof crypto !== 'undefined' && typeof crypto.subtle !== 'undefined'
+}
+
+async function derivePasswordKey(password: string, salt: Uint8Array): Promise<Uint8Array> {
+    await initCrypto()
+    const sodium = _sodium
+
+    return sodium.crypto_pwhash(
+        sodium.crypto_secretbox_KEYBYTES,
+        password,
+        salt,
+        sodium.crypto_pwhash_OPSLIMIT_INTERACTIVE,
+        sodium.crypto_pwhash_MEMLIMIT_INTERACTIVE,
+        sodium.crypto_pwhash_ALG_DEFAULT,
+    )
+}
+
+async function encryptPrivateKeyWithSodium(
+    privateKeyBase64: string,
+    password: string,
+): Promise<{ encrypted: string; iv: string; salt: string }> {
+    await initCrypto()
+    const sodium = _sodium
+    const salt = sodium.randombytes_buf(sodium.crypto_pwhash_SALTBYTES)
+    const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES)
+    const key = await derivePasswordKey(password, salt)
+    const encrypted = sodium.crypto_secretbox_easy(
+        sodium.from_string(privateKeyBase64),
+        nonce,
+        key,
+    )
+
+    return {
+        encrypted: encodeVersionedCiphertext(sodium.to_base64(encrypted)),
+        iv: sodium.to_base64(nonce),
+        salt: sodium.to_base64(salt),
+    }
+}
+
+async function decryptPrivateKeyWithSodium(
+    data: { encrypted: string; iv: string; salt: string },
+    password: string,
+): Promise<string> {
+    await initCrypto()
+    const sodium = _sodium
+    const nonce = sodium.from_base64(data.iv)
+    const salt = sodium.from_base64(data.salt)
+    const versionedCiphertext = decodeVersionedCiphertext(data.encrypted)
+
+    if (!versionedCiphertext || versionedCiphertext.version !== PASSWORD_CIPHER_VERSION) {
+        throw new Error('Unsupported password cipher version')
+    }
+
+    const encrypted = sodium.from_base64(versionedCiphertext.payload)
+    const key = await derivePasswordKey(password, salt)
+    const decrypted = sodium.crypto_secretbox_open_easy(encrypted, nonce, key)
+
+    return sodium.to_string(decrypted)
+}
+
+async function decryptPrivateKeyWithLegacyWebCrypto(
+    data: { encrypted: string; iv: string; salt: string },
+    password: string,
+): Promise<string> {
+    if (!hasWebCryptoSubtleSupport()) {
+        throw new Error(LEGACY_PRIVATE_KEY_HTTPS_ERROR)
+    }
+
+    const encoder = new TextEncoder()
+    const salt = new Uint8Array(atob(data.salt).split('').map(c => c.charCodeAt(0)))
+    const iv = new Uint8Array(atob(data.iv).split('').map(c => c.charCodeAt(0)))
+    const encrypted = new Uint8Array(atob(data.encrypted).split('').map(c => c.charCodeAt(0)))
+
+    const keyMaterial = await crypto.subtle.importKey(
+        'raw',
+        encoder.encode(password),
+        'PBKDF2',
+        false,
+        ['deriveBits', 'deriveKey'],
+    )
+
+    const derivedKey = await crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['decrypt'],
+    )
+
+    const decrypted = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv },
+        derivedKey,
+        encrypted,
+    )
+
+    return new TextDecoder().decode(decrypted)
 }
 
 // --- Key generation ---
@@ -145,69 +262,18 @@ export async function encryptPrivateKeyWithPassword(
     privateKeyBase64: string,
     password: string,
 ): Promise<{ encrypted: string; iv: string; salt: string }> {
-    const encoder = new TextEncoder()
-    const salt = crypto.getRandomValues(new Uint8Array(16))
-
-    const keyMaterial = await crypto.subtle.importKey(
-        'raw',
-        encoder.encode(password),
-        'PBKDF2',
-        false,
-        ['deriveBits', 'deriveKey'],
-    )
-
-    const derivedKey = await crypto.subtle.deriveKey(
-        { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
-        keyMaterial,
-        { name: 'AES-GCM', length: 256 },
-        false,
-        ['encrypt'],
-    )
-
-    const iv = crypto.getRandomValues(new Uint8Array(12))
-    const encrypted = await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv },
-        derivedKey,
-        encoder.encode(privateKeyBase64),
-    )
-
-    return {
-        encrypted: btoa(String.fromCharCode(...new Uint8Array(encrypted))),
-        iv: btoa(String.fromCharCode(...iv)),
-        salt: btoa(String.fromCharCode(...salt)),
-    }
+    return encryptPrivateKeyWithSodium(privateKeyBase64, password)
 }
 
 export async function decryptPrivateKeyWithPassword(
     data: { encrypted: string; iv: string; salt: string },
     password: string,
 ): Promise<string> {
-    const encoder = new TextEncoder()
-    const salt = new Uint8Array(atob(data.salt).split('').map(c => c.charCodeAt(0)))
-    const iv = new Uint8Array(atob(data.iv).split('').map(c => c.charCodeAt(0)))
-    const encrypted = new Uint8Array(atob(data.encrypted).split('').map(c => c.charCodeAt(0)))
+    const versionedCiphertext = decodeVersionedCiphertext(data.encrypted)
 
-    const keyMaterial = await crypto.subtle.importKey(
-        'raw',
-        encoder.encode(password),
-        'PBKDF2',
-        false,
-        ['deriveBits', 'deriveKey'],
-    )
+    if (versionedCiphertext?.version === PASSWORD_CIPHER_VERSION) {
+        return decryptPrivateKeyWithSodium(data, password)
+    }
 
-    const derivedKey = await crypto.subtle.deriveKey(
-        { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
-        keyMaterial,
-        { name: 'AES-GCM', length: 256 },
-        false,
-        ['decrypt'],
-    )
-
-    const decrypted = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv },
-        derivedKey,
-        encrypted,
-    )
-
-    return new TextDecoder().decode(decrypted)
+    return decryptPrivateKeyWithLegacyWebCrypto(data, password)
 }
