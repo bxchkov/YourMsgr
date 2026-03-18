@@ -25,6 +25,25 @@ export class AuthController {
     return typeof value === "string" && value.length > 0;
   }
 
+  private isSecureRequest(c: Context): boolean {
+    const forwardedProto = c.req.header("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
+    if (forwardedProto) {
+      return forwardedProto === "https";
+    }
+
+    return new URL(c.req.url).protocol === "https:";
+  }
+
+  private getRefreshCookieOptions(c: Context) {
+    return {
+      maxAge: 30 * 24 * 60 * 60,
+      httpOnly: true,
+      secure: this.isSecureRequest(c),
+      sameSite: "strict" as const,
+      path: "/",
+    };
+  }
+
   private async readJsonBody<T>(c: Context): Promise<T | null> {
     const contentType = c.req.header("content-type") ?? "";
     if (!contentType.includes("application/json")) {
@@ -144,12 +163,7 @@ export class AuthController {
       return sendError(c, 401, result.error ?? "Registration failed");
     }
 
-    setCookie(c, "refreshToken", result.tokens.refreshToken, {
-      maxAge: 30 * 24 * 60 * 60,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    });
+    setCookie(c, "refreshToken", result.tokens.refreshToken, this.getRefreshCookieOptions(c));
 
     return sendSuccess(c, "User registered successfully", {
       accessToken: result.tokens.accessToken,
@@ -174,12 +188,7 @@ export class AuthController {
       return sendError(c, 401, result.error ?? "Login failed");
     }
 
-    setCookie(c, "refreshToken", result.tokens.refreshToken, {
-      maxAge: 30 * 24 * 60 * 60,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    });
+    setCookie(c, "refreshToken", result.tokens.refreshToken, this.getRefreshCookieOptions(c));
 
     return sendSuccess(c, "Login successful", {
       accessToken: result.tokens.accessToken,
@@ -215,12 +224,7 @@ export class AuthController {
     const newTokens = generateTokens(user.id, user.username, user.role, user.login);
     await authService.saveRefreshToken(user.id, newTokens.refreshToken);
 
-    setCookie(c, "refreshToken", newTokens.refreshToken, {
-      maxAge: 30 * 24 * 60 * 60,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    });
+    setCookie(c, "refreshToken", newTokens.refreshToken, this.getRefreshCookieOptions(c));
 
     return sendSuccess(c, "Tokens refreshed", {
       accessToken: newTokens.accessToken,
@@ -282,12 +286,7 @@ export class AuthController {
     const newTokens = generateTokens(user.id, user.username, user.role, user.login);
     await authService.saveRefreshToken(user.id, newTokens.refreshToken);
 
-    setCookie(c, "refreshToken", newTokens.refreshToken, {
-      maxAge: 30 * 24 * 60 * 60,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    });
+    setCookie(c, "refreshToken", newTokens.refreshToken, this.getRefreshCookieOptions(c));
 
     return sendSuccess(c, "Session restored with new tokens", {
       accessToken: newTokens.accessToken,
@@ -327,12 +326,7 @@ export class AuthController {
     const newTokens = generateTokens(updatedUser.id, updatedUser.username, updatedUser.role, updatedUser.login);
     await authService.saveRefreshToken(updatedUser.id, newTokens.refreshToken);
 
-    setCookie(c, "refreshToken", newTokens.refreshToken, {
-      maxAge: 30 * 24 * 60 * 60,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    });
+    setCookie(c, "refreshToken", newTokens.refreshToken, this.getRefreshCookieOptions(c));
 
     return sendSuccess(c, "Username updated successfully", {
       accessToken: newTokens.accessToken,
