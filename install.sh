@@ -29,6 +29,10 @@ require_root() {
   fi
 }
 
+is_interactive() {
+  [[ -t 0 && -t 1 ]]
+}
+
 detect_package_manager() {
   if command -v apt-get >/dev/null 2>&1; then
     echo "apt"
@@ -118,9 +122,9 @@ random_simple_value() {
   openssl rand -hex "$length" | cut -c "1-${length}"
 }
 
-detect_public_host() {
-  if [[ -n "${YOURMSGR_PUBLIC_HOST:-}" ]]; then
-    printf '%s' "$YOURMSGR_PUBLIC_HOST"
+detect_public_ip() {
+  if [[ -n "${YOURMSGR_PUBLIC_IP:-}" ]]; then
+    printf '%s' "$YOURMSGR_PUBLIC_IP"
     return
   fi
 
@@ -132,10 +136,122 @@ detect_public_host() {
   fi
 
   if [[ -z "$detected" ]]; then
-    detected="localhost"
+    detected="127.0.0.1"
   fi
 
   printf '%s' "$detected"
+}
+
+is_ipv4_address() {
+  [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]
+}
+
+read_env_value() {
+  local env_path="$1"
+  local key="$2"
+  local default_value="${3:-}"
+
+  if [[ ! -f "$env_path" ]]; then
+    printf '%s' "$default_value"
+    return
+  fi
+
+  local value
+  value="$(grep "^${key}=" "$env_path" | head -n 1 | cut -d '=' -f 2- || true)"
+  printf '%s' "${value:-$default_value}"
+}
+
+extract_host_from_url() {
+  local value="$1"
+
+  value="${value#http://}"
+  value="${value#https://}"
+  value="${value%%/*}"
+  value="${value%%:*}"
+
+  printf '%s' "$value"
+}
+
+prompt_public_host() {
+  local detected_ip="$1"
+  local existing_host="$2"
+
+  if [[ -n "${YOURMSGR_PUBLIC_HOST:-}" ]]; then
+    printf '%s' "$YOURMSGR_PUBLIC_HOST"
+    return
+  fi
+
+  if [[ -n "$existing_host" ]]; then
+    printf '%s' "$existing_host"
+    return
+  fi
+
+  if ! is_interactive; then
+    printf '%s' "$detected_ip"
+    return
+  fi
+
+  local input_host=""
+  read -r -p "Panel domain (leave blank to use server IP ${detected_ip}): " input_host || true
+  printf '%s' "${input_host:-$detected_ip}"
+}
+
+validate_public_host() {
+  local public_host="$1"
+  local detected_ip="$2"
+
+  if [[ "$public_host" == *"/"* || "$public_host" == *" "* || "$public_host" == *":"* ]]; then
+    fail "Public host must be a bare domain or IPv4 address"
+  fi
+
+  if is_ipv4_address "$public_host"; then
+    return
+  fi
+
+  local resolved_ips
+  resolved_ips="$(getent ahostsv4 "$public_host" 2>/dev/null | awk '{print $1}' | sort -u || true)"
+
+  if [[ -z "$resolved_ips" ]]; then
+    fail "Domain '$public_host' does not resolve on this server"
+  fi
+
+  if ! grep -qx "$detected_ip" <<<"$resolved_ips"; then
+    fail "Domain '$public_host' resolves to [$resolved_ips], but this server IP is '$detected_ip'"
+  fi
+}
+
+port_in_use() {
+  local port="$1"
+
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltn "( sport = :${port} )" 2>/dev/null | tail -n +2 | grep -q .
+    return
+  fi
+
+  if command -v netstat >/dev/null 2>&1; then
+    netstat -ltn 2>/dev/null | awk '{print $4}' | grep -Eq "[:.]${port}$"
+    return
+  fi
+
+  return 1
+}
+
+ensure_required_ports() {
+  local install_env_path="$INSTALL_DIR/.env"
+  local http_port https_port
+
+  http_port="$(read_env_value "$install_env_path" CLIENT_HTTP_PORT "${YOURMSGR_CLIENT_HTTP_PORT:-80}")"
+  https_port="$(read_env_value "$install_env_path" CLIENT_HTTPS_PORT "${YOURMSGR_CLIENT_HTTPS_PORT:-443}")"
+
+  if [[ "$INSTALL_MODE" == "fresh" ]]; then
+    if port_in_use "$http_port"; then
+      fail "Port $http_port is already in use. Override YOURMSGR_CLIENT_HTTP_PORT if needed"
+    fi
+
+    if port_in_use "$https_port"; then
+      fail "Port $https_port is already in use. Override YOURMSGR_CLIENT_HTTPS_PORT if needed"
+    fi
+  fi
 }
 
 compose() {
@@ -148,15 +264,7 @@ compose() {
 get_env_value() {
   local key="$1"
   local default_value="${2:-}"
-
-  if [[ ! -f "$INSTALL_DIR/.env" ]]; then
-    printf '%s' "$default_value"
-    return
-  fi
-
-  local value
-  value="$(grep "^${key}=" "$INSTALL_DIR/.env" | cut -d '=' -f 2- || true)"
-  printf '%s' "${value:-$default_value}"
+  read_env_value "$INSTALL_DIR/.env" "$key" "$default_value"
 }
 
 get_project_version() {
@@ -168,6 +276,35 @@ get_project_version() {
   fi
 
   printf '%s' "unknown"
+}
+
+build_public_url() {
+  local public_host="$1"
+  local https_port="$2"
+
+  if [[ "$https_port" == "443" ]]; then
+    printf 'https://%s' "$public_host"
+    return
+  fi
+
+  printf 'https://%s:%s' "$public_host" "$https_port"
+}
+
+build_tls_alt_names() {
+  local public_host="$1"
+  local detected_ip="$2"
+
+  if is_ipv4_address "$public_host"; then
+    printf 'IP:%s' "$public_host"
+    return
+  fi
+
+  if [[ -n "$detected_ip" ]]; then
+    printf 'DNS:%s,IP:%s' "$public_host" "$detected_ip"
+    return
+  fi
+
+  printf 'DNS:%s' "$public_host"
 }
 
 clone_or_update_repo() {
@@ -188,56 +325,97 @@ clone_or_update_repo() {
 
 write_compose_env() {
   local env_path="$INSTALL_DIR/.env"
+  local detected_ip existing_public_host existing_http_port existing_https_port
+  local existing_public_url existing_allowed_origins
+  local public_host public_url tls_alt_names postgres_password
+  local client_http_bind client_http_port client_https_bind client_https_port
+  local server_bind server_port postgres_bind postgres_port restart_policy
+  local postgres_user postgres_db
 
-  if [[ -f "$env_path" ]]; then
-    log "Keeping existing $env_path"
-    return
+  detected_ip="$(detect_public_ip)"
+  existing_public_host="$(read_env_value "$env_path" PUBLIC_HOST "")"
+  existing_public_url="$(read_env_value "$env_path" PUBLIC_URL "")"
+  existing_allowed_origins="$(read_env_value "$env_path" ALLOWED_ORIGINS "")"
+  existing_http_port="$(read_env_value "$env_path" CLIENT_HTTP_PORT "")"
+  existing_https_port="$(read_env_value "$env_path" CLIENT_HTTPS_PORT "")"
+
+  if [[ -z "$existing_public_host" && -n "$existing_public_url" ]]; then
+    existing_public_host="$(extract_host_from_url "$existing_public_url")"
   fi
 
-  local public_host client_port postgres_password
+  if [[ -z "$existing_public_host" && -n "$existing_allowed_origins" ]]; then
+    existing_public_host="$(extract_host_from_url "${existing_allowed_origins%%,*}")"
+  fi
 
-  public_host="$(detect_public_host)"
-  client_port="${YOURMSGR_CLIENT_PORT:-80}"
-  postgres_password="${YOURMSGR_POSTGRES_PASSWORD:-$(random_secret)}"
+  public_host="$(prompt_public_host "$detected_ip" "$existing_public_host")"
+  validate_public_host "$public_host" "$detected_ip"
+
+  client_http_bind="${YOURMSGR_CLIENT_HTTP_BIND:-$(read_env_value "$env_path" CLIENT_HTTP_BIND "0.0.0.0")}"
+  client_http_port="${YOURMSGR_CLIENT_HTTP_PORT:-${existing_http_port:-80}}"
+  client_https_bind="${YOURMSGR_CLIENT_HTTPS_BIND:-$(read_env_value "$env_path" CLIENT_HTTPS_BIND "0.0.0.0")}"
+  client_https_port="${YOURMSGR_CLIENT_HTTPS_PORT:-${existing_https_port:-443}}"
+  server_bind="${YOURMSGR_SERVER_BIND:-$(read_env_value "$env_path" SERVER_BIND "127.0.0.1")}"
+  server_port="${YOURMSGR_SERVER_PORT:-$(read_env_value "$env_path" SERVER_PORT "3000")}"
+  postgres_bind="${YOURMSGR_POSTGRES_BIND:-$(read_env_value "$env_path" POSTGRES_BIND "127.0.0.1")}"
+  postgres_port="${YOURMSGR_POSTGRES_PORT:-$(read_env_value "$env_path" POSTGRES_PORT "5432")}"
+  postgres_password="${YOURMSGR_POSTGRES_PASSWORD:-$(read_env_value "$env_path" POSTGRES_PASSWORD "$(random_secret)")}"
+  postgres_user="${YOURMSGR_POSTGRES_USER:-$(read_env_value "$env_path" POSTGRES_USER "chat_user")}"
+  postgres_db="${YOURMSGR_POSTGRES_DB:-$(read_env_value "$env_path" POSTGRES_DB "chat")}"
+  restart_policy="${YOURMSGR_RESTART_POLICY:-$(read_env_value "$env_path" RESTART_POLICY "unless-stopped")}"
+  public_url="$(build_public_url "$public_host" "$client_https_port")"
+  tls_alt_names="$(build_tls_alt_names "$public_host" "$detected_ip")"
+
+  mkdir -p "$INSTALL_DIR/deploy/certs"
 
   cat > "$env_path" <<EOF
-POSTGRES_USER=${YOURMSGR_POSTGRES_USER:-chat_user}
+POSTGRES_USER=$postgres_user
 POSTGRES_PASSWORD=$postgres_password
-POSTGRES_DB=${YOURMSGR_POSTGRES_DB:-chat}
+POSTGRES_DB=$postgres_db
 
 NODE_ENV=production
-ALLOWED_ORIGINS=http://$public_host,https://$public_host,http://localhost,http://127.0.0.1
+PUBLIC_HOST=$public_host
+PUBLIC_URL=$public_url
+ALLOWED_ORIGINS=$public_url
 
-CLIENT_BIND=${YOURMSGR_CLIENT_BIND:-0.0.0.0}
-CLIENT_PORT=$client_port
+CLIENT_HTTP_BIND=$client_http_bind
+CLIENT_HTTP_PORT=$client_http_port
+CLIENT_HTTPS_BIND=$client_https_bind
+CLIENT_HTTPS_PORT=$client_https_port
 
-SERVER_BIND=${YOURMSGR_SERVER_BIND:-127.0.0.1}
-SERVER_PORT=${YOURMSGR_SERVER_PORT:-3000}
+SERVER_BIND=$server_bind
+SERVER_PORT=$server_port
 
-POSTGRES_BIND=${YOURMSGR_POSTGRES_BIND:-127.0.0.1}
-POSTGRES_PORT=${YOURMSGR_POSTGRES_PORT:-5432}
+POSTGRES_BIND=$postgres_bind
+POSTGRES_PORT=$postgres_port
+
+TLS_CERT_PATH=/etc/nginx/certs/server.crt
+TLS_KEY_PATH=/etc/nginx/certs/server.key
+TLS_ALT_NAMES=$tls_alt_names
+RESTART_POLICY=$restart_policy
 EOF
 
-  log "Created $env_path"
+  log "Wrote $env_path"
 }
 
 write_server_env() {
   local env_path="$INSTALL_DIR/server/.env"
+  local existing_access_secret existing_refresh_secret
+  local rate_limit_max rate_limit_window
 
-  if [[ -f "$env_path" ]]; then
-    log "Keeping existing $env_path"
-    return
-  fi
+  existing_access_secret="$(read_env_value "$env_path" JWT_ACCESS_SECRET "$(random_secret)")"
+  existing_refresh_secret="$(read_env_value "$env_path" JWT_REFRESH_SECRET "$(random_secret)")"
+  rate_limit_max="${YOURMSGR_RATE_LIMIT_MAX:-$(read_env_value "$env_path" RATE_LIMIT_MAX "100")}"
+  rate_limit_window="${YOURMSGR_RATE_LIMIT_WINDOW:-$(read_env_value "$env_path" RATE_LIMIT_WINDOW "15")}"
 
   cat > "$env_path" <<EOF
-JWT_ACCESS_SECRET=${YOURMSGR_JWT_ACCESS_SECRET:-$(random_secret)}
-JWT_REFRESH_SECRET=${YOURMSGR_JWT_REFRESH_SECRET:-$(random_secret)}
+JWT_ACCESS_SECRET=${YOURMSGR_JWT_ACCESS_SECRET:-$existing_access_secret}
+JWT_REFRESH_SECRET=${YOURMSGR_JWT_REFRESH_SECRET:-$existing_refresh_secret}
 
-RATE_LIMIT_MAX=${YOURMSGR_RATE_LIMIT_MAX:-100}
-RATE_LIMIT_WINDOW=${YOURMSGR_RATE_LIMIT_WINDOW:-15}
+RATE_LIMIT_MAX=$rate_limit_max
+RATE_LIMIT_WINDOW=$rate_limit_window
 EOF
 
-  log "Created $env_path"
+  log "Wrote $env_path"
 }
 
 install_helper() {
@@ -250,14 +428,19 @@ start_stack() {
   compose up -d --build
 }
 
-wait_for_http() {
+wait_for_url() {
   local url="$1"
   local name="$2"
   local attempts="${3:-60}"
+  local curl_insecure="${4:-0}"
 
-  local attempt
+  local attempt curl_args=()
+  if [[ "$curl_insecure" == "1" ]]; then
+    curl_args+=(-k)
+  fi
+
   for attempt in $(seq 1 "$attempts"); do
-    if curl -fsS "$url" >/dev/null 2>&1; then
+    if curl -fsS "${curl_args[@]}" "$url" >/dev/null 2>&1; then
       log "$name is ready"
       return
     fi
@@ -269,12 +452,14 @@ wait_for_http() {
 }
 
 wait_for_stack() {
-  local server_port client_port
+  local server_port client_http_port client_https_port
   server_port="$(get_env_value SERVER_PORT 3000)"
-  client_port="$(get_env_value CLIENT_PORT 80)"
+  client_http_port="$(get_env_value CLIENT_HTTP_PORT 80)"
+  client_https_port="$(get_env_value CLIENT_HTTPS_PORT 443)"
 
-  wait_for_http "http://127.0.0.1:${server_port}/healthz" "Server" 60
-  wait_for_http "http://127.0.0.1:${client_port}/auth" "Client" 60
+  wait_for_url "http://127.0.0.1:${server_port}/healthz" "Server" 60
+  wait_for_url "http://127.0.0.1:${client_http_port}/healthz" "Client HTTP" 60
+  wait_for_url "https://127.0.0.1:${client_https_port}/auth" "Client HTTPS" 60 1
 }
 
 prepare_bootstrap_admin_credentials() {
@@ -286,7 +471,7 @@ prepare_bootstrap_admin_credentials() {
   BOOTSTRAPPED_ADMIN_PASSWORD="${YOURMSGR_ADMIN_PASSWORD:-$(random_simple_value 14)}"
   BOOTSTRAPPED_ADMIN_USERNAME="${YOURMSGR_ADMIN_USERNAME:-$BOOTSTRAPPED_ADMIN_LOGIN}"
 
-  if [[ -t 0 ]]; then
+  if is_interactive; then
     local input_login input_password input_username
 
     read -r -p "Initial admin login [${BOOTSTRAPPED_ADMIN_LOGIN}]: " input_login || true
@@ -331,15 +516,14 @@ bootstrap_admin() {
 }
 
 print_summary() {
-  local public_host client_port
-
-  public_host="$(detect_public_host)"
-  client_port="$(get_env_value CLIENT_PORT 80)"
+  local public_url
+  public_url="$(get_env_value PUBLIC_URL "unknown")"
 
   log "Installation completed"
   echo
   echo "Version: $(get_project_version)"
-  echo "Panel URL: http://$public_host:$client_port"
+  echo "Panel URL: $public_url"
+  echo "TLS: self-signed certificate"
   echo
 
   if [[ -n "$BOOTSTRAPPED_ADMIN_LOGIN" ]]; then
@@ -353,13 +537,15 @@ print_summary() {
   echo "Useful commands:"
   echo "  yourmsgr"
   echo "  yourmsgr version"
-  echo "  yourmsgr check-update"
   echo "  yourmsgr status"
-  echo "  yourmsgr health"
   echo "  yourmsgr logs"
-  echo "  yourmsgr update"
+  echo "  yourmsgr check-update"
+  echo "  yourmsgr service start"
+  echo "  yourmsgr service stop"
+  echo "  yourmsgr service autostart on"
+  echo "  yourmsgr service autorestart on"
   echo "  yourmsgr admin stats"
-  echo "  yourmsgr admin users:list"
+  echo "  yourmsgr uninstall"
 }
 
 main() {
@@ -367,6 +553,7 @@ main() {
   install_base_packages
   install_docker_if_needed
   clone_or_update_repo
+  ensure_required_ports
   write_compose_env
   write_server_env
   install_helper

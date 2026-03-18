@@ -1,7 +1,7 @@
 import { cors } from "hono/cors";
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",") || [
-  "http://localhost:5173",
+  "https://localhost",
 ];
 
 export const corsMiddleware = cors({

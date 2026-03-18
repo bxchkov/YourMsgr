@@ -1,113 +1,130 @@
 # YourMsgr
 
-Защищённый мессенджер с приватными чатами, E2EE для личной переписки и Docker-first развёртыванием.
+Защищённый мессенджер с Docker-first развёртыванием, приватными чатами и E2EE для личной переписки.
 
-## Быстрая установка на Linux одной командой
-
-После публикации `install.sh` в GitHub установка на VPS будет выглядеть так:
+## Быстрая установка на Linux
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bxchkov/YourMsgr/main/install.sh | sudo bash
 ```
 
-Что делает скрипт:
+Installer работает в интерактивном режиме:
 
-1. Устанавливает Docker при его отсутствии.
-2. Клонирует или обновляет проект в `/opt/yourmsgr`.
-3. Создаёт root `.env` для Docker Compose и `server/.env` с JWT-секретами.
-4. Поднимает стек через `docker compose up -d --build` и дожидается health-check.
-5. Создаёт первого admin-пользователя при первой установке.
-6. Устанавливает helper-команду `yourmsgr`.
+1. Проверяет и при необходимости ставит Docker.
+2. Клонирует проект в `/opt/yourmsgr`.
+3. Просит домен для панели.
+4. Если домен не введён, использует IP сервера.
+5. Проверяет, что домен резолвится на текущий сервер.
+6. Настраивает HTTPS-first запуск с самоподписанным сертификатом.
+7. Создаёт `.env`, `server/.env`, helper-команду `yourmsgr`.
+8. Поднимает стек и создаёт первого администратора.
 
-После установки доступны команды:
+По умолчанию приложение работает так:
+
+- `80/tcp` используется только для redirect на HTTPS;
+- `443/tcp` отдаёт саму панель;
+- backend и PostgreSQL наружу не публикуются;
+- сертификат самоподписанный, поэтому браузер покажет стандартное предупреждение доверия.
+
+## Управление после установки
+
+Основная команда:
 
 ```bash
 yourmsgr
+```
+
+CLI helper поддерживает:
+
+```bash
+yourmsgr menu
 yourmsgr version
-yourmsgr check-update
 yourmsgr status
-yourmsgr health
 yourmsgr logs
-yourmsgr restart
+yourmsgr check-update
 yourmsgr update
+yourmsgr service start
+yourmsgr service stop
+yourmsgr service restart
+yourmsgr service autostart on
+yourmsgr service autostart off
+yourmsgr service autorestart on
+yourmsgr service autorestart off
 yourmsgr admin stats
 yourmsgr admin users:list
 yourmsgr uninstall
-yourmsgr uninstall-purge
 ```
 
-## Что важно по install-flow
+### Что делает меню
 
-- Наружу по умолчанию публикуется только клиентский HTTP-порт.
-- Backend и PostgreSQL по умолчанию слушают только `127.0.0.1`.
-- Основная конфигурация Docker Compose лежит в root `.env`.
-- Серверные секреты лежат в `server/.env`.
+Меню `yourmsgr`:
 
-Пример root `.env`:
+- обновляет CPU/RAM раз в секунду;
+- показывает единый статус приложения, контейнеров и HTTPS endpoint’ов;
+- даёт вложенное управление сервисом;
+- позволяет смотреть логи и возвращаться обратно в меню после `Ctrl + C`;
+- проверяет обновления по версии проекта, а не просто по факту любого коммита.
 
-```env
-POSTGRES_USER=chat_user
-POSTGRES_PASSWORD=change_me
-POSTGRES_DB=chat
+## Обновления
 
-NODE_ENV=production
-ALLOWED_ORIGINS=http://localhost,http://127.0.0.1
+Рекомендуемый сценарий:
 
-CLIENT_BIND=0.0.0.0
-CLIENT_PORT=80
-
-SERVER_BIND=127.0.0.1
-SERVER_PORT=3000
-
-POSTGRES_BIND=127.0.0.1
-POSTGRES_PORT=5432
+```bash
+yourmsgr check-update
+yourmsgr update
 ```
+
+Поведение:
+
+- `check-update` сравнивает локальную и удалённую версию из файла `VERSION`;
+- `update` не выполняет лишнюю пересборку, если версия уже актуальна;
+- если удалённый код изменился, но версия не была увеличена, обычный update откажется обновляться;
+- для принудительного обновления в таком случае есть `yourmsgr update --force`.
+
+Текущая версия проекта: `2.0.1`.
+
+## Удаление
+
+```bash
+yourmsgr uninstall
+```
+
+Удаление намеренно простое и полное:
+
+- останавливает и удаляет Docker stack;
+- удаляет volumes проекта;
+- удаляет каталог установки;
+- удаляет helper-команду.
 
 ## Ручной запуск через Docker Compose
 
 ```bash
 cp .env.example .env
 cp server/.env.example server/.env
-
 docker compose up -d --build
 ```
 
-Клиент будет доступен на `http://localhost`.
+Локальный compose-профиль теперь тоже ориентирован на HTTPS-first схему:
 
-## Что сейчас представляет собой админка
+- `CLIENT_HTTP_PORT=80`
+- `CLIENT_HTTPS_PORT=443`
+- `PUBLIC_URL=https://localhost`
 
-В проекте **нет отдельной web-admin панели**. Админская поверхность сейчас состоит из двух частей:
+## Админка
 
-1. **CLI на сервере**
-2. **Роль `admin` (`role = 3`) в клиенте и WebSocket-логике**
+Отдельной web-admin панели в проекте нет. Админская поверхность сейчас состоит из:
 
-Что реально умеет админ сейчас:
+1. серверного CLI;
+2. роли `admin` в основном клиенте.
 
-- просматривать пользователей через CLI;
-- смотреть health/state проекта через CLI;
-- создавать обычных пользователей и админов через CLI;
-- автоматически bootstrap'иться при первой установке;
-- менять роль пользователя через CLI;
-- принудительно разлогинивать пользователя через CLI;
-- удалять пользователя через CLI;
-- видеть агрегированную статистику проекта через CLI;
-- удалять любые сообщения в интерфейсе мессенджера.
-
-Что админка **пока не умеет**:
-
-- отдельный web-интерфейс управления;
-- просмотр аудита действий;
-- модерацию пользователей/чатов через UI;
-- изолированный набор административных API.
-
-## Команды CLI
+Полезные CLI-команды:
 
 ```bash
 cd server
 bun run admin help
 ```
 
-Актуальный набор:
+Основной набор:
 
 ```bash
 bun run admin health
@@ -121,20 +138,6 @@ bun run admin users:role <login> <user|admin>
 bun run admin users:logout <login>
 bun run admin users:delete <login>
 ```
-
-Устаревшие опасные команды удалены:
-
-- `messages:clear`
-- `messages:user`
-
-`messages:count` оставлен только как deprecated alias к `stats`.
-
-## Как тестировать правки на сервере
-
-- Для обычного цикла доработок не нужно удалять проект и ставить его заново. Нормальный путь теперь такой: правки в GitHub -> `yourmsgr check-update` -> `yourmsgr update`.
-- `yourmsgr update` подтягивает код и пересобирает стек через `docker compose up -d --build`.
-- `yourmsgr uninstall` удаляет проект полностью: stack, Docker volume, каталог установки и helper.
-- `yourmsgr uninstall-purge` оставлен как совместимый алиас и ведёт себя так же, как `yourmsgr uninstall`.
 
 ## Технологии
 
@@ -161,23 +164,18 @@ bun run admin users:delete <login>
 - Docker Compose
 - Nginx
 
-## Структура проекта
+## Структура
 
 ```text
 YourMsgr/
-├── client/                 # Vue 3 client
-├── server/                 # Bun + Hono backend
-├── scripts/                # Helper scripts for server management
+├── client/
+├── server/
+├── scripts/
+├── deploy/
 ├── docker-compose.yml
-├── .env.example
 ├── install.sh
 └── README.md
 ```
-
-## Практические замечания после аудита
-
-- Отдельной web-admin панели сейчас нет, поэтому слово «админка» корректнее относить к CLI и moderation-permissions.
-- Для production-сценария текущий Docker stack уже стал безопаснее, но полноценный reverse-proxy под HTTPS и домен всё ещё лучше выносить на внешний уровень.
 
 ## Лицензия
 
