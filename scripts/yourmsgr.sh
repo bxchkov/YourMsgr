@@ -195,6 +195,7 @@ update_stack() {
 
   git -C "$INSTALL_DIR" fetch --all --tags
   git -C "$INSTALL_DIR" pull --ff-only
+  install_helper
   compose up -d --build
   show_version
 }
@@ -328,7 +329,7 @@ case "$command_name" in
     if [[ -t 0 && -t 1 ]]; then
       compose exec server bun src/cli/admin.ts "$@"
     else
-      compose exec -T server bun src/cli/admin.ts "$@"
+      compose exec -T server bun src/cli/admin.ts "$@" < /dev/null
     fi
     ;;
 
