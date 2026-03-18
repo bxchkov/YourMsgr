@@ -224,7 +224,7 @@ port_in_use() {
   local port="$1"
 
   if command -v ss >/dev/null 2>&1; then
-    ss -ltn "( sport = :${port} )" 2>/dev/null | tail -n +2 | grep -q .
+    ss -H -ltn 2>/dev/null | awk '{print $4}' | grep -Eq "(^|[:.])${port}$"
     return
   fi
 
@@ -236,22 +236,60 @@ port_in_use() {
   return 1
 }
 
-ensure_required_ports() {
-  local install_env_path="$INSTALL_DIR/.env"
-  local http_port https_port
+find_available_port() {
+  local candidate
 
-  http_port="$(read_env_value "$install_env_path" CLIENT_HTTP_PORT "${YOURMSGR_CLIENT_HTTP_PORT:-80}")"
-  https_port="$(read_env_value "$install_env_path" CLIENT_HTTPS_PORT "${YOURMSGR_CLIENT_HTTPS_PORT:-443}")"
-
-  if [[ "$INSTALL_MODE" == "fresh" ]]; then
-    if port_in_use "$http_port"; then
-      fail "Port $http_port is already in use. Override YOURMSGR_CLIENT_HTTP_PORT if needed"
+  for candidate in "$@"; do
+    if ! port_in_use "$candidate"; then
+      printf '%s' "$candidate"
+      return 0
     fi
+  done
 
-    if port_in_use "$https_port"; then
-      fail "Port $https_port is already in use. Override YOURMSGR_CLIENT_HTTPS_PORT if needed"
-    fi
+  return 1
+}
+
+resolve_bind_port() {
+  local port_kind="$1"
+  local desired_port="$2"
+  local prompt_label="$3"
+  shift 3
+  local fallback_port=""
+  local input_port=""
+
+  if ! port_in_use "$desired_port"; then
+    printf '%s' "$desired_port"
+    return
   fi
+
+  if is_interactive; then
+    while true; do
+      read -r -p "$prompt_label [$desired_port]: " input_port || true
+      input_port="${input_port:-$desired_port}"
+
+      if [[ ! "$input_port" =~ ^[0-9]+$ ]]; then
+        echo "Please enter a numeric port"
+        continue
+      fi
+
+      if port_in_use "$input_port"; then
+        echo "Port $input_port is already in use"
+        continue
+      fi
+
+      printf '%s' "$input_port"
+      return
+    done
+  fi
+
+  fallback_port="$(find_available_port "$@" || true)"
+  if [[ -n "$fallback_port" ]]; then
+    log "$port_kind port $desired_port is busy, using $fallback_port"
+    printf '%s' "$fallback_port"
+    return
+  fi
+
+  fail "$port_kind port $desired_port is already in use and no fallback port was found"
 }
 
 compose() {
@@ -351,9 +389,7 @@ write_compose_env() {
   validate_public_host "$public_host" "$detected_ip"
 
   client_http_bind="${YOURMSGR_CLIENT_HTTP_BIND:-$(read_env_value "$env_path" CLIENT_HTTP_BIND "0.0.0.0")}"
-  client_http_port="${YOURMSGR_CLIENT_HTTP_PORT:-${existing_http_port:-80}}"
   client_https_bind="${YOURMSGR_CLIENT_HTTPS_BIND:-$(read_env_value "$env_path" CLIENT_HTTPS_BIND "0.0.0.0")}"
-  client_https_port="${YOURMSGR_CLIENT_HTTPS_PORT:-${existing_https_port:-443}}"
   server_bind="${YOURMSGR_SERVER_BIND:-$(read_env_value "$env_path" SERVER_BIND "127.0.0.1")}"
   server_port="${YOURMSGR_SERVER_PORT:-$(read_env_value "$env_path" SERVER_PORT "3000")}"
   postgres_bind="${YOURMSGR_POSTGRES_BIND:-$(read_env_value "$env_path" POSTGRES_BIND "127.0.0.1")}"
@@ -362,6 +398,8 @@ write_compose_env() {
   postgres_user="${YOURMSGR_POSTGRES_USER:-$(read_env_value "$env_path" POSTGRES_USER "chat_user")}"
   postgres_db="${YOURMSGR_POSTGRES_DB:-$(read_env_value "$env_path" POSTGRES_DB "chat")}"
   restart_policy="${YOURMSGR_RESTART_POLICY:-$(read_env_value "$env_path" RESTART_POLICY "unless-stopped")}"
+  client_http_port="$(resolve_bind_port "HTTP" "${YOURMSGR_CLIENT_HTTP_PORT:-${existing_http_port:-80}}" "HTTP redirect port" 80 8080 8000 18080)"
+  client_https_port="$(resolve_bind_port "HTTPS" "${YOURMSGR_CLIENT_HTTPS_PORT:-${existing_https_port:-443}}" "HTTPS panel port" 443 8443 9443 10443)"
   public_url="$(build_public_url "$public_host" "$client_https_port")"
   tls_alt_names="$(build_tls_alt_names "$public_host" "$detected_ip")"
 
@@ -553,7 +591,6 @@ main() {
   install_base_packages
   install_docker_if_needed
   clone_or_update_repo
-  ensure_required_ports
   write_compose_env
   write_server_env
   install_helper
