@@ -6,8 +6,7 @@
     @include full-screen-overlay;
     position: fixed;
     z-index: $z-auth-modal-backdrop;
-    background-color: $color-overlay;
-    opacity: 1;
+    background-color: rgba(0, 0, 0, 0.2);
     pointer-events: auto;
   }
 
@@ -53,8 +52,7 @@
 
     &__backdrop {
       @include full-screen-overlay;
-      background-color: $color-overlay;
-      opacity: 1;
+      background-color: rgba(0, 0, 0, 0.2);
     }
 
     &__content {
