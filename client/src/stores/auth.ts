@@ -4,6 +4,7 @@ import { computed, ref } from 'vue'
 export const AUTH_STORAGE_KEY = 'accessToken'
 export const AUTH_SYNC_STORAGE_KEY = 'yourmsgr-auth-sync'
 export const AUTH_SYNC_CHANNEL_NAME = 'yourmsgr-auth'
+export const AUTH_SESSION_HINT_STORAGE_KEY = 'yourmsgr-has-session'
 
 export type AuthSyncEvent =
     | { type: 'login'; accessToken: string; timestamp: number }
@@ -50,6 +51,19 @@ function broadcastAuthSync(event: AuthSyncEvent) {
     getAuthSyncChannel()?.postMessage(event)
 }
 
+function setSessionHint(hasSession: boolean) {
+    if (typeof window === 'undefined') {
+        return
+    }
+
+    if (hasSession) {
+        localStorage.setItem(AUTH_SESSION_HINT_STORAGE_KEY, '1')
+        return
+    }
+
+    localStorage.removeItem(AUTH_SESSION_HINT_STORAGE_KEY)
+}
+
 export const useAuthStore = defineStore('auth', () => {
     const token = ref<string | null>(localStorage.getItem(AUTH_STORAGE_KEY))
     const userId = ref<number | null>(null)
@@ -92,6 +106,7 @@ export const useAuthStore = defineStore('auth', () => {
     function setAuth(accessToken: string, options: { sync?: boolean } = {}) {
         applyTokenState(accessToken)
         localStorage.setItem(AUTH_STORAGE_KEY, accessToken)
+        setSessionHint(true)
 
         if (options.sync !== false) {
             broadcastAuthSync({
@@ -114,6 +129,7 @@ export const useAuthStore = defineStore('auth', () => {
         applyTokenState(null)
         publicKey.value = null
         localStorage.removeItem(AUTH_STORAGE_KEY)
+        setSessionHint(false)
         sessionStorage.removeItem('e2ee_private_key')
         sessionStorage.removeItem('e2ee_public_key')
         localStorage.removeItem('e2ee_private_key')

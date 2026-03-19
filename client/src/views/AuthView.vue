@@ -73,7 +73,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { authService } from '@/services/auth'
 import { sanitizeUnexpectedMessage } from '@/services/http'
-import { useAuthStore } from '@/stores/auth'
+import { AUTH_SESSION_HINT_STORAGE_KEY, useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -170,11 +170,18 @@ watch(mode, () => {
 })
 
 onMounted(async () => {
+  if (localStorage.getItem(AUTH_SESSION_HINT_STORAGE_KEY) !== '1') {
+    return
+  }
+
   const sessionRes = await authService.checkSession()
   if (sessionRes.success && sessionRes.data?.accessToken) {
     auth.setAuth(sessionRes.data.accessToken)
     await router.replace('/chat')
+    return
   }
+
+  localStorage.removeItem(AUTH_SESSION_HINT_STORAGE_KEY)
 })
 
 async function handleLogin() {

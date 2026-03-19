@@ -122,7 +122,7 @@
       @include flex-column;
       justify-content: center;
       min-height: $footer-height;
-      padding: $spacing-3 $spacing-4;
+      padding: $footer-shell-padding-y $footer-shell-padding-x;
       border-top: 1px solid $color-border-dark;
       background-color: $color-bg-input-area;
     }
@@ -131,7 +131,7 @@
       display: flex;
       gap: $spacing-3;
       align-items: center;
-      padding: $spacing-2;
+      padding: $footer-panel-padding-y $footer-panel-padding-x;
       min-height: $input-height;
       border-radius: $radius-md;
       background-color: $color-bg-content;
@@ -196,7 +196,7 @@
   @include respond-to(sm) {
     .sidebar__footer {
       min-height: $footer-height;
-      padding: $spacing-3 $spacing-4;
+      padding: $footer-shell-padding-y $footer-shell-padding-x;
     }
   }
 

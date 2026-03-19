@@ -10,11 +10,11 @@ export default defineConfig({
     resolve: {
         alias: {
             '@': path.resolve(__dirname, './src'),
-            'libsodium-wrappers': path.resolve(__dirname, 'node_modules/libsodium-wrappers/dist/modules/libsodium-wrappers.js'),
+            'libsodium-wrappers-sumo': path.resolve(__dirname, 'node_modules/libsodium-wrappers-sumo/dist/modules-sumo/libsodium-wrappers.js'),
         },
     },
     optimizeDeps: {
-        include: ['libsodium-wrappers'],
+        include: ['libsodium-wrappers-sumo'],
     },
     css: {
         preprocessorOptions: {

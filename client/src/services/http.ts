@@ -21,6 +21,7 @@ const TECHNICAL_ERROR_PATTERNS = [
   /typeerror/i,
   /referenceerror/i,
   /failed to fetch/i,
+  /password hashing is unavailable/i,
   /length cannot be null/i,
   /unexpected token/i,
 ]

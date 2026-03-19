@@ -137,7 +137,7 @@
     min-height: $footer-height;
     height: auto;
     justify-content: center;
-    padding: $spacing-3 $spacing-6;
+    padding: $footer-shell-padding-y $footer-shell-padding-x;
     background-color: $color-bg-input-area;
     border-top: 1px solid $color-border-dark;
 
@@ -337,7 +337,7 @@
     }
 
     .message-input {
-      padding: $spacing-3 $spacing-4;
+      padding: $footer-shell-padding-y $footer-shell-padding-x;
     }
 
     .sidebar {

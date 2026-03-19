@@ -1,4 +1,4 @@
-import _sodium from 'libsodium-wrappers'
+import _sodium from 'libsodium-wrappers-sumo'
 
 let sodiumReady = false
 
@@ -61,9 +61,25 @@ function hasWebCryptoSubtleSupport(): boolean {
     return typeof crypto !== 'undefined' && typeof crypto.subtle !== 'undefined'
 }
 
+function getPasswordCryptoSodium() {
+    const sodium = _sodium
+
+    if (
+        typeof sodium.crypto_pwhash !== 'function'
+        || typeof sodium.crypto_pwhash_SALTBYTES !== 'number'
+        || typeof sodium.crypto_pwhash_OPSLIMIT_INTERACTIVE !== 'number'
+        || typeof sodium.crypto_pwhash_MEMLIMIT_INTERACTIVE !== 'number'
+        || typeof sodium.crypto_pwhash_ALG_DEFAULT !== 'number'
+    ) {
+        throw new Error('Crypto password hashing is unavailable')
+    }
+
+    return sodium
+}
+
 async function derivePasswordKey(password: string, salt: Uint8Array): Promise<Uint8Array> {
     await initCrypto()
-    const sodium = _sodium
+    const sodium = getPasswordCryptoSodium()
 
     return sodium.crypto_pwhash(
         sodium.crypto_secretbox_KEYBYTES,
@@ -80,7 +96,7 @@ async function encryptPrivateKeyWithSodium(
     password: string,
 ): Promise<{ encrypted: string; iv: string; salt: string }> {
     await initCrypto()
-    const sodium = _sodium
+    const sodium = getPasswordCryptoSodium()
     const salt = sodium.randombytes_buf(sodium.crypto_pwhash_SALTBYTES)
     const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES)
     const key = await derivePasswordKey(password, salt)
@@ -102,7 +118,7 @@ async function decryptPrivateKeyWithSodium(
     password: string,
 ): Promise<string> {
     await initCrypto()
-    const sodium = _sodium
+    const sodium = getPasswordCryptoSodium()
     const nonce = sodium.from_base64(data.iv)
     const salt = sodium.from_base64(data.salt)
     const versionedCiphertext = decodeVersionedCiphertext(data.encrypted)

@@ -163,11 +163,11 @@
       min-height: $input-height;
       background-color: $color-bg-field;
       border-radius: $radius-md;
-      padding: $spacing-3;
+      padding: $footer-panel-padding-y $footer-panel-padding-x;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      gap: $spacing-2;
+      gap: 6px;
     }
 
     &__field-row {
@@ -180,13 +180,14 @@
     &__actions {
       @include flex-between;
       gap: $spacing-2;
-      min-height: 32px;
+      min-height: 28px;
+      align-items: flex-end;
     }
 
     &__actions-left,
     &__actions-right {
       display: flex;
-      align-items: center;
+      align-items: flex-end;
       gap: $spacing-2;
       min-width: 0;
     }
@@ -198,16 +199,16 @@
     &__e2ee-toggle {
       @include reset-button;
       @include flex-center;
-      width: 32px;
-      height: 32px;
+      width: 28px;
+      height: 28px;
       cursor: pointer;
       background-color: transparent;
       border-radius: $radius-sm;
       @include hover-brightness;
 
       svg {
-        width: 18px;
-        height: 18px;
+        width: 17px;
+        height: 17px;
         stroke: $color-text-muted;
         transition: stroke $transition-fast;
       }
@@ -223,9 +224,9 @@
       @include reset-input;
       width: 100%;
       display: block;
-      min-height: calc(1.4em + 2px);
+      min-height: calc(1.35em + 2px);
       font-size: $font-size-sm;
-      line-height: 1.4;
+      line-height: 1.35;
       color: $color-text-primary;
       background-color: transparent;
       resize: none;
@@ -242,15 +243,15 @@
     &__button {
       @include reset-button;
       @include flex-center;
-      width: 32px;
-      height: 32px;
+      width: 28px;
+      height: 28px;
       pointer-events: none;
       border-radius: $radius-sm;
       @include hover-brightness;
 
       svg {
-        width: 20px;
-        height: 20px;
+        width: 18px;
+        height: 18px;
         stroke: $color-text-muted;
         fill: transparent;
         transition: fill $transition-fast, stroke $transition-fast;
