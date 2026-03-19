@@ -2,7 +2,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { disconnectSocket } from '@/composables/useWebSocket'
 import { authService } from '@/services/auth'
-import { parseApiResponse } from '@/services/http'
+import { parseApiResponse, type ParsedApiResponse } from '@/services/http'
 import router from '@/router'
 
 const API_BASE = window.location.origin
@@ -19,7 +19,11 @@ const RETRYABLE_AUTH_MESSAGES = new Set([
     'Invalid or expired token',
 ])
 
-export async function apiFetch(endpoint: string, options: RequestInit = {}, retry = true): Promise<any> {
+export async function apiFetch<T = unknown>(
+    endpoint: string,
+    options: RequestInit = {},
+    retry = true,
+): Promise<ParsedApiResponse<T>> {
     const auth = useAuthStore()
     const chatStore = useChatStore()
     const headers: Record<string, string> = {
@@ -37,7 +41,7 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}, retr
         credentials: 'include',
     })
 
-    const data = await parseApiResponse(response)
+    const data = await parseApiResponse<T>(response)
     const errorMessage = data.message || 'Request failed'
 
     if (!response.ok) {
@@ -45,7 +49,7 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}, retr
             const refreshResponse = await authService.refreshTokens()
             if (refreshResponse.success && refreshResponse.data?.accessToken) {
                 auth.setAuth(refreshResponse.data.accessToken)
-                return apiFetch(endpoint, options, false)
+                return apiFetch<T>(endpoint, options, false)
             }
         }
 

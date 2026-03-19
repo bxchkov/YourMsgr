@@ -102,7 +102,7 @@ function handleReply() {
 }
 
 function handleDelete() {
-  if (!targetMessage.value) return
+  if (!targetMessage.value || !auth.token) return
   emitSocketEvent('delete_message', {
     accessToken: auth.token,
     id: targetMessage.value.id,
@@ -119,7 +119,7 @@ async function handleSendMessage() {
   try {
     const response = await privateChatsService.create(userId)
 
-    if (response.success) {
+    if (response.success && response.data?.chat) {
       const chat = response.data.chat
 
       chatStore.addPrivateChat({

@@ -5,6 +5,8 @@ import { authService } from '@/services/auth'
 import { privateChatsService } from '@/services/privateChats'
 import { initCrypto } from '@/composables/useCrypto'
 import { disconnectSocket, initSocket, setupSocketHandlers } from '@/composables/useWebSocket'
+import type { PrivateChat } from '@/stores/chat'
+import type { PublicKeyEntry } from '@/types/api'
 
 const TERMINAL_SESSION_MESSAGES = new Set([
   'Unauthorized',
@@ -36,7 +38,7 @@ export function useChatSession() {
       }
 
       const keys: Record<number, string> = {}
-      response.data.publicKeys.forEach((user: { userId: number; publicKey: string }) => {
+      response.data.publicKeys.forEach((user: PublicKeyEntry) => {
         keys[user.userId] = user.publicKey
       })
 
@@ -60,10 +62,10 @@ export function useChatSession() {
 
       const keysFromPrivateChats = Object.fromEntries(
         response.data.chats
-          .filter((chat: { otherUser?: { id: number; publicKey: string | null } }) => chat.otherUser?.publicKey)
-          .map((chat: { otherUser: { id: number; publicKey: string } }) => [
+          .filter((chat: PrivateChat) => !!chat.otherUser?.publicKey)
+          .map((chat: PrivateChat) => [
             chat.otherUser.id,
-            chat.otherUser.publicKey,
+            chat.otherUser.publicKey!,
           ]),
       )
 

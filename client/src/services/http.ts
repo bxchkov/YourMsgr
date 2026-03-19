@@ -1,11 +1,11 @@
-export interface ApiEnvelope<T = any> {
+export interface ApiEnvelope<T = unknown> {
   success: boolean
   message?: string
   data?: T
   error?: string
 }
 
-export interface ParsedApiResponse<T = any> {
+export interface ParsedApiResponse<T = unknown> {
   success: boolean
   message: string
   data?: T
@@ -44,7 +44,7 @@ async function readResponseBody(response: Response): Promise<unknown> {
   }
 }
 
-export async function parseApiResponse<T = any>(response: Response): Promise<ParsedApiResponse<T>> {
+export async function parseApiResponse<T = unknown>(response: Response): Promise<ParsedApiResponse<T>> {
   const raw = await readResponseBody(response)
   const envelope = (raw && typeof raw === 'object' ? raw : null) as ApiEnvelope<T> | null
   const messageFromEnvelope = typeof envelope?.message === 'string'
@@ -82,7 +82,7 @@ export function sanitizeUnexpectedMessage(message: string | undefined, fallback:
   return normalized
 }
 
-export function createLocalErrorResponse(message: string, status = 400): ParsedApiResponse<any> {
+export function createLocalErrorResponse<T = unknown>(message: string, status = 400): ParsedApiResponse<T> {
   return {
     success: false,
     message,

@@ -22,9 +22,9 @@ privateChatRoutes.post("/", async (c) => {
     const chat = await privateChatService.getOrCreatePrivateChat(user.userId, otherUserId);
 
     return sendSuccess(c, "Chat created", { chat });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error creating private chat:", error);
-    if (error?.message === "User not found") {
+    if (error instanceof Error && error.message === "User not found") {
       return sendError(c, 404, "User not found");
     }
     return sendError(c, 500, "Failed to create chat");
@@ -56,12 +56,12 @@ privateChatRoutes.get("/:chatId/messages", async (c) => {
     const messages = await privateChatService.getPrivateChatMessages(chatId, user.userId, lastMessageId);
 
     return sendSuccess(c, "Messages retrieved", { messages });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error fetching messages:", error);
-    if (error?.message === "Chat not found or access denied") {
+    if (error instanceof Error && error.message === "Chat not found or access denied") {
       return sendError(c, 403, error.message);
     }
-    return sendError(c, 500, error.message || "Failed to fetch messages");
+    return sendError(c, 500, error instanceof Error ? error.message : "Failed to fetch messages");
   }
 });
 

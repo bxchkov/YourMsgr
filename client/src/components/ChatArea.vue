@@ -124,6 +124,8 @@ import { authService } from '@/services/auth'
 import { emitSocketEvent } from '@/composables/useWebSocket'
 import { encryptMessageE2EE, getPublicKey } from '@/composables/useCrypto'
 import { getReplyPreviewText, normalizeMessageText } from '@/utils/messageContent'
+import type { PrivateChatMessagesData, PublicKeyEntry } from '@/types/api'
+import type { SendMessageSocketPayload } from '@/types/socket'
 import MessageItem from './MessageItem.vue'
 
 const chatStore = useChatStore()
@@ -237,10 +239,10 @@ async function resolveRecipientPublicKey(recipientId: number) {
     return currentPrivateChat.otherUser.publicKey
   }
 
-  const response = await authService.getPublicKeys()
-  if (response.success && response.data?.publicKeys) {
-    const refreshedKeys = Object.fromEntries(
-      response.data.publicKeys.map((user: { userId: number; publicKey: string }) => [user.userId, user.publicKey]),
+    const response = await authService.getPublicKeys()
+    if (response.success && response.data?.publicKeys) {
+      const refreshedKeys = Object.fromEntries(
+      response.data.publicKeys.map((user: PublicKeyEntry) => [user.userId, user.publicKey]),
     )
 
     chatStore.setPublicKeys({
@@ -305,7 +307,7 @@ function scrollToBottom() {
 
 async function loadPrivateChatMessages(chatId: number, requestId: number) {
   try {
-    const response = await apiFetch(`/api/private-chats/${chatId}/messages`)
+    const response = await apiFetch<PrivateChatMessagesData>(`/api/private-chats/${chatId}/messages`)
     if (requestId !== privateMessagesRequestId) {
       return
     }
@@ -334,7 +336,12 @@ async function sendMessage() {
     return
   }
 
-  const msgData: Record<string, unknown> = {
+  if (!auth.token) {
+    setComposerNotice('Сессия истекла. Войдите снова')
+    return
+  }
+
+  const msgData: SendMessageSocketPayload = {
     accessToken: auth.token,
     message: normalizedMessage,
     isEncrypted: 0,

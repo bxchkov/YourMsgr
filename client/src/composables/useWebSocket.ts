@@ -3,11 +3,18 @@ import { useAuthStore } from '@/stores/auth'
 import { useChatStore, type Message } from '@/stores/chat'
 import { authService } from '@/services/auth'
 import router from '@/router'
+import type {
+    SocketIncomingEvent,
+    SocketIncomingEventMap,
+    SocketIncomingEventType,
+    SocketOutgoingEventMap,
+    SocketOutgoingEventType,
+} from '@/types/socket'
 
 let socket: WebSocket | null = null
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 let isIntentionalClose = false
-const eventHandlers = new Map<string, (data: any) => void>()
+const eventHandlers = new Map<SocketIncomingEventType, (data: SocketIncomingEvent) => void>()
 const TERMINAL_SESSION_MESSAGES = new Set([
     'Unauthorized',
     'Invalid or expired token',
@@ -19,11 +26,32 @@ const TERMINAL_SESSION_MESSAGES = new Set([
 
 export const isConnected = ref(false)
 
-export function onSocketEvent(eventType: string, callback: (data: any) => void) {
-    eventHandlers.set(eventType, callback)
+const SOCKET_INCOMING_EVENT_TYPES = [
+    'load_messages',
+    'send_message',
+    'delete_message',
+    'error',
+    'check_session',
+    'refresh_tokens',
+    'client_logout',
+] as const satisfies readonly SocketIncomingEventType[]
+
+function isSocketIncomingEventType(value: unknown): value is SocketIncomingEventType {
+    return typeof value === 'string'
+        && (SOCKET_INCOMING_EVENT_TYPES as readonly string[]).includes(value)
 }
 
-export function emitSocketEvent(eventType: string, data: Record<string, any>) {
+export function onSocketEvent<K extends SocketIncomingEventType>(
+    eventType: K,
+    callback: (data: SocketIncomingEventMap[K]) => void,
+) {
+    eventHandlers.set(eventType, callback as (data: SocketIncomingEvent) => void)
+}
+
+export function emitSocketEvent<K extends SocketOutgoingEventType>(
+    eventType: K,
+    data: SocketOutgoingEventMap[K],
+) {
     if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: eventType, ...data }))
     }
@@ -52,10 +80,14 @@ export function initSocket() {
 
     socket.onmessage = (event) => {
         try {
-            const data = JSON.parse(event.data)
+            const data = JSON.parse(event.data) as Partial<SocketIncomingEvent>
+            if (!isSocketIncomingEventType(data.type)) {
+                return
+            }
+
             const handler = eventHandlers.get(data.type)
             if (handler) {
-                handler(data)
+                handler(data as SocketIncomingEvent)
             }
         } catch (error) {
             console.error('WebSocket message error:', error)
