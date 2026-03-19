@@ -6,6 +6,7 @@ import { db } from "./db";
 import { corsMiddleware } from "./middleware/cors";
 import { rateLimiter } from "./middleware/rateLimit";
 import authRoutes from "./routes/auth.routes";
+import messageRoutes from "./routes/messages.routes";
 import privateChatRoutes from "./routes/privateChat.routes";
 import { AuthService } from "./services/auth.service";
 import { MessageService } from "./services/message.service";
@@ -35,6 +36,7 @@ app.use(
 );
 
 app.route("/auth", authRoutes);
+app.route("/api/messages", messageRoutes);
 app.route("/api/private-chats", privateChatRoutes);
 
 app.get("/", (c) => c.text("Chat Server Running"));

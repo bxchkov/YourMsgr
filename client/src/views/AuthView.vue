@@ -177,7 +177,7 @@ onMounted(async () => {
   const sessionRes = await authService.checkSession()
   if (sessionRes.success && sessionRes.data?.accessToken) {
     auth.setAuth(sessionRes.data.accessToken)
-    await router.replace('/chat')
+    await router.replace('/chat/general')
     return
   }
 
@@ -235,7 +235,7 @@ async function handleLogin() {
 
     if (response.data?.accessToken) {
       auth.setAuth(response.data.accessToken)
-      await router.push('/chat')
+      await router.push('/chat/general')
       return
     }
 
@@ -290,7 +290,7 @@ async function handleRegister() {
       savePrivateKey(keys.privateKey)
       savePublicKey(keys.publicKey)
       auth.setAuth(response.data.accessToken)
-      await router.push('/chat')
+      await router.push('/chat/general')
       return
     }
 

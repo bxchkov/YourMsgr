@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import router from './router'
 import App from './App.vue'
 import { setupAuthSync } from './composables/useAuthSync'
+import { setupCryptoSync } from './composables/useCrypto'
 import { initTheme } from './composables/useTheme'
 import './styles/main.scss'
 
@@ -13,4 +14,5 @@ const app = createApp(App)
 app.use(pinia)
 app.use(router)
 setupAuthSync(pinia, router)
+setupCryptoSync()
 app.mount('#app')

@@ -160,6 +160,24 @@ format_value() {
   printf "%s%s%s" "$color" "$value" "$COLOR_RESET"
 }
 
+strip_ansi() {
+  printf '%s' "$1" | sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g'
+}
+
+pad_visible() {
+  local value="$1"
+  local width="$2"
+  local plain padding
+
+  plain="$(strip_ansi "$value")"
+  padding=$((width - ${#plain}))
+  if ((padding < 0)); then
+    padding=0
+  fi
+
+  printf '%s%*s' "$value" "$padding" ''
+}
+
 draw_line() {
   printf "%s+------------------------------------------------------------+%s\n" "$COLOR_ACCENT" "$COLOR_RESET"
 }
@@ -168,6 +186,16 @@ draw_section() {
   local title="$1"
   draw_line
   printf "%s* %s *%s\n" "$COLOR_TITLE" "$title" "$COLOR_RESET"
+  draw_line
+}
+
+draw_banner() {
+  local version
+  version="$(current_version)"
+
+  draw_line
+  printf "%s|%s  %sYourMsgr Control Panel%s%s |\n" "$COLOR_ACCENT" "$COLOR_RESET" "$COLOR_TITLE" "$COLOR_RESET" "$(pad_visible "" 34)"
+  printf "%s|%s  %sVersion:%s %-47s |\n" "$COLOR_ACCENT" "$COLOR_RESET" "$COLOR_INFO" "$COLOR_RESET" "$version"
   draw_line
 }
 
@@ -195,6 +223,11 @@ pause_any_key() {
   printf "%s>%s Press any key to return..." "$COLOR_TITLE" "$COLOR_RESET"
   IFS= read -rsn1 _ || true
   echo
+}
+
+print_menu_prompt() {
+  echo
+  printf "%s>%s %sEnter your option:%s " "$COLOR_TITLE" "$COLOR_RESET" "$COLOR_TITLE" "$COLOR_RESET"
 }
 
 confirm_action() {
@@ -231,6 +264,33 @@ detect_ip() {
   hostname -I 2>/dev/null | awk '{print $1}' || echo "unknown"
 }
 
+detect_isp() {
+  local cache_file="/tmp/yourmsgr-isp-cache"
+  local cache_ttl=3600
+  local now cached_at cached_value fetched
+
+  now="$(date +%s 2>/dev/null || echo 0)"
+  if [[ -f "$cache_file" ]]; then
+    cached_at="$(cut -d'|' -f1 < "$cache_file" 2>/dev/null || echo 0)"
+    cached_value="$(cut -d'|' -f2- < "$cache_file" 2>/dev/null || true)"
+    if [[ -n "$cached_value" && "$cached_at" =~ ^[0-9]+$ ]] && ((now - cached_at < cache_ttl)); then
+      printf '%s' "$cached_value"
+      return
+    fi
+  fi
+
+  if command -v curl >/dev/null 2>&1; then
+    fetched="$(curl -fsS --max-time 2 https://ipinfo.io/org 2>/dev/null | sed -E 's/^AS[0-9]+[[:space:]]+//' || true)"
+    if [[ -n "$fetched" ]]; then
+      printf '%s|%s' "$now" "$fetched" > "$cache_file" 2>/dev/null || true
+      printf '%s' "$fetched"
+      return
+    fi
+  fi
+
+  echo "unknown"
+}
+
 detect_cpu_usage() {
   top -bn1 2>/dev/null | awk -F'[, ]+' '/^%?Cpu/ {
     for (i = 1; i <= NF; i++) {
@@ -249,6 +309,19 @@ detect_cpu_model() {
   fi
 
   awk -F: '/model name/ {gsub(/^[ \t]+/, "", $2); print $2; exit}' /proc/cpuinfo 2>/dev/null
+}
+
+shorten_cpu_model() {
+  local model="$1"
+
+  printf '%s' "$model" \
+    | sed -E \
+      -e 's/[[:space:]]+[0-9]+-Core Processor$//' \
+      -e 's/[[:space:]]+Processor$//' \
+      -e 's/[[:space:]]+CPU$//' \
+      -e 's/[[:space:]]+with Radeon Graphics$//' \
+      -e 's/[[:space:]]+@.*$//' \
+    | awk '{$1=$1; print}'
 }
 
 detect_cpu_cores() {
@@ -279,7 +352,7 @@ detect_cpu_summary() {
   local details=()
 
   usage="$(detect_cpu_usage)"
-  model="$(detect_cpu_model)"
+  model="$(shorten_cpu_model "$(detect_cpu_model)")"
   cores="$(detect_cpu_cores)"
   frequency="$(detect_cpu_frequency)"
 
@@ -288,17 +361,21 @@ detect_cpu_summary() {
   fi
 
   if [[ -n "$cores" ]]; then
-    details+=("${cores}c")
+    details+=("$cores")
   fi
 
   if [[ -n "$frequency" ]]; then
-    details+=("@ ${frequency}")
+    if [[ -n "$cores" ]]; then
+      details[-1]="${details[-1]}@${frequency}"
+    else
+      details+=("@${frequency}")
+    fi
   fi
 
   if [[ ${#details[@]} -gt 0 ]]; then
     joined="${details[0]}"
     for detail_part in "${details[@]:1}"; do
-      joined+=", ${detail_part}"
+      joined+=" ${detail_part}"
     done
 
     printf "%s (%s)" "${usage:-unknown}" "$joined"
@@ -425,22 +502,52 @@ render_state() {
   esac
 }
 
+print_two_column_row() {
+  local left="$1"
+  local right="$2"
+  printf "%s  %s\n" "$(pad_visible "$left" 30)" "$right"
+}
+
 print_system_overview() {
   draw_section "System Overview"
-  printf "%sOS:%s      %s\n" "$COLOR_OK" "$COLOR_RESET" "$(detect_os)"
-  printf "%sARCH:%s    %s\n" "$COLOR_OK" "$COLOR_RESET" "$(detect_arch)"
-  printf "%sIP:%s      %s\n" "$COLOR_OK" "$COLOR_RESET" "$(detect_ip)"
-  printf "%sCPU:%s     %s\n" "$COLOR_OK" "$COLOR_RESET" "$(detect_cpu_summary)"
-  printf "%sRAM:%s     %s\n" "$COLOR_OK" "$COLOR_RESET" "$(detect_ram_usage)"
+  print_two_column_row \
+    "$(format_value "$COLOR_OK" "OS:") $(detect_os)" \
+    "$(format_value "$COLOR_OK" "ARCH:") $(detect_arch)"
+  print_two_column_row \
+    "$(format_value "$COLOR_OK" "ISP:") $(detect_isp)" \
+    "$(format_value "$COLOR_OK" "CPU:") $(detect_cpu_summary)"
+  print_two_column_row \
+    "$(format_value "$COLOR_OK" "IP:") $(detect_ip)" \
+    "$(format_value "$COLOR_OK" "RAM:") $(detect_ram_usage)"
 }
 
 print_app_overview() {
-  draw_section "Application"
-  printf "%sVersion:%s      %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(current_version)"
-  printf "%sURL:%s          %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(current_public_url)"
-  printf "%sState:%s        %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(render_state "$(application_state)")"
-  printf "%sAuto-start:%s   %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(render_state "$(autostart_state)")"
-  printf "%sAuto-restart:%s %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(render_state "$(autorestart_state)")"
+  local docker_state client_state server_state postgres_state
+  draw_section "Application & Services"
+
+  docker_state="$(systemd_service_state docker.service)"
+  if ! is_configured; then
+    client_state="not_configured"
+    server_state="not_configured"
+    postgres_state="not_configured"
+  else
+    client_state="$(container_state client)"
+    server_state="$(container_state server)"
+    postgres_state="$(container_state postgres)"
+  fi
+
+  print_two_column_row \
+    "$(format_value "$COLOR_INFO" "Version:") $(current_version)" \
+    "$(format_value "$COLOR_INFO" "Docker:") $(render_state "$docker_state")"
+  print_two_column_row \
+    "$(format_value "$COLOR_INFO" "State:") $(render_state "$(application_state)")" \
+    "$(format_value "$COLOR_INFO" "Client:") $(render_state "$client_state")"
+  print_two_column_row \
+    "$(format_value "$COLOR_INFO" "Auto-start:") $(render_state "$(autostart_state)")" \
+    "$(format_value "$COLOR_INFO" "Server:") $(render_state "$server_state")"
+  print_two_column_row \
+    "$(format_value "$COLOR_INFO" "Auto-restart:") $(render_state "$(autorestart_state)")" \
+    "$(format_value "$COLOR_INFO" "Postgres:") $(render_state "$postgres_state")"
 }
 
 print_service_overview() {
@@ -543,11 +650,10 @@ print_endpoint_overview() {
 }
 
 show_status() {
+  draw_banner
   print_system_overview
   echo
   print_app_overview
-  echo
-  print_service_overview
   echo
   print_endpoint_overview
 
@@ -759,15 +865,34 @@ reconfigure_stack() {
   configure_stack
 }
 
+run_admin_cli() {
+  local exit_code=0
+
+  set +e
+  if [[ -t 0 && -t 1 ]]; then
+    compose exec server bun src/cli/admin.ts "$@"
+    exit_code=$?
+  else
+    compose exec -T server bun src/cli/admin.ts "$@" < /dev/null
+    exit_code=$?
+  fi
+  set -e
+
+  return "$exit_code"
+}
+
 print_logs() {
   local service="${1:-}"
   local exit_code=0
+  local previous_int_trap
 
   if ! is_configured; then
     echo "Application is not configured yet"
     return 0
   fi
 
+  previous_int_trap="$(trap -p INT || true)"
+  trap '' INT
   set +e
   if [[ -n "$service" ]]; then
     compose logs -f "$service"
@@ -777,6 +902,11 @@ print_logs() {
     exit_code=$?
   fi
   set -e
+  if [[ -n "$previous_int_trap" ]]; then
+    eval "$previous_int_trap"
+  else
+    trap - INT
+  fi
 
   if [[ "$exit_code" -ne 0 && "$exit_code" -ne 130 ]]; then
     return "$exit_code"
@@ -918,6 +1048,20 @@ show_version() {
   echo "Install dir: $INSTALL_DIR"
 }
 
+show_site_url() {
+  clear_screen
+  draw_section "Site URL"
+  if ! is_configured; then
+    echo "Application is not configured yet."
+    echo "Run: sudo yourmsgr service start"
+    pause_any_key
+    return
+  fi
+
+  echo "$(current_public_url)"
+  pause_any_key
+}
+
 show_logs_menu() {
   while true; do
     clear_screen
@@ -927,8 +1071,7 @@ show_logs_menu() {
     printf "%s[3]%s Server\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[4]%s Postgres\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[0]%s Back\n" "$COLOR_INFO" "$COLOR_RESET"
-    echo
-    printf "%s>%s Press a digit: " "$COLOR_TITLE" "$COLOR_RESET"
+    print_menu_prompt
 
     local choice=""
     IFS= read -rsn1 choice || true
@@ -989,8 +1132,8 @@ show_service_menu() {
 
     draw_section "Service Management"
     printf "%sApplication:%s    %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(render_state "$app_state")"
-    printf "%sCurrent auto-start:%s   %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(render_state "$autostart")"
-    printf "%sCurrent auto-restart:%s %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(render_state "$autorestart")"
+    printf "%sAuto-start:%s     %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(render_state "$autostart")"
+    printf "%sAuto-restart:%s   %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(render_state "$autorestart")"
 
     if [[ "$app_state" == "not_configured" ]]; then
       echo "First start will open the configuration wizard for domain and HTTPS."
@@ -1002,8 +1145,7 @@ show_service_menu() {
     printf "%s[3]%s %s\n" "$COLOR_INFO" "$COLOR_RESET" "$autostart_label"
     printf "%s[4]%s %s\n" "$COLOR_INFO" "$COLOR_RESET" "$autorestart_label"
     printf "%s[0]%s Back\n" "$COLOR_INFO" "$COLOR_RESET"
-    echo
-    printf "%s>%s Press a digit: " "$COLOR_TITLE" "$COLOR_RESET"
+    print_menu_prompt
 
     local choice=""
     IFS= read -rsn1 choice || true
@@ -1051,8 +1193,7 @@ show_update_menu() {
     esac
 
     printf "%s[0]%s Back\n" "$COLOR_INFO" "$COLOR_RESET"
-    echo
-    printf "%s>%s Press a digit: " "$COLOR_TITLE" "$COLOR_RESET"
+    print_menu_prompt
 
     local choice=""
     IFS= read -rsn1 choice || true
@@ -1095,15 +1236,14 @@ show_admin_menu() {
     printf "%s[1]%s Stats\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[2]%s Users list\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[3]%s User details\n" "$COLOR_INFO" "$COLOR_RESET"
-    printf "%s[4]%s Create user automatically\n" "$COLOR_INFO" "$COLOR_RESET"
-    printf "%s[5]%s Create admin automatically\n" "$COLOR_INFO" "$COLOR_RESET"
-    printf "%s[6]%s Change user role\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[4]%s Create admin\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[5]%s Change user role\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[6]%s Send admin message\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[7]%s Logout user from all sessions\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[8]%s Delete user's group messages\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[9]%s Delete user\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[0]%s Back\n" "$COLOR_INFO" "$COLOR_RESET"
-    echo
-    printf "%s>%s Press a digit: " "$COLOR_TITLE" "$COLOR_RESET"
+    print_menu_prompt
 
     local choice=""
     IFS= read -rsn1 choice || true
@@ -1113,13 +1253,13 @@ show_admin_menu() {
       1)
         clear_screen
         draw_section "Admin Stats"
-        compose exec server bun src/cli/admin.ts stats
+        run_admin_cli stats || true
         pause_any_key
         ;;
       2)
         clear_screen
         draw_section "Users List"
-        compose exec server bun src/cli/admin.ts users:list
+        run_admin_cli users:list || true
         pause_any_key
         ;;
       3)
@@ -1128,23 +1268,17 @@ show_admin_menu() {
         if [[ -n "$details_login" ]]; then
           clear_screen
           draw_section "User Details"
-          compose exec server bun src/cli/admin.ts users:get "$details_login"
+          run_admin_cli users:get "$details_login" || true
           pause_any_key
         fi
         ;;
       4)
         clear_screen
-        draw_section "Create User"
-        compose exec server bun src/cli/admin.ts users:create-auto
+        draw_section "Create Admin"
+        run_admin_cli users:create-auto --admin || true
         pause_any_key
         ;;
       5)
-        clear_screen
-        draw_section "Create Admin"
-        compose exec server bun src/cli/admin.ts users:create-auto --admin
-        pause_any_key
-        ;;
-      6)
         local role_login="" role_value=""
         read -r -p "User login: " role_login || true
         if [[ -z "$role_login" ]]; then
@@ -1154,7 +1288,21 @@ show_admin_menu() {
         if [[ -n "$role_value" ]]; then
           clear_screen
           draw_section "Change Role"
-          compose exec server bun src/cli/admin.ts users:role "$role_login" "$role_value"
+          run_admin_cli users:role "$role_login" "$role_value" || true
+          pause_any_key
+        fi
+        ;;
+      6)
+        local announcement_login="" announcement_message=""
+        read -r -p "Admin login: " announcement_login || true
+        if [[ -z "$announcement_login" ]]; then
+          continue
+        fi
+        read -r -p "Message: " announcement_message || true
+        if [[ -n "$announcement_message" ]]; then
+          clear_screen
+          draw_section "Admin Message"
+          run_admin_cli messages:admin-post "$announcement_login" "$announcement_message" || true
           pause_any_key
         fi
         ;;
@@ -1164,7 +1312,7 @@ show_admin_menu() {
         if [[ -n "$logout_login" ]]; then
           clear_screen
           draw_section "Logout User"
-          compose exec server bun src/cli/admin.ts users:logout "$logout_login"
+          run_admin_cli users:logout "$logout_login" || true
           pause_any_key
         fi
         ;;
@@ -1174,7 +1322,7 @@ show_admin_menu() {
         if [[ -n "$purge_login" ]]; then
           clear_screen
           draw_section "Delete User Group Messages"
-          compose exec server bun src/cli/admin.ts messages:purge-group "$purge_login"
+          run_admin_cli messages:purge-group "$purge_login" || true
           pause_any_key
         fi
         ;;
@@ -1184,7 +1332,7 @@ show_admin_menu() {
         if [[ -n "$delete_login" ]]; then
           clear_screen
           draw_section "Delete User"
-          compose exec server bun src/cli/admin.ts users:delete "$delete_login"
+          run_admin_cli users:delete "$delete_login" || true
           pause_any_key
         fi
         ;;
@@ -1200,34 +1348,31 @@ show_admin_menu() {
 show_menu() {
   while true; do
     clear_screen
-    local app_state menu_status_label menu_reconfigure_label
+    local app_state menu_reconfigure_label
     app_state="$(application_state)"
-    menu_status_label="Status"
     menu_reconfigure_label="Reconfigure installation"
 
     if [[ "$app_state" == "not_configured" ]]; then
-      menu_status_label="Setup status"
       menu_reconfigure_label="Run setup wizard"
     fi
 
+    draw_banner
     print_system_overview
     echo
     print_app_overview
     echo
-    print_service_overview
-    echo
     draw_section "Main Menu"
-    printf "%s[1]%s %s\n" "$COLOR_INFO" "$COLOR_RESET" "$menu_status_label"
+    printf "%s[1]%s Detailed diagnostics\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[2]%s Service management\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[3]%s Logs\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[4]%s Check updates\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[5]%s Admin tools\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[6]%s %s\n" "$COLOR_INFO" "$COLOR_RESET" "$menu_reconfigure_label"
-    printf "%s[7]%s Refresh dashboard\n" "$COLOR_INFO" "$COLOR_RESET"
-    printf "%s[8]%s Uninstall\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[7]%s Show site URL\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[8]%s Refresh menu\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[9]%s Uninstall\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[0]%s Exit\n" "$COLOR_INFO" "$COLOR_RESET"
-    echo
-    printf "%s>%s Press a digit: " "$COLOR_TITLE" "$COLOR_RESET"
+    print_menu_prompt
 
     local choice=""
     IFS= read -rsn1 choice || true
@@ -1256,9 +1401,12 @@ show_menu() {
         pause_any_key
         ;;
       7)
-        continue
+        show_site_url
         ;;
       8)
+        continue
+        ;;
+      9)
         if confirm_action "Remove stack, volumes, install directory and helper command?"; then
           uninstall_stack
         fi
@@ -1289,6 +1437,7 @@ Commands:
   setup
   version
   status
+  site-url
   logs [client|server|postgres]
   check-update
   update [--force]
@@ -1351,6 +1500,10 @@ case "$command_name" in
 
   status|health)
     show_status
+    ;;
+
+  site-url)
+    show_site_url
     ;;
 
   logs)

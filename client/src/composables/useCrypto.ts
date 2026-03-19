@@ -1,10 +1,15 @@
+import { ref } from 'vue'
 import nacl from 'tweetnacl'
 
 let initialized = false
+let cryptoSyncChannel: BroadcastChannel | null = null
+let cryptoSyncInitialized = false
 
 export const PRIVATE_KEY_STORAGE_KEY = 'e2ee_private_key'
 export const PUBLIC_KEY_STORAGE_KEY = 'e2ee_public_key'
 export const SECURE_PASSWORD_ENCRYPTION_ERROR = 'Secure password encryption requires HTTPS'
+export const CRYPTO_SYNC_CHANNEL_NAME = 'yourmsgr-crypto'
+export const cryptoRevision = ref(0)
 
 const PASSWORD_CIPHER_VERSION = 'v3'
 const PBKDF2_ITERATIONS = 100_000
@@ -17,6 +22,10 @@ type PasswordEncryptedPrivateKey = {
     salt: string
 }
 
+type CryptoSyncEvent =
+    | { type: 'request'; timestamp: number }
+    | { type: 'keys'; privateKey: string; publicKey: string; timestamp: number }
+
 function getCryptoStorage() {
     if (typeof window === 'undefined') {
         return null
@@ -25,8 +34,88 @@ function getCryptoStorage() {
     return window.sessionStorage
 }
 
+function bumpCryptoRevision() {
+    cryptoRevision.value += 1
+}
+
+function getCryptoSyncChannel() {
+    if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') {
+        return null
+    }
+
+    cryptoSyncChannel ??= new BroadcastChannel(CRYPTO_SYNC_CHANNEL_NAME)
+    return cryptoSyncChannel
+}
+
+function broadcastStoredKeys() {
+    const privateKey = getPrivateKey()
+    const publicKey = getPublicKey()
+
+    if (!privateKey || !publicKey) {
+        return
+    }
+
+    getCryptoSyncChannel()?.postMessage({
+        type: 'keys',
+        privateKey,
+        publicKey,
+        timestamp: Date.now(),
+    } satisfies CryptoSyncEvent)
+}
+
 export async function initCrypto(): Promise<void> {
     initialized = true
+}
+
+export function setupCryptoSync() {
+    if (cryptoSyncInitialized || typeof window === 'undefined') {
+        return
+    }
+
+    const channel = getCryptoSyncChannel()
+    if (!channel) {
+        cryptoSyncInitialized = true
+        return
+    }
+
+    channel.onmessage = (messageEvent: MessageEvent<CryptoSyncEvent>) => {
+        const event = messageEvent.data
+        if (!event) {
+            return
+        }
+
+        if (event.type === 'request') {
+            broadcastStoredKeys()
+            return
+        }
+
+        const storage = getCryptoStorage()
+        if (!storage) {
+            return
+        }
+
+        const hasPrivateKey = Boolean(storage.getItem(PRIVATE_KEY_STORAGE_KEY))
+        const hasPublicKey = Boolean(storage.getItem(PUBLIC_KEY_STORAGE_KEY))
+
+        if (!hasPrivateKey && event.privateKey) {
+            storage.setItem(PRIVATE_KEY_STORAGE_KEY, event.privateKey)
+        }
+
+        if (!hasPublicKey && event.publicKey) {
+            storage.setItem(PUBLIC_KEY_STORAGE_KEY, event.publicKey)
+        }
+
+        bumpCryptoRevision()
+    }
+
+    if (!getPrivateKey() || !getPublicKey()) {
+        channel.postMessage({
+            type: 'request',
+            timestamp: Date.now(),
+        } satisfies CryptoSyncEvent)
+    }
+
+    cryptoSyncInitialized = true
 }
 
 function ensureInitialized() {
@@ -185,6 +274,8 @@ export function savePrivateKey(key: string): void {
     }
 
     storage.setItem(PRIVATE_KEY_STORAGE_KEY, key)
+    bumpCryptoRevision()
+    broadcastStoredKeys()
 }
 
 export function getPrivateKey(): string | null {
@@ -198,6 +289,8 @@ export function savePublicKey(key: string): void {
     }
 
     storage.setItem(PUBLIC_KEY_STORAGE_KEY, key)
+    bumpCryptoRevision()
+    broadcastStoredKeys()
 }
 
 export function getPublicKey(): string | null {
@@ -213,6 +306,7 @@ export function clearCryptoKeys(): void {
     window.sessionStorage.removeItem(PUBLIC_KEY_STORAGE_KEY)
     window.localStorage.removeItem(PRIVATE_KEY_STORAGE_KEY)
     window.localStorage.removeItem(PUBLIC_KEY_STORAGE_KEY)
+    bumpCryptoRevision()
 }
 
 export function encryptMessageE2EE(

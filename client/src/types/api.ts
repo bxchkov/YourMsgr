@@ -42,3 +42,7 @@ export interface PrivateChatsData {
 export interface PrivateChatMessagesData {
     messages: Message[]
 }
+
+export interface GroupMessagesData {
+    messages: Message[]
+}

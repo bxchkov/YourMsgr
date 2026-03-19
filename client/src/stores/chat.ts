@@ -57,6 +57,17 @@ export interface CurrentChat {
     otherUserId: number | null
 }
 
+export function createGeneralCurrentChat(): CurrentChat {
+    return {
+        id: 'general',
+        type: 'group',
+        chatId: null,
+        recipientId: null,
+        name: 'Общий чат',
+        otherUserId: null,
+    }
+}
+
 export const useChatStore = defineStore('chat', () => {
     const groupMessages = ref<Message[]>([])
     const privateMessages = ref<Message[]>([])
@@ -64,14 +75,7 @@ export const useChatStore = defineStore('chat', () => {
     const publicKeys = ref<Record<number, string>>({})
     const replyTarget = ref<Message | null>(null)
 
-    const currentChat = ref<CurrentChat>({
-        id: 'general',
-        type: 'group',
-        chatId: null,
-        recipientId: null,
-        name: 'Общий чат',
-        otherUserId: null,
-    })
+    const currentChat = ref<CurrentChat>(createGeneralCurrentChat())
 
     const activeMessages = computed(() => {
         return currentChat.value.type === 'group' ? groupMessages.value : privateMessages.value
@@ -188,14 +192,7 @@ export const useChatStore = defineStore('chat', () => {
         privateChats.value = []
         publicKeys.value = {}
         replyTarget.value = null
-        currentChat.value = {
-            id: 'general',
-            type: 'group',
-            chatId: null,
-            recipientId: null,
-            name: 'Общий чат',
-            otherUserId: null,
-        }
+        currentChat.value = createGeneralCurrentChat()
     }
 
     return {

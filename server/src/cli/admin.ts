@@ -50,7 +50,7 @@ Commands:
       Create a user interactively or from arguments
 
   users:create-auto [--admin]
-      Create a user automatically with generated credentials
+      Create an account with generated credentials
 
   users:create-admin [login] [password] [username]
       Create an admin user
@@ -351,10 +351,11 @@ const createUser = async (inputArgs: string[], forceAdmin = false) => {
 
 const createAutoUser = async (forceAdmin = false) => {
   const prefix = forceAdmin ? "admin" : "user";
+  const generatedLogin = `${prefix}${generateTokenFriendlyValue(6).toLowerCase()}`;
   const prepared = {
-    login: `${prefix}${generateTokenFriendlyValue(6).toLowerCase()}`,
+    login: generatedLogin,
     password: generateTokenFriendlyValue(14),
-    username: `${prefix}${generateTokenFriendlyValue(4).toLowerCase()}`,
+    username: generatedLogin,
     role: forceAdmin ? ROLE_MAP.admin : ROLE_MAP.user,
   } satisfies PreparedUserInput;
 
@@ -366,7 +367,6 @@ const createAutoUser = async (forceAdmin = false) => {
       role: prepared.role === ROLE_MAP.admin ? "admin" : "user",
       login: prepared.login,
       password: prepared.password,
-      username: prepared.username,
     },
   ]);
 };

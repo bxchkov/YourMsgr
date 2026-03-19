@@ -84,10 +84,13 @@
             <button
               v-if="chatStore.currentChat.type === 'private'"
               class="message-input__e2ee-toggle"
-              :class="{ 'message-input__e2ee-toggle--active': e2eeEnabled }"
+              :class="{
+                'message-input__e2ee-toggle--active': e2eeEnabled,
+                'message-input__e2ee-toggle--disabled': !isE2eeAvailable,
+              }"
               aria-label="Включить или выключить шифрование"
-              title="Зашифровать сообщение"
-              @click="e2eeEnabled = !e2eeEnabled"
+              :title="e2eeToggleTitle"
+              @click="toggleE2ee"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2" stroke-width="2" />
@@ -103,7 +106,7 @@
               aria-label="Отправить сообщение"
               @click="sendMessage"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
                 <path d="M10.5004 11.9998H5.00043M4.91577 12.2913L2.58085 19.266C2.39742 19.8139 2.3057 20.0879 2.37152 20.2566C2.42868 20.4031 2.55144 20.5142 2.70292 20.5565C2.87736 20.6052 3.14083 20.4866 3.66776 20.2495L20.3792 12.7293C20.8936 12.4979 21.1507 12.3822 21.2302 12.2214C21.2993 12.0817 21.2993 11.9179 21.2302 11.7782C21.1507 11.6174 20.8936 11.5017 20.3792 11.2703L3.66193 3.74751C3.13659 3.51111 2.87392 3.39291 2.69966 3.4414C2.54832 3.48351 2.42556 3.59429 2.36821 3.74054C2.30216 3.90893 2.3929 4.18231 2.57437 4.72906L4.91642 11.7853C4.94759 11.8792 4.96317 11.9262 4.96933 11.9742C4.97479 12.0168 4.97473 12.0599 4.96916 12.1025C4.96289 12.1506 4.94718 12.1975 4.91577 12.2913Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
             </button>
@@ -119,12 +122,12 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useChatStore, type Message } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
-import { apiFetch } from '@/services/api'
 import { authService } from '@/services/auth'
+import { privateChatsService } from '@/services/privateChats'
 import { emitSocketEvent } from '@/composables/useWebSocket'
-import { encryptMessageE2EE, getPublicKey } from '@/composables/useCrypto'
+import { cryptoRevision, encryptMessageE2EE, getPrivateKey, getPublicKey } from '@/composables/useCrypto'
 import { getReplyPreviewText, normalizeMessageText } from '@/utils/messageContent'
-import type { PrivateChatMessagesData, PublicKeyEntry } from '@/types/api'
+import type { PublicKeyEntry } from '@/types/api'
 import type { SendMessageSocketPayload } from '@/types/socket'
 import MessageItem from './MessageItem.vue'
 
@@ -137,6 +140,8 @@ const e2eeEnabled = ref(false)
 const composerNotice = ref('')
 const messagesContainer = ref<HTMLElement | null>(null)
 const messageInputRef = ref<HTMLTextAreaElement | null>(null)
+const E2EE_ENABLED_TITLE = '\u0417\u0430\u0448\u0438\u0444\u0440\u043e\u0432\u0430\u0442\u044c \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435'
+const E2EE_RELOGIN_NOTICE = '\u0414\u043b\u044f \u0437\u0430\u0449\u0438\u0449\u0451\u043d\u043d\u044b\u0445 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0439 \u0432\u043e\u0439\u0434\u0438\u0442\u0435 \u0432 \u0430\u043a\u043a\u0430\u0443\u043d\u0442 \u0437\u0430\u043d\u043e\u0432\u043e \u043d\u0430 \u044d\u0442\u043e\u043c \u0443\u0441\u0442\u0440\u043e\u0439\u0441\u0442\u0432\u0435'
 
 let highlightTimeout: number | null = null
 let removeHighlightTimeout: number | null = null
@@ -145,6 +150,15 @@ let privateMessagesRequestId = 0
 const displayMessages = computed(() => chatStore.activeMessages)
 const normalizedComposerText = computed(() => normalizeMessageText(messageText.value))
 const replyHighlight = ref<{ top: number; height: number; visible: boolean } | null>(null)
+const isE2eeAvailable = computed(() => {
+  cryptoRevision.value
+  return Boolean(getPrivateKey() && getPublicKey())
+})
+const e2eeToggleTitle = computed(() => (
+  isE2eeAvailable.value
+    ? E2EE_ENABLED_TITLE
+    : E2EE_RELOGIN_NOTICE
+))
 
 const replyTargetAuthor = computed(() => {
   const replyTarget = chatStore.replyTarget
@@ -186,6 +200,17 @@ function setComposerNotice(message: string) {
 
 function clearComposerNotice() {
   composerNotice.value = ''
+}
+
+function toggleE2ee() {
+  if (!isE2eeAvailable.value) {
+    e2eeEnabled.value = false
+    setComposerNotice(E2EE_RELOGIN_NOTICE)
+    return
+  }
+
+  clearComposerNotice()
+  e2eeEnabled.value = !e2eeEnabled.value
 }
 
 function syncMessageInputHeight() {
@@ -239,9 +264,9 @@ async function resolveRecipientPublicKey(recipientId: number) {
     return currentPrivateChat.otherUser.publicKey
   }
 
-    const response = await authService.getPublicKeys()
-    if (response.success && response.data?.publicKeys) {
-      const refreshedKeys = Object.fromEntries(
+  const response = await authService.getPublicKeys()
+  if (response.success && response.data?.publicKeys) {
+    const refreshedKeys = Object.fromEntries(
       response.data.publicKeys.map((user: PublicKeyEntry) => [user.userId, user.publicKey]),
     )
 
@@ -286,6 +311,12 @@ watch(
   },
 )
 
+watch(isE2eeAvailable, (available) => {
+  if (!available) {
+    e2eeEnabled.value = false
+  }
+})
+
 watch(
   () => chatStore.replyTarget?.id,
   async (replyTargetId) => {
@@ -307,7 +338,7 @@ function scrollToBottom() {
 
 async function loadPrivateChatMessages(chatId: number, requestId: number) {
   try {
-    const response = await apiFetch<PrivateChatMessagesData>(`/api/private-chats/${chatId}/messages`)
+    const response = await privateChatsService.getMessages(chatId)
     if (requestId !== privateMessagesRequestId) {
       return
     }
@@ -354,6 +385,12 @@ async function sendMessage() {
   }
 
   if (e2eeEnabled.value && chatStore.currentChat.type === 'private') {
+    if (!isE2eeAvailable.value) {
+      e2eeEnabled.value = false
+      setComposerNotice(E2EE_RELOGIN_NOTICE)
+      return
+    }
+
     const recipientId = chatStore.currentChat.recipientId
     if (!recipientId) {
       setComposerNotice('Шифрование доступно только в личных чатах')
@@ -374,7 +411,11 @@ async function sendMessage() {
       msgData.isEncrypted = 1
     } catch (encryptionError) {
       console.error('E2EE encryption failed:', encryptionError)
-      setComposerNotice('Не удалось зашифровать сообщение')
+      setComposerNotice(
+        encryptionError instanceof Error && encryptionError.message === 'Private key not found'
+          ? E2EE_RELOGIN_NOTICE
+          : 'Не удалось зашифровать сообщение',
+      )
       return
     }
   }

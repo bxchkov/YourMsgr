@@ -1,5 +1,5 @@
 import { apiFetch } from '@/services/api'
-import type { PrivateChatCreateData, PrivateChatsData } from '@/types/api'
+import type { PrivateChatCreateData, PrivateChatMessagesData, PrivateChatsData } from '@/types/api'
 
 export const privateChatsService = {
   async list() {
@@ -14,5 +14,9 @@ export const privateChatsService = {
       },
       body: JSON.stringify({ otherUserId }),
     })
+  },
+
+  async getMessages(chatId: number) {
+    return apiFetch<PrivateChatMessagesData>(`/api/private-chats/${chatId}/messages`)
   },
 }

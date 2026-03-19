@@ -66,8 +66,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { useChatStore, type CurrentChat } from '@/stores/chat'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { createGeneralCurrentChat, useChatStore, type CurrentChat } from '@/stores/chat'
 import { useTheme } from '@/composables/useTheme'
 import { disconnectSocket } from '@/composables/useWebSocket'
 import { useChatSession } from '@/composables/useChatSession'
@@ -78,10 +79,12 @@ import SettingsModal from '@/components/SettingsModal.vue'
 import IconButton from '@/components/IconButton.vue'
 
 const chatStore = useChatStore()
+const route = useRoute()
+const router = useRouter()
 const showSettings = ref(false)
 const isSidebarOpen = ref(false)
 const { isLightTheme, toggleTheme } = useTheme()
-const { bootstrapChatSession, logoutFromChatSession } = useChatSession()
+const { bootstrapChatSession, logoutFromChatSession, stopChatSessionSync } = useChatSession()
 
 const themeToggleLabel = computed(() => (
   isLightTheme.value ? 'Включить тёмную тему' : 'Включить светлую тему'
@@ -91,9 +94,83 @@ function toggleMobileSidebar() {
   isSidebarOpen.value = !isSidebarOpen.value
 }
 
+function findPrivateChatSelection(chatId: number): CurrentChat | null {
+  const privateChat = chatStore.privateChats.find((chat) => chat.chatId === chatId)
+  if (!privateChat) {
+    return null
+  }
+
+  return {
+    id: `private-${privateChat.chatId}`,
+    type: 'private',
+    chatId: privateChat.chatId,
+    recipientId: privateChat.otherUser?.id || null,
+    name: privateChat.otherUser?.username || 'Неизвестно',
+    otherUserId: privateChat.otherUser?.id || null,
+  }
+}
+
+function isRouteForChat(chat: CurrentChat) {
+  if (chat.type === 'group') {
+    return route.name === 'chat-general'
+  }
+
+  return route.name === 'chat-private' && Number(route.params.chatId) === chat.chatId
+}
+
+async function navigateToChat(chat: CurrentChat, replace = false) {
+  if (isRouteForChat(chat)) {
+    return
+  }
+
+  if (chat.type === 'group') {
+    await (replace ? router.replace('/chat/general') : router.push('/chat/general'))
+    return
+  }
+
+  if (chat.chatId === null) {
+    return
+  }
+
+  const target = {
+    name: 'chat-private' as const,
+    params: {
+      chatId: String(chat.chatId),
+    },
+  }
+
+  await (replace ? router.replace(target) : router.push(target))
+}
+
+async function syncChatWithRoute() {
+  if (route.name === 'chat-private') {
+    const chatId = Number(route.params.chatId)
+    if (!Number.isFinite(chatId)) {
+      await router.replace('/chat/general')
+      return
+    }
+
+    const privateChat = findPrivateChatSelection(chatId)
+    if (!privateChat) {
+      await router.replace('/chat/general')
+      return
+    }
+
+    if (chatStore.currentChat.id !== privateChat.id) {
+      chatStore.setCurrentChat(privateChat)
+    }
+    return
+  }
+
+  if (chatStore.currentChat.id !== 'general') {
+    chatStore.setCurrentChat(createGeneralCurrentChat())
+  }
+}
+
 function handleChatSelected(chat: CurrentChat) {
   chatStore.setCurrentChat(chat)
   isSidebarOpen.value = false
+  void navigateToChat(chat)
 }
 
 async function handleLogout() {
@@ -105,12 +182,25 @@ async function handleLogout() {
 onMounted(async () => {
   isSidebarOpen.value = false
   showSettings.value = false
-  await bootstrapChatSession()
+  const bootstrapped = await bootstrapChatSession()
+  if (!bootstrapped) {
+    return
+  }
+
+  await syncChatWithRoute()
 })
 
 onUnmounted(() => {
+  stopChatSessionSync()
   disconnectSocket()
   chatStore.cleanup()
   isSidebarOpen.value = false
 })
+
+watch(
+  () => [route.name, route.params.chatId, chatStore.privateChats.length],
+  () => {
+    void syncChatWithRoute()
+  },
+)
 </script>

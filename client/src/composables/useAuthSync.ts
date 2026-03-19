@@ -46,7 +46,7 @@ async function handleRemoteLogin(pinia: Pinia, router: Router, accessToken: stri
     auth.setAuth(accessToken, { sync: false })
 
     if (router.currentRoute.value.name === 'auth') {
-        await router.replace('/chat')
+        await router.replace('/chat/general')
     }
 }
 

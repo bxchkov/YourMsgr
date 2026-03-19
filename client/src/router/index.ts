@@ -6,7 +6,7 @@ const router = createRouter({
     routes: [
         {
             path: '/',
-            redirect: '/chat',
+            redirect: '/chat/general',
         },
         {
             path: '/auth',
@@ -15,9 +15,23 @@ const router = createRouter({
         },
         {
             path: '/chat',
-            name: 'chat',
+            redirect: '/chat/general',
+        },
+        {
+            path: '/chat/general',
+            name: 'chat-general',
             component: () => import('@/views/ChatView.vue'),
             meta: { requiresAuth: true },
+        },
+        {
+            path: '/chat/private/:chatId(\\d+)',
+            name: 'chat-private',
+            component: () => import('@/views/ChatView.vue'),
+            meta: { requiresAuth: true },
+        },
+        {
+            path: '/chat/:pathMatch(.*)*',
+            redirect: '/chat/general',
         },
     ],
 })
@@ -28,7 +42,7 @@ router.beforeEach((to) => {
         return '/auth'
     }
     if (to.name === 'auth' && auth.isAuthenticated) {
-        return '/chat'
+        return '/chat/general'
     }
 })
 
