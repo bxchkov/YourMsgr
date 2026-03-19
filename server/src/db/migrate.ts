@@ -1,24 +1,25 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import { logger } from "../utils/logger";
 
 const runMigrations = async () => {
   const connectionString = process.env.DATABASE_URL!;
   const sql = postgres(connectionString, { max: 1 });
   const db = drizzle(sql);
 
-  console.log("Running migrations...");
+  logger.info("Running migrations");
   await migrate(db, { migrationsFolder: "./src/db/migrations" });
-  console.log("Migrations completed!");
+  logger.info("Migrations completed");
   await sql.end();
 };
 
-runMigrations().catch((err) => {
-  // PostgreSQL error 42P07 = "relation already exists" — safe to ignore on re-runs
-  if (err?.code === "42P07" || (err?.message && err.message.includes("already exists"))) {
-    console.log("Migrations: objects already exist, skipping. Server will start normally.");
-  } else {
-    console.error("Migration failed:", err);
-    process.exit(1);
+runMigrations().catch((error) => {
+  if (error?.code === "42P07" || (error?.message && error.message.includes("already exists"))) {
+    logger.warn("Migration objects already exist, skipping. Server will start normally.");
+    return;
   }
+
+  logger.error("Migration failed", error);
+  process.exit(1);
 });

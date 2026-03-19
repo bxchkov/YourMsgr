@@ -1,11 +1,12 @@
 {
   "name": "chat-server",
-  "version": "2.0.15",
+  "version": "2.0.16",
   "description": "Secure private chat server",
   "type": "module",
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "start": "bun src/index.ts",
+    "test": "bun test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun src/db/migrate.ts",
     "db:studio": "drizzle-kit studio",

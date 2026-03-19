@@ -10,19 +10,25 @@ interface RateLimitStore {
 
 const store: RateLimitStore = {};
 
+export const RATE_LIMIT_SKIP_PATHS = new Set([
+  "/auth/session",
+  "/auth/refresh",
+  "/healthz",
+]);
+
+export const DEFAULT_RATE_LIMIT_MESSAGE = "Слишком много запросов";
+
+export const shouldSkipRateLimit = (path: string) => RATE_LIMIT_SKIP_PATHS.has(path);
+
 export const rateLimiter = (options: {
   windowMs: number;
   max: number;
   message?: string;
 }) => {
-  const { windowMs, max, message = "Слишком много запросов" } = options;
+  const { windowMs, max, message = DEFAULT_RATE_LIMIT_MESSAGE } = options;
 
   return async (c: Context, next: Next) => {
-    if (
-      c.req.path === "/auth/session"
-      || c.req.path === "/auth/refresh"
-      || c.req.path === "/healthz"
-    ) {
+    if (shouldSkipRateLimit(c.req.path)) {
       await next();
       return;
     }
@@ -37,7 +43,7 @@ export const rateLimiter = (options: {
     } else if (now > store[key].resetTime) {
       store[key] = { count: 1, resetTime: now + windowMs };
     } else {
-      store[key].count++;
+      store[key].count += 1;
 
       if (store[key].count > max) {
         return sendError(c, 429, message);

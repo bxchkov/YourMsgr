@@ -2,17 +2,19 @@ import "dotenv/config";
 import type { ServerWebSocket } from "bun";
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
+import { db } from "./db";
+import { corsMiddleware } from "./middleware/cors";
+import { rateLimiter } from "./middleware/rateLimit";
 import authRoutes from "./routes/auth.routes";
 import privateChatRoutes from "./routes/privateChat.routes";
 import { AuthService } from "./services/auth.service";
 import { MessageService } from "./services/message.service";
 import { PrivateChatService } from "./services/privateChat.service";
 import type { MessageWithReply } from "./services/reply.service";
-import { db } from "./db";
-import { corsMiddleware } from "./middleware/cors";
-import { rateLimiter } from "./middleware/rateLimit";
 import { type TokenPayload, verifyAccessToken, verifyRefreshToken } from "./utils/jwt";
+import { logger } from "./utils/logger";
 import { validateData, wsDeleteMessageSchema, wsLoadMoreMessagesSchema, wsMessageSchema } from "./utils/validation";
+import { consumeWsRateLimit, getCookieValue, type WsRateLimitState, WS_ERROR_MESSAGES } from "./utils/ws";
 
 interface WebSocketData {
   userId: number;
@@ -29,7 +31,7 @@ app.use(
   rateLimiter({
     windowMs: Number(process.env.RATE_LIMIT_WINDOW || 15) * 60 * 1000,
     max: Number(process.env.RATE_LIMIT_MAX || 100),
-  })
+  }),
 );
 
 app.route("/auth", authRoutes);
@@ -44,22 +46,7 @@ const clients = new Map<string, ServerWebSocket<WebSocketData>>();
 
 const WS_LIMIT = 5;
 const WS_WINDOW = 1000;
-const wsRateLimits = new Map<string, { count: number; resetTime: number }>();
-
-const getCookieValue = (cookieHeader: string | null, cookieName: string) => {
-  if (!cookieHeader) {
-    return null;
-  }
-
-  for (const cookie of cookieHeader.split(";")) {
-    const [name, ...valueParts] = cookie.trim().split("=");
-    if (name === cookieName) {
-      return decodeURIComponent(valueParts.join("="));
-    }
-  }
-
-  return null;
-};
+const wsRateLimits = new Map<string, WsRateLimitState>();
 
 const logoutSocketClient = (ws: ServerWebSocket<WebSocketData>) => {
   ws.send(JSON.stringify({ type: "client_logout" }));
@@ -68,7 +55,7 @@ const logoutSocketClient = (ws: ServerWebSocket<WebSocketData>) => {
 
 const getValidSocketSession = async (
   ws: ServerWebSocket<WebSocketData>,
-  accessToken: string
+  accessToken: string,
 ): Promise<{ accessPayload: TokenPayload | null; shouldLogout: boolean }> => {
   const accessPayload = verifyAccessToken(accessToken);
 
@@ -106,13 +93,13 @@ Bun.serve<WebSocketData>({
           },
         });
       } catch (error) {
-        console.error("Health check failed:", error);
+        logger.error("Health check failed", error);
         return Response.json(
           {
             success: false,
             message: "Server health check failed",
           },
-          { status: 500 }
+          { status: 500 },
         );
       }
     }
@@ -145,14 +132,14 @@ Bun.serve<WebSocketData>({
     async open(ws) {
       const user = await authService.getValidSessionUser(ws.data.userId, ws.data.refreshToken);
       if (!user) {
-        console.log(`User ${ws.data.userName} (ID: ${ws.data.userId}) session is invalid, closing connection`);
+        logger.warn(`WebSocket session is invalid during open for '${ws.data.userName}' (ID: ${ws.data.userId})`);
         logoutSocketClient(ws);
         return;
       }
 
       const clientId = `${ws.data.userId}-${Date.now()}`;
       clients.set(clientId, ws);
-      console.log(`User connected: ${ws.data.userName}`);
+      logger.info(`WebSocket client connected: ${ws.data.userName}`);
 
       const messages = await messageService.getGroupMessages();
       ws.send(JSON.stringify({ type: "load_messages", chatType: "group", messages }));
@@ -161,33 +148,24 @@ Bun.serve<WebSocketData>({
       try {
         const rateLimitKey = ws.data.userId.toString();
         const now = Date.now();
-        const rateLimit = wsRateLimits.get(rateLimitKey) || { count: 0, resetTime: now + WS_WINDOW };
 
-        if (now > rateLimit.resetTime) {
-          rateLimit.count = 1;
-          rateLimit.resetTime = now + WS_WINDOW;
-        } else {
-          rateLimit.count += 1;
-          if (rateLimit.count > WS_LIMIT) {
-            ws.send(JSON.stringify({ type: "error", message: "Слишком частая отправка сообщений (Rate Limit)" }));
-            return;
-          }
+        if (consumeWsRateLimit(wsRateLimits, rateLimitKey, now, WS_LIMIT, WS_WINDOW)) {
+          ws.send(JSON.stringify({ type: "error", message: WS_ERROR_MESSAGES.rateLimit }));
+          return;
         }
-
-        wsRateLimits.set(rateLimitKey, rateLimit);
 
         const rawData = JSON.parse(message as string);
 
         if (rawData.type === "send_message") {
           const data = validateData(wsMessageSchema, rawData);
           if (!data) {
-            ws.send(JSON.stringify({ type: "error", message: "Неверный формат сообщения" }));
+            ws.send(JSON.stringify({ type: "error", message: WS_ERROR_MESSAGES.invalidMessageFormat }));
             return;
           }
 
           const { accessPayload: userPayload, shouldLogout } = await getValidSocketSession(ws, data.accessToken);
           if (shouldLogout) {
-            console.log(`User ${ws.data.userName} session is invalid, logging out`);
+            logger.warn(`WebSocket send_message session is invalid for '${ws.data.userName}'`);
             logoutSocketClient(ws);
             return;
           }
@@ -207,7 +185,7 @@ Bun.serve<WebSocketData>({
               data.nonce,
               data.senderPublicKey,
               data.isEncrypted || 0,
-              data.replyToMessageId
+              data.replyToMessageId,
             );
 
             const payload = JSON.stringify({ type: "send_message", ...newMessage });
@@ -216,34 +194,36 @@ Bun.serve<WebSocketData>({
                 client.send(payload);
               }
             });
-          } else {
-            const newMessage = await messageService.createMessage(
-              userPayload.userId,
-              userPayload.userName,
-              data.message,
-              data.nonce,
-              data.senderPublicKey,
-              data.isEncrypted || 0,
-              data.replyToMessageId
-            );
-
-            const payload = JSON.stringify({ type: "send_message", ...newMessage });
-            clients.forEach((client) => {
-              client.send(payload);
-            });
+            return;
           }
+
+          const newMessage = await messageService.createMessage(
+            userPayload.userId,
+            userPayload.userName,
+            data.message,
+            data.nonce,
+            data.senderPublicKey,
+            data.isEncrypted || 0,
+            data.replyToMessageId,
+          );
+
+          const payload = JSON.stringify({ type: "send_message", ...newMessage });
+          clients.forEach((client) => {
+            client.send(payload);
+          });
+          return;
         }
 
         if (rawData.type === "delete_message") {
           const data = validateData(wsDeleteMessageSchema, rawData);
           if (!data) {
-            ws.send(JSON.stringify({ type: "error", message: "Неверный формат запроса удаления" }));
+            ws.send(JSON.stringify({ type: "error", message: WS_ERROR_MESSAGES.invalidDeleteRequest }));
             return;
           }
 
           const { accessPayload: userPayload, shouldLogout } = await getValidSocketSession(ws, data.accessToken);
           if (shouldLogout) {
-            console.log(`User ${ws.data.userName} session is invalid, logging out`);
+            logger.warn(`WebSocket delete_message session is invalid for '${ws.data.userName}'`);
             logoutSocketClient(ws);
             return;
           }
@@ -255,12 +235,12 @@ Bun.serve<WebSocketData>({
 
           const msg = await messageService.getMessageById(data.id);
           if (!msg) {
-            ws.send(JSON.stringify({ type: "error", message: "Сообщение не найдено" }));
+            ws.send(JSON.stringify({ type: "error", message: WS_ERROR_MESSAGES.messageNotFound }));
             return;
           }
 
           if (msg.userId !== userPayload.userId && userPayload.userRole < 3) {
-            ws.send(JSON.stringify({ type: "error", message: "Недостаточно прав для удаления" }));
+            ws.send(JSON.stringify({ type: "error", message: WS_ERROR_MESSAGES.insufficientDeletePermissions }));
             return;
           }
 
@@ -273,23 +253,25 @@ Bun.serve<WebSocketData>({
                 client.send(payload);
               }
             });
-          } else {
-            clients.forEach((client) => {
-              client.send(payload);
-            });
+            return;
           }
+
+          clients.forEach((client) => {
+            client.send(payload);
+          });
+          return;
         }
 
         if (rawData.type === "load_more_messages") {
           const data = validateData(wsLoadMoreMessagesSchema, rawData);
           if (!data) {
-            ws.send(JSON.stringify({ type: "error", message: "Неверный формат запроса истории" }));
+            ws.send(JSON.stringify({ type: "error", message: WS_ERROR_MESSAGES.invalidHistoryRequest }));
             return;
           }
 
           const { accessPayload: userPayload, shouldLogout } = await getValidSocketSession(ws, data.accessToken);
           if (shouldLogout) {
-            console.log(`User ${ws.data.userName} session is invalid, logging out`);
+            logger.warn(`WebSocket load_more_messages session is invalid for '${ws.data.userName}'`);
             logoutSocketClient(ws);
             return;
           }
@@ -304,19 +286,24 @@ Bun.serve<WebSocketData>({
             history = await privateChatService.getPrivateChatMessages(
               data.chatId,
               userPayload.userId,
-              data.lastMessageId
+              data.lastMessageId,
             );
           } else {
             history = await messageService.getGroupMessages(data.lastMessageId);
           }
 
-          ws.send(JSON.stringify({ type: "load_messages", chatType: data.chatType, messages: history, isPagination: true }));
+          ws.send(JSON.stringify({
+            type: "load_messages",
+            chatType: data.chatType,
+            messages: history,
+            isPagination: true,
+          }));
         }
       } catch (error) {
-        console.error("WebSocket message error:", error);
+        logger.error("WebSocket message handling failed", error);
         ws.send(JSON.stringify({
           type: "error",
-          message: error instanceof Error ? error.message : "Не удалось обработать действие",
+          message: error instanceof Error ? error.message : WS_ERROR_MESSAGES.actionFailed,
         }));
       }
     },
@@ -324,7 +311,7 @@ Bun.serve<WebSocketData>({
       for (const [clientId, client] of clients.entries()) {
         if (client === ws) {
           clients.delete(clientId);
-          console.log(`User disconnected: ${ws.data.userName}`);
+          logger.info(`WebSocket client disconnected: ${ws.data.userName}`);
           break;
         }
       }
@@ -332,4 +319,4 @@ Bun.serve<WebSocketData>({
   },
 });
 
-console.log(`Server running on http://localhost:${port}`);
+logger.info(`Server running on http://localhost:${port}`);

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth";
 import { PrivateChatService } from "../services/privateChat.service";
+import { logger } from "../utils/logger";
 import { sendSuccess, sendError } from "../utils/response";
 import type { AppEnv } from "../types/hono";
 
@@ -23,7 +24,7 @@ privateChatRoutes.post("/", async (c) => {
 
     return sendSuccess(c, "Chat created", { chat });
   } catch (error: unknown) {
-    console.error("Error creating private chat:", error);
+    logger.error("Failed to create private chat", error);
     if (error instanceof Error && error.message === "User not found") {
       return sendError(c, 404, "User not found");
     }
@@ -38,7 +39,7 @@ privateChatRoutes.get("/", async (c) => {
 
     return sendSuccess(c, "Chats retrieved", { chats });
   } catch (error) {
-    console.error("Error fetching private chats:", error);
+    logger.error("Failed to fetch private chats", error);
     return sendError(c, 500, "Failed to fetch chats");
   }
 });
@@ -57,7 +58,7 @@ privateChatRoutes.get("/:chatId/messages", async (c) => {
 
     return sendSuccess(c, "Messages retrieved", { messages });
   } catch (error: unknown) {
-    console.error("Error fetching messages:", error);
+    logger.error("Failed to fetch private chat messages", error);
     if (error instanceof Error && error.message === "Chat not found or access denied") {
       return sendError(c, 403, error.message);
     }
