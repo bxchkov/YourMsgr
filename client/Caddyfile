@@ -10,7 +10,7 @@
 	}
 }
 
-http://{$PUBLIC_HOST} {
+http:// {
 	@health path /healthz
 	respond @health "ok" 200
 	redir {$PUBLIC_URL}{uri} permanent
