@@ -16,6 +16,7 @@ let socket: WebSocket | null = null
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 let isIntentionalClose = false
 const eventHandlers = new Map<SocketIncomingEventType, (data: SocketIncomingEvent) => void>()
+const DEBUG_SOCKET_LOGS = import.meta.env.DEV
 export const isConnected = ref(false)
 
 const SOCKET_INCOMING_EVENT_TYPES = [
@@ -62,7 +63,9 @@ export function initSocket() {
     socket = new WebSocket(wsUrl)
 
     socket.onopen = () => {
-        console.log('WebSocket connected')
+        if (DEBUG_SOCKET_LOGS) {
+            console.log('WebSocket connected')
+        }
         isConnected.value = true
         if (reconnectTimeout) {
             clearTimeout(reconnectTimeout)
@@ -91,7 +94,9 @@ export function initSocket() {
     }
 
     socket.onclose = () => {
-        console.log('WebSocket disconnected')
+        if (DEBUG_SOCKET_LOGS) {
+            console.log('WebSocket disconnected')
+        }
         isConnected.value = false
         socket = null
 
