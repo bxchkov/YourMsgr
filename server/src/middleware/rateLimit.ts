@@ -34,15 +34,13 @@ export const rateLimiter = (options: {
 
     if (!store[key]) {
       store[key] = { count: 1, resetTime: now + windowMs };
+    } else if (now > store[key].resetTime) {
+      store[key] = { count: 1, resetTime: now + windowMs };
     } else {
-      if (now > store[key].resetTime) {
-        store[key] = { count: 1, resetTime: now + windowMs };
-      } else {
-        store[key].count++;
+      store[key].count++;
 
-        if (store[key].count > max) {
-          return sendError(c, 429, message);
-        }
+      if (store[key].count > max) {
+        return sendError(c, 429, message);
       }
     }
 
@@ -50,7 +48,7 @@ export const rateLimiter = (options: {
   };
 };
 
-// Clean up old entries every 10 minutes
+// Clean up old entries every 10 minutes.
 setInterval(() => {
   const now = Date.now();
   for (const ip in store) {

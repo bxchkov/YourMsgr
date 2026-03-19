@@ -61,7 +61,6 @@ export const wsDeleteMessageSchema = z.object({
   id: z.number().int().positive(),
 });
 
-// Новый ивент для пагинации
 export const wsLoadMoreMessagesSchema = z.object({
   type: z.literal("load_more_messages"),
   accessToken: z.string().min(1),

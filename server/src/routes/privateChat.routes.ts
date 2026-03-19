@@ -7,10 +7,8 @@ import type { AppEnv } from "../types/hono";
 const privateChatRoutes = new Hono<AppEnv>();
 const privateChatService = new PrivateChatService();
 
-// Use shared auth middleware
 privateChatRoutes.use("/*", authMiddleware);
 
-// Получить или создать личный чат
 privateChatRoutes.post("/", async (c) => {
   try {
     const user = c.get("user");
@@ -33,7 +31,6 @@ privateChatRoutes.post("/", async (c) => {
   }
 });
 
-// Получить все личные чаты пользователя
 privateChatRoutes.get("/", async (c) => {
   try {
     const user = c.get("user");
@@ -46,7 +43,6 @@ privateChatRoutes.get("/", async (c) => {
   }
 });
 
-// Получить сообщения конкретного чата
 privateChatRoutes.get("/:chatId/messages", async (c) => {
   try {
     const user = c.get("user");

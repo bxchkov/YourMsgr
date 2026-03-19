@@ -4,7 +4,6 @@ import { privateChats, messages, users } from "../db/schema";
 import { attachReplyTarget, attachReplyTargets, validateReplyTarget } from "./reply.service";
 
 export class PrivateChatService {
-  // РќР°Р№С‚Рё РёР»Рё СЃРѕР·РґР°С‚СЊ Р»РёС‡РЅС‹Р№ С‡Р°С‚ РјРµР¶РґСѓ РґРІСѓРјСЏ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏРјРё
   async getOrCreatePrivateChat(user1Id: number, user2Id: number) {
     const otherUser = await db.query.users.findFirst({
       where: eq(users.id, user2Id),
@@ -17,10 +16,8 @@ export class PrivateChatService {
       throw new Error("User not found");
     }
 
-    // Р’СЃРµРіРґР° С…СЂР°РЅРёРј РјРµРЅСЊС€РёР№ ID РїРµСЂРІС‹Рј РґР»СЏ РєРѕРЅСЃРёСЃС‚РµРЅС‚РЅРѕСЃС‚Рё
     const [smallerId, largerId] = user1Id < user2Id ? [user1Id, user2Id] : [user2Id, user1Id];
 
-    // РџСЂРѕРІРµСЂСЏРµРј, СЃСѓС‰РµСЃС‚РІСѓРµС‚ Р»Рё СѓР¶Рµ С‡Р°С‚
     const existingChat = await db.query.privateChats.findFirst({
       where: and(
         eq(privateChats.user1Id, smallerId),
@@ -32,7 +29,6 @@ export class PrivateChatService {
       return existingChat;
     }
 
-    // РЎРѕР·РґР°РµРј РЅРѕРІС‹Р№ С‡Р°С‚
     const [newChat] = await db
       .insert(privateChats)
       .values({
@@ -44,7 +40,6 @@ export class PrivateChatService {
     return newChat;
   }
 
-  // РџРѕР»СѓС‡РёС‚СЊ РІСЃРµ Р»РёС‡РЅС‹Рµ С‡Р°С‚С‹ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
   async getUserPrivateChats(userId: number) {
     const chats = await db.query.privateChats.findMany({
       where: or(
@@ -120,9 +115,7 @@ export class PrivateChatService {
     });
   }
 
-  // РџРѕР»СѓС‡РёС‚СЊ СЃРѕРѕР±С‰РµРЅРёСЏ Р»РёС‡РЅРѕРіРѕ С‡Р°С‚Р° СЃ РїРѕРґРґРµСЂР¶РєРѕР№ РїР°РіРёРЅР°С†РёРё
   async getPrivateChatMessages(chatId: number, userId: number, lastMessageId?: number, limitMsgs = 50) {
-    // РџСЂРѕРІРµСЂСЏРµРј, С‡С‚Рѕ РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ СЏРІР»СЏРµС‚СЃСЏ СѓС‡Р°СЃС‚РЅРёРєРѕРј С‡Р°С‚Р°
     const chat = await db.query.privateChats.findFirst({
       where: and(
         eq(privateChats.id, chatId),
@@ -139,14 +132,13 @@ export class PrivateChatService {
 
     const conditions = [
       eq(messages.chatId, chatId),
-      eq(messages.chatType, "private")
+      eq(messages.chatType, "private"),
     ];
 
     if (lastMessageId) {
       conditions.push(lt(messages.id, lastMessageId));
     }
 
-    // РџРѕР»СѓС‡Р°РµРј СЃРѕРѕР±С‰РµРЅРёСЏ
     const chatMessages = await db.query.messages.findMany({
       where: and(...conditions),
       orderBy: (messages, { desc }) => [desc(messages.date)],
@@ -156,7 +148,6 @@ export class PrivateChatService {
     return attachReplyTargets(chatMessages);
   }
 
-  // РћС‚РїСЂР°РІРёС‚СЊ СЃРѕРѕР±С‰РµРЅРёРµ РІ Р»РёС‡РЅС‹Р№ С‡Р°С‚
   async sendPrivateMessage(
     chatId: number,
     userId: number,
@@ -168,7 +159,6 @@ export class PrivateChatService {
     isEncrypted?: number,
     replyToMessageId?: number | null
   ) {
-    // РџСЂРѕРІРµСЂСЏРµРј, С‡С‚Рѕ РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ СЏРІР»СЏРµС‚СЃСЏ СѓС‡Р°СЃС‚РЅРёРєРѕРј С‡Р°С‚Р°
     const chat = await db.query.privateChats.findFirst({
       where: and(
         eq(privateChats.id, chatId),
