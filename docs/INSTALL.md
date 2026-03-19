@@ -14,11 +14,11 @@ Installer ориентирован на production HTTPS с обязательн
 2. Клонирует или обновляет проект в `/opt/yourmsgr`.
 3. Требует домен панели.
 4. Проверяет DNS-резолв домена на текущий сервер.
-5. Проверяет, что `80/tcp` и `443/tcp` свободны.
+5. Проверяет, что `80/tcp` свободен, а для HTTPS выбирает `443` или запасной порт.
 6. Поднимает Caddy и ждёт готовности:
    - `http://127.0.0.1:<SERVER_PORT>/healthz`
-   - `http://127.0.0.1:80/healthz` с `Host: <domain>`
-   - `https://<domain>/auth` через локальный `--resolve`
+   - `https://<domain>/healthz`
+   - `https://<domain>/auth`
 7. Создаёт первого admin-пользователя.
 
 ## Какие файлы создаются
@@ -34,7 +34,7 @@ Installer ориентирован на production HTTPS с обязательн
 
 ```bash
 export YOURMSGR_PUBLIC_HOST=chat.example.com
-export YOURMSGR_REPO_BRANCH=main
+export YOURMSGR_CLIENT_HTTPS_PORT=8443
 curl -fsSL https://raw.githubusercontent.com/bxchkov/YourMsgr/main/install.sh | sudo bash
 ```
 
@@ -45,6 +45,7 @@ curl -fsSL https://raw.githubusercontent.com/bxchkov/YourMsgr/main/install.sh | 
 - `YOURMSGR_INSTALL_DIR`
 - `YOURMSGR_PUBLIC_HOST`
 - `YOURMSGR_PUBLIC_IP`
+- `YOURMSGR_CLIENT_HTTPS_PORT`
 - `YOURMSGR_SERVER_BIND`
 - `YOURMSGR_SERVER_PORT`
 - `YOURMSGR_POSTGRES_BIND`
@@ -68,10 +69,10 @@ curl -fsSL https://raw.githubusercontent.com/bxchkov/YourMsgr/main/install.sh | 
 - у вас есть домен;
 - A-запись домена указывает на этот сервер;
 - `80/tcp` доступен снаружи для ACME HTTP challenge;
-- `443/tcp` доступен снаружи для самой панели;
-- порты `80` и `443` не заняты другими сервисами.
+- `80/tcp` не занят другими сервисами;
+- если хотите URL без `:порт`, тогда свободен и `443/tcp`.
 
-Если какой-то из этих пунктов не выполняется, installer завершится ошибкой.
+Если `443` занят, installer не падает, а использует отдельный HTTPS-порт, например `8443`.
 
 ## Управление после установки
 
@@ -103,9 +104,9 @@ yourmsgr uninstall
 
 - `status` объединяет прежние `status` и `health`;
 - `logs` позволяет вернуться обратно в меню после `Ctrl + C`;
-- `reconfigure` повторно запускает installer и позволяет сменить домен;
+- `reconfigure` повторно запускает installer и позволяет сменить домен или HTTPS-порт;
 - обновления завязаны на `VERSION`;
-- helper больше не использует self-signed/fallback-порты.
+- helper больше не использует self-signed TLS.
 
 ## Обновление
 
@@ -135,9 +136,10 @@ yourmsgr uninstall
 
 ## Примечание по HTTPS
 
-Теперь installer не использует self-signed сертификаты. TLS выпускает Caddy автоматически через ACME, поэтому браузерное предупреждение о недоверенном сертификате не должно появляться, если:
+Installer не использует self-signed сертификаты. TLS выпускает Caddy автоматически через ACME, поэтому браузерное предупреждение о недоверенном сертификате не должно появляться, если:
 
 - домен корректно указывает на сервер;
-- `80/443` доступны снаружи;
+- `80` доступен снаружи;
 - сертификат успел выпуститься;
-- браузер открывает именно доменное имя, а не IP.
+- браузер открывает именно доменное имя, а не IP;
+- при занятом `443` вы открываете панель на том HTTPS-порту, который выбрал installer.

@@ -258,12 +258,82 @@ port_in_use() {
   return 1
 }
 
+find_available_port() {
+  local candidate
+
+  for candidate in "$@"; do
+    if ! port_in_use "$candidate"; then
+      RESOLVED_PORT="$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+RESOLVED_PORT=""
+
+resolve_https_port() {
+  local desired_port="$1"
+  local existing_port="$2"
+  local input_port=""
+  local fallback_port=""
+
+  RESOLVED_PORT=""
+
+  if [[ -n "${YOURMSGR_CLIENT_HTTPS_PORT:-}" ]]; then
+    desired_port="$YOURMSGR_CLIENT_HTTPS_PORT"
+  elif [[ -n "$existing_port" ]]; then
+    desired_port="$existing_port"
+  fi
+
+  if [[ ! "$desired_port" =~ ^[0-9]+$ ]]; then
+    desired_port="443"
+  fi
+
+  if ! port_in_use "$desired_port"; then
+    RESOLVED_PORT="$desired_port"
+    return
+  fi
+
+  if is_interactive; then
+    while true; do
+      read -r -p "HTTPS panel port [${desired_port}]: " input_port || true
+      input_port="${input_port:-$desired_port}"
+
+      if [[ ! "$input_port" =~ ^[0-9]+$ ]]; then
+        echo "Please enter a numeric port" >&2
+        continue
+      fi
+
+      if port_in_use "$input_port"; then
+        echo "Port $input_port is already in use" >&2
+        continue
+      fi
+
+      RESOLVED_PORT="$input_port"
+      return
+    done
+  fi
+
+  if find_available_port 443 8443 9443 10443; then
+    fallback_port="$RESOLVED_PORT"
+  fi
+
+  if [[ -n "$fallback_port" ]]; then
+    warn "HTTPS port ${desired_port} is busy, using ${fallback_port}"
+    return
+  fi
+
+  fail "HTTPS port ${desired_port} is already in use and no fallback port was found"
+}
+
 ensure_required_port_available() {
   local port_kind="$1"
   local port="$2"
 
   if port_in_use "$port"; then
-    fail "${port_kind} port ${port} is already in use. Free ports 80 and 443 before installing YourMsgr."
+    fail "${port_kind} port ${port} is already in use. Free port 80 before installing YourMsgr."
   fi
 }
 
@@ -293,7 +363,14 @@ get_project_version() {
 
 build_public_url() {
   local public_host="$1"
-  printf 'https://%s' "$public_host"
+  local https_port="$2"
+
+  if [[ "$https_port" == "443" ]]; then
+    printf 'https://%s' "$public_host"
+    return
+  fi
+
+  printf 'https://%s:%s' "$public_host" "$https_port"
 }
 
 clone_or_update_repo() {
@@ -323,14 +400,16 @@ stop_existing_stack_if_needed() {
 
 write_compose_env() {
   local env_path="$INSTALL_DIR/.env"
-  local detected_ip existing_public_host existing_public_url existing_allowed_origins
+  local detected_ip existing_public_host existing_public_url existing_allowed_origins existing_https_port
   local public_host public_url postgres_password server_bind server_port
   local postgres_bind postgres_port restart_policy postgres_user postgres_db
+  local client_https_port
 
   detected_ip="$(detect_public_ip)"
   existing_public_host="$(read_env_value "$env_path" PUBLIC_HOST "")"
   existing_public_url="$(read_env_value "$env_path" PUBLIC_URL "")"
   existing_allowed_origins="$(read_env_value "$env_path" ALLOWED_ORIGINS "")"
+  existing_https_port="$(read_env_value "$env_path" CLIENT_HTTPS_PORT "")"
 
   if [[ -z "$existing_public_host" && -n "$existing_public_url" ]]; then
     existing_public_host="$(extract_host_from_url "$existing_public_url")"
@@ -344,7 +423,8 @@ write_compose_env() {
   validate_public_host "$public_host" "$detected_ip"
 
   ensure_required_port_available "HTTP" 80
-  ensure_required_port_available "HTTPS" 443
+  resolve_https_port "443" "$existing_https_port"
+  client_https_port="$RESOLVED_PORT"
 
   server_bind="${YOURMSGR_SERVER_BIND:-$(read_env_value "$env_path" SERVER_BIND "127.0.0.1")}"
   server_port="${YOURMSGR_SERVER_PORT:-$(read_env_value "$env_path" SERVER_PORT "3000")}"
@@ -354,7 +434,7 @@ write_compose_env() {
   postgres_user="${YOURMSGR_POSTGRES_USER:-$(read_env_value "$env_path" POSTGRES_USER "chat_user")}"
   postgres_db="${YOURMSGR_POSTGRES_DB:-$(read_env_value "$env_path" POSTGRES_DB "chat")}"
   restart_policy="${YOURMSGR_RESTART_POLICY:-$(read_env_value "$env_path" RESTART_POLICY "unless-stopped")}"
-  public_url="$(build_public_url "$public_host")"
+  public_url="$(build_public_url "$public_host" "$client_https_port")"
 
   cat > "$env_path" <<EOF
 POSTGRES_USER=$postgres_user
@@ -369,7 +449,7 @@ ALLOWED_ORIGINS=$public_url
 CLIENT_HTTP_BIND=0.0.0.0
 CLIENT_HTTP_PORT=80
 CLIENT_HTTPS_BIND=0.0.0.0
-CLIENT_HTTPS_PORT=443
+CLIENT_HTTPS_PORT=$client_https_port
 
 SERVER_BIND=$server_bind
 SERVER_PORT=$server_port
@@ -537,7 +617,7 @@ print_summary() {
   echo "Version: $(get_project_version)"
   echo "Panel URL: $public_url"
   echo "TLS: trusted certificate via Caddy automatic HTTPS"
-  echo "Requirements: keep ports 80 and 443 reachable for certificate renewal"
+  echo "Requirements: keep port 80 reachable for ACME validation"
   echo
 
   if [[ -n "$BOOTSTRAPPED_ADMIN_LOGIN" ]]; then
