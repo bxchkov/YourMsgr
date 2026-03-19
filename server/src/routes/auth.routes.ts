@@ -11,7 +11,6 @@ authRoutes.get("/session", (c) => authController.session(c));
 authRoutes.get("/refresh", (c) => authController.refresh(c));
 authRoutes.post("/logout", (c) => authController.logout(c));
 authRoutes.patch("/username", authMiddleware, (c) => authController.updateUsername(c));
-authRoutes.patch("/privateKey", authMiddleware, (c) => authController.updateEncryptedPrivateKey(c));
 authRoutes.get("/publicKeys", authMiddleware, (c) => authController.getPublicKeys(c));
 
 export default authRoutes;

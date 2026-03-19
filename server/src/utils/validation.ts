@@ -22,6 +22,10 @@ export const registrationSchema = loginSchema.extend({
     .refine((value) => !isReservedIdentity(value), {
       message: "Reserved username",
     }),
+  publicKey: z.string().min(1),
+  encryptedPrivateKey: z.string().min(1),
+  encryptedPrivateKeyIv: z.string().min(1),
+  encryptedPrivateKeySalt: z.string().min(1),
 });
 
 export const messageSchema = z.object({
@@ -37,12 +41,6 @@ export const usernameSchema = z.object({
     .refine((value) => !isReservedIdentity(value), {
       message: "Reserved username",
     }),
-});
-
-export const encryptedPrivateKeySchema = z.object({
-  encryptedPrivateKey: z.string().min(1),
-  encryptedPrivateKeyIv: z.string().min(1),
-  encryptedPrivateKeySalt: z.string().min(1),
 });
 
 export const wsMessageSchema = z.object({

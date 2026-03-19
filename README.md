@@ -164,7 +164,7 @@ bun run admin messages:purge-group <login>
 - Vue Router
 - Vite
 - SCSS
-- libsodium-wrappers
+- Web Crypto API + tweetnacl
 
 ### Infrastructure
 

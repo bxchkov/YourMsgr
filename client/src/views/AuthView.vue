@@ -99,7 +99,6 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
   'Invalid or expired token': 'Сессия устарела. Повторите действие',
   'Session expired': 'Сессия истекла. Войдите снова',
   'Token mismatch': 'Сессия устарела. Войдите снова',
-  'Legacy private key requires HTTPS': 'Для входа в этот аккаунт нужен HTTPS: ключ был зашифрован старым способом',
   'Secure password encryption requires HTTPS': 'Для безопасного шифрования ключа нужен защищённый контекст браузера',
   'Reserved login': 'Этот логин зарезервирован',
   'Reserved username': 'Этот никнейм зарезервирован',
@@ -204,8 +203,6 @@ async function handleLogin() {
         const {
           initCrypto,
           decryptPrivateKeyWithPassword,
-          encryptPrivateKeyWithPassword,
-          getPasswordCipherVersion,
           savePrivateKey,
           derivePublicKeyFromPrivateKey,
           savePublicKey,
@@ -223,19 +220,6 @@ async function handleLogin() {
 
         savePrivateKey(decryptedPrivateKey)
         savePublicKey(derivePublicKeyFromPrivateKey(decryptedPrivateKey))
-
-        if (getPasswordCipherVersion(response.data.encryptedPrivateKey) === 'v2') {
-          const migratedCipher = await encryptPrivateKeyWithPassword(decryptedPrivateKey, password.value)
-          const migrationResponse = await authService.updateEncryptedPrivateKey(
-            migratedCipher.encrypted,
-            migratedCipher.iv,
-            migratedCipher.salt,
-          )
-
-          if (!migrationResponse.success) {
-            console.error('[Login] Failed to migrate legacy private key cipher:', migrationResponse.message)
-          }
-        }
       } catch (decryptError) {
         console.error('[Login] Failed to decrypt private key:', decryptError)
         const decryptMessage = decryptError instanceof Error
@@ -287,9 +271,6 @@ async function handleRegister() {
     const keys = generateKeyPair()
     const encryptedData = await encryptPrivateKeyWithPassword(keys.privateKey, password.value)
 
-    savePrivateKey(keys.privateKey)
-    savePublicKey(keys.publicKey)
-
     const response = await authService.register(
       loginValue.value,
       password.value,
@@ -306,6 +287,8 @@ async function handleRegister() {
     }
 
     if (response.data?.accessToken) {
+      savePrivateKey(keys.privateKey)
+      savePublicKey(keys.publicKey)
       auth.setAuth(response.data.accessToken)
       await router.push('/chat')
       return

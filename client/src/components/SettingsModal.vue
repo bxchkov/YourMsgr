@@ -47,7 +47,7 @@
 
       <div class="modal__app-info">
         <span class="modal__app-name">YourMsgr</span>
-        <span class="modal__app-version">v2.0.7</span>
+        <span class="modal__app-version">v2.0.8</span>
       </div>
 
       <IconButton

@@ -46,14 +46,6 @@ export default defineConfig({
         rollupOptions: {
             output: {
                 manualChunks(id) {
-                    if (id.includes('libsodium-wrappers-sumo')) {
-                        return 'crypto-legacy'
-                    }
-
-                    if (id.includes('libsodium')) {
-                        return 'crypto-core'
-                    }
-
                     if (id.includes('node_modules')) {
                         if (
                             id.includes('/@vue/') ||

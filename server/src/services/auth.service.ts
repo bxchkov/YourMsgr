@@ -34,10 +34,10 @@ export class AuthService {
     login: string,
     password: string,
     username: string,
-    publicKey?: string,
-    encryptedPrivateKey?: string,
-    encryptedPrivateKeyIv?: string,
-    encryptedPrivateKeySalt?: string
+    publicKey: string,
+    encryptedPrivateKey: string,
+    encryptedPrivateKeyIv: string,
+    encryptedPrivateKeySalt: string
   ) {
     if (isReservedIdentity(login)) {
       return { error: "Reserved login" as const };
@@ -68,10 +68,10 @@ export class AuthService {
         login: login.toLowerCase(),
         username,
         password: hashedPassword,
-        publicKey: publicKey || null,
-        encryptedPrivateKey: encryptedPrivateKey || null,
-        encryptedPrivateKeyIv: encryptedPrivateKeyIv || null,
-        encryptedPrivateKeySalt: encryptedPrivateKeySalt || null,
+        publicKey,
+        encryptedPrivateKey,
+        encryptedPrivateKeyIv,
+        encryptedPrivateKeySalt,
       })
       .returning();
 
@@ -160,26 +160,6 @@ export class AuthService {
 
     return { user: updatedUser };
   }
-
-  async updateEncryptedPrivateKey(
-    userId: number,
-    encryptedPrivateKey: string,
-    encryptedPrivateKeyIv: string,
-    encryptedPrivateKeySalt: string,
-  ) {
-    const [updatedUser] = await db
-      .update(users)
-      .set({
-        encryptedPrivateKey,
-        encryptedPrivateKeyIv,
-        encryptedPrivateKeySalt,
-      })
-      .where(eq(users.id, userId))
-      .returning({ id: users.id });
-
-    return updatedUser ?? null;
-  }
-
   async getAllPublicKeys() {
     const allUsers = await db.query.users.findMany({
       columns: {
