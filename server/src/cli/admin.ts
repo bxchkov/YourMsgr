@@ -8,6 +8,7 @@ import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { db } from "../db";
 import { messages, privateChats, users } from "../db/schema";
 import { AuthService } from "../services/auth.service";
+import { publishRealtimeEvent } from "../utils/realtimeEvents";
 import { hashPassword } from "../utils/password";
 import { loginSchema, usernameSchema } from "../utils/validation";
 import { assertIdentityIsAllowed } from "../utils/identity";
@@ -417,6 +418,10 @@ const logoutUser = async (login: string) => {
   }
 
   await authService.clearRefreshToken(user.id);
+  await publishRealtimeEvent({
+    type: "force_logout",
+    userId: user.id,
+  });
   console.log(`Logged out '${user.login}' from all sessions`);
 };
 
@@ -429,6 +434,25 @@ const deleteUser = async (login: string, skipConfirmation = false) => {
   if (!user) {
     throw new Error(`User '${normalizeLogin(login)}' not found`);
   }
+
+  const [privateChatRows, [{ groupMessagesCount }]] = await Promise.all([
+    db.query.privateChats.findMany({
+      where: or(eq(privateChats.user1Id, user.id), eq(privateChats.user2Id, user.id)),
+      columns: {
+        user1Id: true,
+        user2Id: true,
+      },
+    }),
+    db
+      .select({ groupMessagesCount: sql<number>`count(*)` })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.userId, user.id),
+          or(eq(messages.chatType, "group"), isNull(messages.chatId)),
+        ),
+      ),
+  ]);
 
   if (!skipConfirmation) {
     const prompt = createPrompter();
@@ -445,6 +469,33 @@ const deleteUser = async (login: string, skipConfirmation = false) => {
   }
 
   await db.delete(users).where(eq(users.id, user.id));
+
+  const affectedUserIds = Array.from(
+    new Set(
+      privateChatRows
+        .flatMap((chat) => [chat.user1Id, chat.user2Id])
+        .filter((participantId) => participantId !== user.id),
+    ),
+  );
+
+  await publishRealtimeEvent({
+    type: "force_logout",
+    userId: user.id,
+  });
+
+  if (Number(groupMessagesCount) > 0) {
+    await publishRealtimeEvent({
+      type: "sync_group_messages",
+    });
+  }
+
+  if (affectedUserIds.length > 0) {
+    await publishRealtimeEvent({
+      type: "sync_private_chats",
+      userIds: affectedUserIds,
+    });
+  }
+
   console.log(`Deleted user '${user.login}'`);
 };
 
@@ -481,6 +532,12 @@ const purgeGroupMessages = async (login: string, skipConfirmation = false) => {
       )
     )
     .returning({ id: messages.id });
+
+  if (result.length > 0) {
+    await publishRealtimeEvent({
+      type: "sync_group_messages",
+    });
+  }
 
   console.log(`Deleted ${result.length} group messages for '${user.login}'`);
 };
@@ -528,6 +585,11 @@ const postAdminAnnouncement = async (login: string, rawMessageParts: string[]) =
       message: announcement,
     },
   ]);
+
+  await publishRealtimeEvent({
+    type: "group_message_created",
+    messageId: createdMessage.id,
+  });
 };
 
 const run = async () => {

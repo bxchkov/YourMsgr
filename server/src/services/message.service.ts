@@ -66,4 +66,13 @@ export class MessageService {
       where: eq(messages.id, messageId),
     });
   }
+
+  async getMessageWithReplyById(messageId: number) {
+    const message = await this.getMessageById(messageId);
+    if (!message) {
+      return null;
+    }
+
+    return attachReplyTarget(message, this.database);
+  }
 }

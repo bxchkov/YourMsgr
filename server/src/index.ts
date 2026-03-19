@@ -4,6 +4,6 @@ import { logger } from "./utils/logger";
 
 const port = Number(process.env.PORT) || 3000;
 
-createRealtimeServer({ port });
+await createRealtimeServer({ port });
 
 logger.info(`Server running on http://localhost:${port}`);

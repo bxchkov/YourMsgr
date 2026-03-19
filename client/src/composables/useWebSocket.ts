@@ -3,6 +3,7 @@ import { isTerminalSessionMessage } from '@/constants/auth'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore, type Message } from '@/stores/chat'
 import { authService } from '@/services/auth'
+import { loadGroupMessagesIntoStore, syncPrivateChatsIntoStore } from '@/composables/useChatSync'
 import router from '@/router'
 import type {
     SocketIncomingEvent,
@@ -15,7 +16,7 @@ import type {
 let socket: WebSocket | null = null
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 let isIntentionalClose = false
-const eventHandlers = new Map<SocketIncomingEventType, (data: SocketIncomingEvent) => void>()
+const eventHandlers = new Map<SocketIncomingEventType, (data: SocketIncomingEvent) => void | Promise<void>>()
 const DEBUG_SOCKET_LOGS = import.meta.env.DEV
 export const isConnected = ref(false)
 
@@ -27,6 +28,8 @@ const SOCKET_INCOMING_EVENT_TYPES = [
     'check_session',
     'refresh_tokens',
     'client_logout',
+    'sync_group_messages',
+    'sync_private_chats',
 ] as const satisfies readonly SocketIncomingEventType[]
 
 function isSocketIncomingEventType(value: unknown): value is SocketIncomingEventType {
@@ -36,9 +39,9 @@ function isSocketIncomingEventType(value: unknown): value is SocketIncomingEvent
 
 export function onSocketEvent<K extends SocketIncomingEventType>(
     eventType: K,
-    callback: (data: SocketIncomingEventMap[K]) => void,
+    callback: (data: SocketIncomingEventMap[K]) => void | Promise<void>,
 ) {
-    eventHandlers.set(eventType, callback as (data: SocketIncomingEvent) => void)
+    eventHandlers.set(eventType, callback as (data: SocketIncomingEvent) => void | Promise<void>)
 }
 
 export function emitSocketEvent<K extends SocketOutgoingEventType>(
@@ -82,7 +85,7 @@ export function initSocket() {
 
             const handler = eventHandlers.get(data.type)
             if (handler) {
-                handler(data as SocketIncomingEvent)
+                void handler(data as SocketIncomingEvent)
             }
         } catch (error) {
             console.error('WebSocket message error:', error)
@@ -255,5 +258,13 @@ export function setupSocketHandlers() {
         if (router.currentRoute.value.name !== 'auth') {
             void router.replace('/auth')
         }
+    })
+
+    onSocketEvent('sync_group_messages', async () => {
+        await loadGroupMessagesIntoStore(chatStore)
+    })
+
+    onSocketEvent('sync_private_chats', async () => {
+        await syncPrivateChatsIntoStore(chatStore)
     })
 }

@@ -1,6 +1,7 @@
 import type { Server as BunServer, ServerWebSocket } from "bun";
 import { type TokenPayload, verifyAccessToken, verifyRefreshToken } from "../utils/jwt";
 import { logger } from "../utils/logger";
+import { listenToRealtimeEvents, REALTIME_EVENTS_CHANNEL } from "../utils/realtimeEvents";
 import { validateData, wsDeleteMessageSchema, wsLoadMoreMessagesSchema, wsMessageSchema } from "../utils/validation";
 import { consumeWsRateLimit, getCookieValue, type WsRateLimitState, WS_ERROR_MESSAGES } from "../utils/ws";
 import type { MessageWithReply } from "../services/reply.service";
@@ -15,20 +16,70 @@ export interface WebSocketData {
 
 export interface RealtimeServerOptions extends AppFactoryOptions {
   port?: number;
+  realtimeChannel?: string;
 }
 
 const WS_LIMIT = 5;
 const WS_WINDOW = 1000;
 
-export const createRealtimeServer = ({ port = Number(process.env.PORT) || 3000, dependencies }: RealtimeServerOptions = {}) => {
+export const createRealtimeServer = async ({
+  port = Number(process.env.PORT) || 3000,
+  dependencies,
+  realtimeChannel = REALTIME_EVENTS_CHANNEL,
+}: RealtimeServerOptions = {}) => {
   const resolvedDependencies = dependencies ?? createServerDependencies();
   const app = createHttpApp({ dependencies: resolvedDependencies });
   const clients = new Map<string, ServerWebSocket<WebSocketData>>();
   const wsRateLimits = new Map<string, WsRateLimitState>();
 
+  const removeSocketClient = (ws: ServerWebSocket<WebSocketData>) => {
+    for (const [clientId, client] of clients.entries()) {
+      if (client === ws) {
+        clients.delete(clientId);
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  const safeSendToClient = (ws: ServerWebSocket<WebSocketData>, payload: string) => {
+    try {
+      ws.send(payload);
+      return true;
+    } catch (error) {
+      removeSocketClient(ws);
+      logger.warn(`Failed to deliver realtime payload to '${ws.data.userName}'`, error);
+      return false;
+    }
+  };
+
+  const broadcastToAll = (payload: string) => {
+    clients.forEach((client) => {
+      safeSendToClient(client, payload);
+    });
+  };
+
+  const broadcastToUsers = (userIds: number[], payload: string) => {
+    const targetUserIds = new Set(userIds);
+    clients.forEach((client) => {
+      if (targetUserIds.has(client.data.userId)) {
+        safeSendToClient(client, payload);
+      }
+    });
+  };
+
   const logoutSocketClient = (ws: ServerWebSocket<WebSocketData>) => {
-    ws.send(JSON.stringify({ type: "client_logout" }));
+    safeSendToClient(ws, JSON.stringify({ type: "client_logout" }));
     ws.close();
+  };
+
+  const logoutUserSockets = (userId: number) => {
+    for (const client of clients.values()) {
+      if (client.data.userId === userId) {
+        logoutSocketClient(client);
+      }
+    }
   };
 
   const getValidSocketSession = async (
@@ -52,6 +103,32 @@ export const createRealtimeServer = ({ port = Number(process.env.PORT) || 3000, 
 
     return { accessPayload, shouldLogout: false };
   };
+
+  const realtimeListener = await listenToRealtimeEvents(async (event) => {
+    switch (event.type) {
+      case "force_logout":
+        logoutUserSockets(event.userId);
+        return;
+
+      case "sync_group_messages":
+        broadcastToAll(JSON.stringify({ type: "sync_group_messages" }));
+        return;
+
+      case "sync_private_chats":
+        broadcastToUsers(event.userIds, JSON.stringify({ type: "sync_private_chats" }));
+        return;
+
+      case "group_message_created": {
+        const createdMessage = await resolvedDependencies.messageService.getMessageWithReplyById(event.messageId);
+        if (!createdMessage) {
+          logger.warn(`Realtime event message not found: ${event.messageId}`);
+          return;
+        }
+
+        broadcastToAll(JSON.stringify({ type: "send_message", ...createdMessage }));
+      }
+    }
+  }, undefined, realtimeChannel);
 
   const server = Bun.serve<WebSocketData>({
     port,
@@ -145,7 +222,7 @@ export const createRealtimeServer = ({ port = Number(process.env.PORT) || 3000, 
               const payload = JSON.stringify({ type: "send_message", ...newMessage });
               clients.forEach((client) => {
                 if (client.data.userId === userPayload.userId || client.data.userId === data.recipientId) {
-                  client.send(payload);
+                  safeSendToClient(client, payload);
                 }
               });
               return;
@@ -163,7 +240,7 @@ export const createRealtimeServer = ({ port = Number(process.env.PORT) || 3000, 
 
             const payload = JSON.stringify({ type: "send_message", ...newMessage });
             clients.forEach((client) => {
-              client.send(payload);
+              safeSendToClient(client, payload);
             });
             return;
           }
@@ -204,14 +281,14 @@ export const createRealtimeServer = ({ port = Number(process.env.PORT) || 3000, 
             if (msg.chatType === "private" && msg.recipientId) {
               clients.forEach((client) => {
                 if (client.data.userId === msg.userId || client.data.userId === msg.recipientId) {
-                  client.send(payload);
+                  safeSendToClient(client, payload);
                 }
               });
               return;
             }
 
             clients.forEach((client) => {
-              client.send(payload);
+              safeSendToClient(client, payload);
             });
             return;
           }
@@ -262,12 +339,8 @@ export const createRealtimeServer = ({ port = Number(process.env.PORT) || 3000, 
         }
       },
       close(ws) {
-        for (const [clientId, client] of clients.entries()) {
-          if (client === ws) {
-            clients.delete(clientId);
-            logger.info(`WebSocket client disconnected: ${ws.data.userName}`);
-            break;
-          }
+        if (removeSocketClient(ws)) {
+          logger.info(`WebSocket client disconnected: ${ws.data.userName}`);
         }
       },
     },
@@ -277,5 +350,9 @@ export const createRealtimeServer = ({ port = Number(process.env.PORT) || 3000, 
     app,
     server: server as BunServer,
     dependencies: resolvedDependencies,
+    async stop() {
+      await realtimeListener.unlisten();
+      server.stop(true);
+    },
   };
 };

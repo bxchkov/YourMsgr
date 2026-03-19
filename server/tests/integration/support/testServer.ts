@@ -28,8 +28,9 @@ export interface TestRuntimeContext {
   client: DatabaseClient;
   dependencies: ServerDependencies;
   app: ReturnType<typeof createHttpApp>;
-  runtime?: ReturnType<typeof createRealtimeServer>;
+  runtime?: Awaited<ReturnType<typeof createRealtimeServer>>;
   origin: string;
+  realtimeChannel: string;
 }
 
 interface SetupOptions {
@@ -50,7 +51,10 @@ export const useTestRuntime = ({ withRealtime = false }: SetupOptions = {}) => {
     const testDatabase = await createTestDatabase();
     const dependencies = createServerDependencies(testDatabase.db);
     const app = createHttpApp({ dependencies });
-    const runtime = withRealtime ? createRealtimeServer({ port: 0, dependencies }) : undefined;
+    const realtimeChannel = `yourmsgr_events_${testDatabase.schemaName}`;
+    const runtime = withRealtime
+      ? await createRealtimeServer({ port: 0, dependencies, realtimeChannel })
+      : undefined;
     const origin = runtime ? `http://127.0.0.1:${runtime.server.port}` : "http://localhost";
 
     runtimeContext = {
@@ -60,10 +64,11 @@ export const useTestRuntime = ({ withRealtime = false }: SetupOptions = {}) => {
       app,
       runtime,
       origin,
+      realtimeChannel,
     };
 
     cleanupDb = async () => {
-      runtime?.server.stop(true);
+      await runtime?.stop?.();
       await testDatabase.cleanup();
     };
 

@@ -33,6 +33,14 @@ export interface ClientLogoutSocketEvent {
     type: 'client_logout'
 }
 
+export interface SyncGroupMessagesSocketEvent {
+    type: 'sync_group_messages'
+}
+
+export interface SyncPrivateChatsSocketEvent {
+    type: 'sync_private_chats'
+}
+
 export interface SocketIncomingEventMap {
     load_messages: LoadMessagesSocketEvent
     send_message: SendMessageSocketEvent
@@ -41,6 +49,8 @@ export interface SocketIncomingEventMap {
     check_session: CheckSessionSocketEvent
     refresh_tokens: RefreshTokensSocketEvent
     client_logout: ClientLogoutSocketEvent
+    sync_group_messages: SyncGroupMessagesSocketEvent
+    sync_private_chats: SyncPrivateChatsSocketEvent
 }
 
 export type SocketIncomingEventType = keyof SocketIncomingEventMap
