@@ -1,6 +1,6 @@
 # YourMsgr
 
-Защищённый мессенджер с Docker-first развёртыванием, групповым чатом, личными чатами и E2EE для приватной переписки.
+Защищённый мессенджер с Docker-first развёртыванием, общим чатом, личными чатами и E2EE для приватной переписки.
 
 ## Быстрая установка на Linux
 
@@ -8,64 +8,107 @@
 curl -fsSL https://raw.githubusercontent.com/bxchkov/YourMsgr/main/install.sh | sudo bash
 ```
 
-Installer теперь работает в production-сценарии:
+Эта команда теперь делает только bootstrap:
 
-1. Проверяет и при необходимости устанавливает Docker.
-2. Клонирует проект в `/opt/yourmsgr`.
-3. Требует домен для панели.
-4. Проверяет, что домен резолвится на текущий сервер.
-5. Требует свободный `80/tcp` и по возможности свободный `443/tcp`.
-6. Поднимает Caddy с автоматическим выпуском доверенного TLS-сертификата.
-7. Создаёт `.env`, `server/.env`, helper-команду `yourmsgr`.
-8. Поднимает стек и создаёт первого администратора.
+1. устанавливает Docker при необходимости;
+2. клонирует или обновляет проект в `/opt/yourmsgr`;
+3. ставит helper-команду `yourmsgr`;
+4. ничего не поднимает автоматически.
 
-Важно:
+После bootstrap приложение ещё не настроено и не запущено.
 
-- IP-only установка больше не поддерживается.
-- Для нормальной работы HTTPS домен должен смотреть прямо на этот сервер.
-- Порт `80` должен быть открыт и не занят сторонними сервисами.
-- Если `443` занят, installer подберёт отдельный HTTPS-порт, например `8443`.
-- При занятом `443` панель может работать на `https://<domain>:<port>` без browser warning, если сертификат выпущен успешно.
+## Что означает команда установки
 
-## Управление после установки
+```bash
+curl -fsSL https://raw.githubusercontent.com/bxchkov/YourMsgr/main/install.sh | sudo bash
+```
 
-Основная команда:
+- `curl` скачивает installer-скрипт;
+- `-f` завершает команду с ошибкой, если GitHub вернул HTTP-ошибку;
+- `-s` убирает лишний шум;
+- `-S` показывает текст ошибки, если она есть;
+- `-L` следует за redirect;
+- `| sudo bash` передаёт скачанный скрипт в `bash` с root-правами.
+
+Важно: у `curl | bash` stdin занят самим скриптом, поэтому интерактивный wizard на этом этапе неудобен. Именно поэтому домен и HTTPS теперь настраиваются не во время bootstrap, а при первом старте через `yourmsgr`.
+
+## Первый запуск после установки
+
+Вариант через меню:
+
+```bash
+sudo yourmsgr
+```
+
+Дальше:
+
+1. открыть `Service management`;
+2. выбрать `Start application`;
+3. пройти wizard домена и HTTPS;
+4. дождаться выпуска сертификата и старта контейнеров.
+
+Прямой вариант без захода в меню:
+
+```bash
+sudo yourmsgr service start
+```
+
+Если конфигурации ещё нет, helper сам запустит wizard первого старта.
+
+## Как теперь устроен lifecycle
+
+### 1. Bootstrap
+
+- проект скачан;
+- helper установлен;
+- сервисы не запущены;
+- домен ещё не выбран.
+
+### 2. First start
+
+- запрашивается домен;
+- проверяется DNS-резолв домена на этот сервер;
+- проверяется доступность `80/tcp`;
+- поднимается Caddy с trusted HTTPS через ACME;
+- создаётся первый admin.
+
+### 3. Reconfigure
+
+Если позже домен нужно поменять, полная переустановка не нужна:
+
+```bash
+sudo yourmsgr reconfigure
+```
+
+или
+
+```bash
+sudo yourmsgr setup
+```
+
+Wizard перепишет конфигурацию и перезапустит стек.
+
+## Основные команды helper
 
 ```bash
 yourmsgr
-```
-
-CLI helper поддерживает:
-
-```bash
-yourmsgr menu
 yourmsgr version
 yourmsgr status
+yourmsgr setup
+yourmsgr reconfigure
 yourmsgr logs
 yourmsgr check-update
-yourmsgr update
-yourmsgr service start
-yourmsgr service stop
-yourmsgr service restart
-yourmsgr service autostart on
-yourmsgr service autostart off
-yourmsgr service autorestart on
-yourmsgr service autorestart off
-yourmsgr reconfigure
+sudo yourmsgr update
+sudo yourmsgr service start
+sudo yourmsgr service stop
+sudo yourmsgr service restart
+sudo yourmsgr service autostart on
+sudo yourmsgr service autostart off
+sudo yourmsgr service autorestart on
+sudo yourmsgr service autorestart off
 yourmsgr admin stats
 yourmsgr uninstall
 ```
-
-### Что делает меню
-
-Меню `yourmsgr`:
-
-- показывает единый статус приложения, контейнеров и endpoint-ов;
-- даёт отдельный раздел управления сервисом;
-- даёт раздел логов с возвратом обратно в меню;
-- даёт раздел обновлений, завязанный на `VERSION`;
-- даёт раздел админских CLI-команд;
-- позволяет запустить `reconfigure`, если нужно переехать на другой домен или HTTPS-порт.
 
 ## Обновления
 
@@ -73,30 +116,37 @@ yourmsgr uninstall
 
 ```bash
 yourmsgr check-update
-yourmsgr update
+sudo yourmsgr update
 ```
 
 Поведение:
 
-- `check-update` сравнивает локальную и удалённую версии из файла `VERSION`;
-- `update` не делает лишнюю пересборку, если версия уже актуальна;
-- если код изменился, а `VERSION` не был увеличен, обычный update откажется обновляться;
-- для принудительного обновления в таком случае есть `yourmsgr update --force`.
+- `check-update` сравнивает локальную и удалённую версии по файлу `VERSION`;
+- `update` обновляет helper и код проекта;
+- если приложение уже настроено, после обновления автоматически пересобирается и перезапускается стек;
+- если bootstrap уже выполнен, но конфигурации ещё нет, update просто обновит код без автозапуска.
 
-Текущая версия проекта: `2.0.5`.
+## Админка
 
-## Удаление
+Отдельной web-admin панели в проекте нет. Админская поверхность сейчас состоит из:
+
+1. серверного CLI;
+2. роли `admin` в основном клиенте.
+
+Быстрый вход в админский CLI:
 
 ```bash
-yourmsgr uninstall
+yourmsgr admin stats
+yourmsgr admin users:list
+yourmsgr admin users:get <login>
+yourmsgr admin users:create-auto
+yourmsgr admin users:create-auto --admin
+yourmsgr admin users:role <login> <user|admin>
+yourmsgr admin users:logout <login>
+yourmsgr admin users:delete <login>
+yourmsgr admin messages:admin-post <admin-login> <message>
+yourmsgr admin messages:purge-group <login>
 ```
-
-Удаление намеренно простое и полное:
-
-- останавливает и удаляет Docker stack;
-- удаляет volumes проекта;
-- удаляет каталог установки;
-- удаляет helper-команду.
 
 ## Ручной запуск через Docker Compose
 
@@ -106,45 +156,7 @@ cp server/.env.example server/.env
 docker compose up -d --build
 ```
 
-Compose-профиль ориентирован на Caddy и trusted-HTTPS flow:
-
-- `PUBLIC_HOST=chat.example.com`
-- `PUBLIC_URL=https://chat.example.com`
-- `CLIENT_HTTP_PORT=80`
-- `CLIENT_HTTPS_PORT=443`
-
-## Админка
-
-Отдельной web-admin панели в проекте нет. Админская поверхность сейчас состоит из:
-
-1. серверного CLI;
-2. роли `admin` в основном клиенте.
-
-Полезные CLI-команды:
-
-```bash
-cd server
-bun run admin help
-```
-
-Основной набор:
-
-```bash
-bun run admin health
-bun run admin stats
-bun run admin users:list
-bun run admin users:get <login>
-bun run admin users:create
-bun run admin users:create --admin
-bun run admin users:create-auto
-bun run admin users:create-auto --admin
-bun run admin users:bootstrap-admin
-bun run admin users:role <login> <user|admin>
-bun run admin users:logout <login>
-bun run admin users:delete <login>
-bun run admin messages:admin-post <admin-login> <message>
-bun run admin messages:purge-group <login>
-```
+Для production-сценария рекомендован именно installer/helper flow.
 
 ## Технологии
 
@@ -171,18 +183,9 @@ bun run admin messages:purge-group <login>
 - Docker Compose
 - Caddy
 
-## Структура
+## Текущая версия
 
-```text
-YourMsgr/
-├── client/
-├── server/
-├── scripts/
-├── deploy/
-├── docker-compose.yml
-├── install.sh
-└── README.md
-```
+`2.0.9`
 
 ## Лицензия
 

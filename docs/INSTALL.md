@@ -1,44 +1,94 @@
 # Установка и деплой
 
-## One-command install
+## One-command bootstrap
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bxchkov/YourMsgr/main/install.sh | sudo bash
 ```
 
-## Как теперь работает installer
+Эта команда:
 
-Installer ориентирован на production HTTPS с обязательным доменом:
+1. ставит Docker при необходимости;
+2. клонирует проект в `/opt/yourmsgr`;
+3. устанавливает helper-команду `yourmsgr`;
+4. не запускает приложение автоматически.
 
-1. Устанавливает Docker при необходимости.
-2. Клонирует или обновляет проект в `/opt/yourmsgr`.
-3. Требует домен панели.
-4. Проверяет DNS-резолв домена на текущий сервер.
-5. Проверяет, что `80/tcp` свободен, а для HTTPS выбирает `443` или запасной порт.
-6. Поднимает Caddy и ждёт готовности:
-   - `http://127.0.0.1:<SERVER_PORT>/healthz`
-   - `https://<domain>/healthz`
-   - `https://<domain>/auth`
-7. Создаёт первого admin-пользователя.
+## Почему wizard больше не встроен прямо в `curl | bash`
 
-## Какие файлы создаются
+При запуске installer через pipe stdin уже занят телом скрипта. Поэтому интерактивный опрос домена на этом этапе ненадёжен и даёт плохой UX.
 
-- каталог проекта: `/opt/yourmsgr`
-- helper-команда: `/usr/local/bin/yourmsgr`
-- root `.env` для Docker Compose
-- `server/.env` с секретами backend
+Из-за этого install flow разделён на 2 шага:
 
-## Основные переменные installer-а
+1. bootstrap через `curl | bash`;
+2. интерактивная конфигурация через `yourmsgr` при первом старте.
 
-Можно переопределять до запуска:
+## Первый запуск
+
+Через меню:
+
+```bash
+sudo yourmsgr
+```
+
+Дальше:
+
+1. `Service management`
+2. `Start application`
+
+Или сразу:
+
+```bash
+sudo yourmsgr service start
+```
+
+Если конфигурации ещё нет, helper сам откроет wizard.
+
+## Что делает wizard
+
+Wizard первого запуска:
+
+1. запрашивает публичный домен;
+2. проверяет, что домен резолвится на этот сервер;
+3. проверяет доступность `80/tcp`;
+4. выбирает HTTPS-порт (`443` или запасной, например `8443`, если `443` занят);
+5. генерирует `.env` и `server/.env`;
+6. поднимает стек;
+7. ждёт trusted HTTPS и `/auth`;
+8. создаёт первого admin-пользователя.
+
+## Повторная настройка
+
+Если домен меняется, полная переустановка не нужна:
+
+```bash
+sudo yourmsgr reconfigure
+```
+
+или
+
+```bash
+sudo yourmsgr setup
+```
+
+## Непосредственно поддерживаемые сценарии
+
+### Production
+
+- домен обязателен;
+- нужен корректный DNS A-record на этот сервер;
+- `80/tcp` должен быть доступен извне для ACME;
+- сертификат выпускает Caddy автоматически.
+
+### Non-interactive configuration
+
+Если нужно автоматизировать именно этап конфигурации, можно передать домен через env:
 
 ```bash
 export YOURMSGR_PUBLIC_HOST=chat.example.com
-export YOURMSGR_CLIENT_HTTPS_PORT=8443
-curl -fsSL https://raw.githubusercontent.com/bxchkov/YourMsgr/main/install.sh | sudo bash
+sudo yourmsgr service start
 ```
 
-Поддерживаемые переменные:
+Поддерживаются и другие installer env-переменные:
 
 - `YOURMSGR_REPO_URL`
 - `YOURMSGR_REPO_BRANCH`
@@ -62,84 +112,15 @@ curl -fsSL https://raw.githubusercontent.com/bxchkov/YourMsgr/main/install.sh | 
 - `YOURMSGR_ADMIN_PASSWORD`
 - `YOURMSGR_ADMIN_USERNAME`
 
-## Обязательные условия
-
-Для успешной установки должны выполняться все пункты:
-
-- у вас есть домен;
-- A-запись домена указывает на этот сервер;
-- `80/tcp` доступен снаружи для ACME HTTP challenge;
-- `80/tcp` не занят другими сервисами;
-- если хотите URL без `:порт`, тогда свободен и `443/tcp`.
-
-Если `443` занят, installer не падает, а использует отдельный HTTPS-порт, например `8443`.
-
-## Управление после установки
-
-```bash
-yourmsgr
-```
-
-### Основные команды
-
-```bash
-yourmsgr version
-yourmsgr status
-yourmsgr logs
-yourmsgr check-update
-yourmsgr update
-yourmsgr service start
-yourmsgr service stop
-yourmsgr service restart
-yourmsgr service autostart on
-yourmsgr service autostart off
-yourmsgr service autorestart on
-yourmsgr service autorestart off
-yourmsgr reconfigure
-yourmsgr admin stats
-yourmsgr uninstall
-```
-
-### Что изменилось в helper
-
-- `status` объединяет прежние `status` и `health`;
-- `logs` позволяет вернуться обратно в меню после `Ctrl + C`;
-- `reconfigure` повторно запускает installer и позволяет сменить домен или HTTPS-порт;
-- обновления завязаны на `VERSION`;
-- helper больше не использует self-signed TLS.
-
-## Обновление
-
-```bash
-yourmsgr check-update
-yourmsgr update
-```
-
-Правила:
-
-- публикуемое обновление должно сопровождаться увеличением `VERSION`;
-- обычное обновление не идёт, если версия уже актуальна;
-- если удалённый код изменился, а версия нет, helper требует `--force`.
-
 ## Удаление
 
 ```bash
 yourmsgr uninstall
 ```
 
-Удаление полное:
+Удаление остаётся полным:
 
 - stack удаляется;
 - volumes удаляются;
 - каталог `/opt/yourmsgr` удаляется;
 - helper удаляется.
-
-## Примечание по HTTPS
-
-Installer не использует self-signed сертификаты. TLS выпускает Caddy автоматически через ACME, поэтому браузерное предупреждение о недоверенном сертификате не должно появляться, если:
-
-- домен корректно указывает на сервер;
-- `80` доступен снаружи;
-- сертификат успел выпуститься;
-- браузер открывает именно доменное имя, а не IP;
-- при занятом `443` вы открываете панель на том HTTPS-порту, который выбрал installer.

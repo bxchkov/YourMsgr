@@ -9,7 +9,12 @@ REPO_BRANCH="${YOURMSGR_REPO_BRANCH:-main}"
 INSTALL_DIR="${YOURMSGR_INSTALL_DIR:-/opt/yourmsgr}"
 HELPER_TARGET="/usr/local/bin/yourmsgr"
 
+RUN_CONFIGURATION=0
+SKIP_REPO_SYNC=0
+RECONFIGURE_MODE=0
 INSTALL_MODE="fresh"
+HAD_CONFIGURATION=0
+IS_FIRST_CONFIGURATION=0
 BOOTSTRAPPED_ADMIN_LOGIN=""
 BOOTSTRAPPED_ADMIN_PASSWORD=""
 BOOTSTRAPPED_ADMIN_USERNAME=""
@@ -25,6 +30,53 @@ warn() {
 fail() {
   printf '[%s] ERROR: %s\n' "$APP_NAME" "$1" >&2
   exit 1
+}
+
+usage() {
+  cat <<'EOF'
+YourMsgr installer
+
+Usage:
+  install.sh
+  install.sh --configure
+  install.sh --reconfigure
+
+Modes:
+  default        Bootstrap only: install Docker if needed, clone/update repo, install helper.
+                 Application remains stopped and unconfigured until first start.
+  --configure    Run configuration wizard and start the stack.
+  --reconfigure  Re-run configuration wizard for an existing install and restart the stack.
+
+Options:
+  --skip-repo-sync  Reuse the current local repository without fetch/pull.
+  --help            Show this help.
+EOF
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --configure)
+        RUN_CONFIGURATION=1
+        ;;
+      --reconfigure)
+        RUN_CONFIGURATION=1
+        RECONFIGURE_MODE=1
+        ;;
+      --skip-repo-sync)
+        SKIP_REPO_SYNC=1
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        fail "Unknown argument: $1"
+        ;;
+    esac
+
+    shift
+  done
 }
 
 require_root() {
@@ -74,6 +126,26 @@ install_base_packages() {
   esac
 }
 
+wait_for_docker_daemon() {
+  local attempt
+
+  for attempt in $(seq 1 30); do
+    if docker info >/dev/null 2>&1; then
+      log "Docker daemon is ready"
+      return
+    fi
+
+    sleep 2
+  done
+
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl status docker --no-pager || true
+    systemctl status docker.socket --no-pager || true
+  fi
+
+  fail "Docker daemon did not become ready in time"
+}
+
 install_docker_if_needed() {
   if ! command -v docker >/dev/null 2>&1; then
     log "Installing Docker"
@@ -95,26 +167,6 @@ install_docker_if_needed() {
 
   docker compose version >/dev/null 2>&1 || fail "Docker Compose plugin is required"
   wait_for_docker_daemon
-}
-
-wait_for_docker_daemon() {
-  local attempt
-
-  for attempt in $(seq 1 30); do
-    if docker info >/dev/null 2>&1; then
-      log "Docker daemon is ready"
-      return
-    fi
-
-    sleep 2
-  done
-
-  if command -v systemctl >/dev/null 2>&1; then
-    systemctl status docker --no-pager || true
-    systemctl status docker.socket --no-pager || true
-  fi
-
-  fail "Docker daemon did not become ready in time"
 }
 
 random_secret() {
@@ -191,7 +243,7 @@ prompt_public_host() {
       return
     fi
 
-    fail "A public domain is required. Set YOURMSGR_PUBLIC_HOST for non-interactive install."
+    fail "A public domain is required. Set YOURMSGR_PUBLIC_HOST for non-interactive configuration."
   fi
 
   local input_host=""
@@ -258,6 +310,8 @@ port_in_use() {
   return 1
 }
 
+RESOLVED_PORT=""
+
 find_available_port() {
   local candidate
 
@@ -270,8 +324,6 @@ find_available_port() {
 
   return 1
 }
-
-RESOLVED_PORT=""
 
 resolve_https_port() {
   local desired_port="$1"
@@ -333,7 +385,7 @@ ensure_required_port_available() {
   local port="$2"
 
   if port_in_use "$port"; then
-    fail "${port_kind} port ${port} is already in use. Free port 80 before installing YourMsgr."
+    fail "${port_kind} port ${port} is already in use. Free port ${port} before configuring YourMsgr."
   fi
 }
 
@@ -375,6 +427,12 @@ build_public_url() {
 
 clone_or_update_repo() {
   if [[ -d "$INSTALL_DIR/.git" ]]; then
+    if [[ "$SKIP_REPO_SYNC" == "1" ]]; then
+      INSTALL_MODE="existing"
+      log "Using existing repository in $INSTALL_DIR"
+      return
+    fi
+
     INSTALL_MODE="update"
     log "Updating existing repository in $INSTALL_DIR"
     git -C "$INSTALL_DIR" fetch --all --tags
@@ -389,12 +447,23 @@ clone_or_update_repo() {
   git clone --branch "$REPO_BRANCH" "$REPO_URL" "$INSTALL_DIR"
 }
 
-stop_existing_stack_if_needed() {
-  if [[ "$INSTALL_MODE" != "update" || ! -f "$INSTALL_DIR/.env" ]]; then
+mark_configuration_state() {
+  if [[ -f "$INSTALL_DIR/.env" ]] && [[ -n "$(read_env_value "$INSTALL_DIR/.env" PUBLIC_HOST "")" ]]; then
+    HAD_CONFIGURATION=1
+    IS_FIRST_CONFIGURATION=0
     return
   fi
 
-  log "Stopping existing stack before reconfiguration"
+  HAD_CONFIGURATION=0
+  IS_FIRST_CONFIGURATION=1
+}
+
+stop_existing_stack_if_needed() {
+  if [[ "$RUN_CONFIGURATION" != "1" || "$HAD_CONFIGURATION" != "1" ]]; then
+    return
+  fi
+
+  log "Stopping existing stack before configuration"
   compose down --remove-orphans || true
 }
 
@@ -498,16 +567,10 @@ wait_for_http_url() {
   local url="$1"
   local name="$2"
   local attempts="${3:-60}"
-  local host_header="${4:-}"
   local attempt
-  local curl_args=(-fsS)
-
-  if [[ -n "$host_header" ]]; then
-    curl_args+=(-H "Host: ${host_header}")
-  fi
 
   for attempt in $(seq 1 "$attempts"); do
-    if curl "${curl_args[@]}" "$url" >/dev/null 2>&1; then
+    if curl -fsS "$url" >/dev/null 2>&1; then
       log "$name is ready"
       return
     fi
@@ -556,7 +619,7 @@ wait_for_stack() {
 }
 
 prepare_bootstrap_admin_credentials() {
-  if [[ "$INSTALL_MODE" != "fresh" ]]; then
+  if [[ "$IS_FIRST_CONFIGURATION" != "1" ]]; then
     return
   fi
 
@@ -578,7 +641,7 @@ prepare_bootstrap_admin_credentials() {
 }
 
 bootstrap_admin() {
-  if [[ "$INSTALL_MODE" != "fresh" ]]; then
+  if [[ "$IS_FIRST_CONFIGURATION" != "1" ]]; then
     return
   fi
 
@@ -608,11 +671,31 @@ bootstrap_admin() {
   fail "Failed to bootstrap admin account"
 }
 
-print_summary() {
+print_bootstrap_summary() {
+  log "Bootstrap completed"
+  echo
+  echo "Version: $(get_project_version)"
+  echo "Install directory: $INSTALL_DIR"
+  echo "Helper command: $HELPER_TARGET"
+  echo
+  echo "YourMsgr is installed, but not configured and not started yet."
+  echo
+  echo "Next steps:"
+  echo "  1. Run: sudo yourmsgr"
+  echo "  2. Open: Service management"
+  echo "  3. Press: Start application"
+  echo
+  echo "Or configure directly with:"
+  echo "  sudo yourmsgr service start"
+  echo
+  echo "During the first start wizard you will choose the domain and HTTPS port."
+}
+
+print_configure_summary() {
   local public_url
   public_url="$(get_env_value PUBLIC_URL "unknown")"
 
-  log "Installation completed"
+  log "Configuration completed"
   echo
   echo "Version: $(get_project_version)"
   echo "Panel URL: $public_url"
@@ -644,18 +727,26 @@ print_summary() {
 }
 
 main() {
+  parse_args "$@"
   require_root
   install_base_packages
   install_docker_if_needed
   clone_or_update_repo
+  install_helper
+
+  if [[ "$RUN_CONFIGURATION" != "1" ]]; then
+    print_bootstrap_summary
+    return
+  fi
+
+  mark_configuration_state
   stop_existing_stack_if_needed
   write_compose_env
   write_server_env
-  install_helper
   start_stack
   wait_for_stack
   bootstrap_admin
-  print_summary
+  print_configure_summary
 }
 
 main "$@"

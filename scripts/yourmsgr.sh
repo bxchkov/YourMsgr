@@ -42,6 +42,10 @@ load_env() {
   fi
 }
 
+is_configured() {
+  [[ -f "$INSTALL_DIR/.env" && -n "$(grep '^PUBLIC_HOST=' "$INSTALL_DIR/.env" 2>/dev/null | head -n 1 | cut -d '=' -f 2-)" ]]
+}
+
 current_version() {
   if [[ -f "$INSTALL_DIR/VERSION" ]]; then
     tr -d '[:space:]' < "$INSTALL_DIR/VERSION"
@@ -52,6 +56,11 @@ current_version() {
 }
 
 current_public_host() {
+  if ! is_configured; then
+    echo "not-configured"
+    return
+  fi
+
   load_env
   echo "${PUBLIC_HOST:-localhost}"
 }
@@ -77,11 +86,21 @@ remote_default_branch() {
 }
 
 current_public_url() {
+  if ! is_configured; then
+    echo "not configured"
+    return
+  fi
+
   load_env
   echo "${PUBLIC_URL:-https://localhost}"
 }
 
 current_restart_policy() {
+  if ! is_configured; then
+    echo "unknown"
+    return
+  fi
+
   load_env
   echo "${RESTART_POLICY:-unless-stopped}"
 }
@@ -300,6 +319,11 @@ detect_ram_usage() {
 }
 
 application_state() {
+  if ! is_configured; then
+    echo "not_configured"
+    return
+  fi
+
   local client_state server_state postgres_state
   client_state="$(container_state client)"
   server_state="$(container_state server)"
@@ -389,7 +413,7 @@ render_state() {
     active|enabled|up_to_date)
       format_value "$COLOR_OK" "${state//_/ }"
       ;;
-    starting|available|warning)
+    starting|available|warning|not_configured)
       format_value "$COLOR_WARN" "${state//_/ }"
       ;;
     error|inactive|disabled|failed)
@@ -422,6 +446,14 @@ print_app_overview() {
 print_service_overview() {
   draw_section "Services"
   printf "Docker:   %s\n" "$(render_state "$(systemd_service_state docker.service)")"
+
+  if ! is_configured; then
+    printf "Client:   %s\n" "$(render_state "not_configured")"
+    printf "Server:   %s\n" "$(render_state "not_configured")"
+    printf "Postgres: %s\n" "$(render_state "not_configured")"
+    return
+  fi
+
   printf "Client:   %s\n" "$(render_state "$(container_state client)")"
   printf "Server:   %s\n" "$(render_state "$(container_state server)")"
   printf "Postgres: %s\n" "$(render_state "$(container_state postgres)")"
@@ -444,6 +476,11 @@ check_endpoint() {
 }
 
 check_http_redirect() {
+  if ! is_configured; then
+    echo "not_configured"
+    return
+  fi
+
   load_env
   local host port headers expected_location public_url
   host="${PUBLIC_HOST:-localhost}"
@@ -460,6 +497,11 @@ check_http_redirect() {
 }
 
 check_client_https_health() {
+  if ! is_configured; then
+    echo "not_configured"
+    return
+  fi
+
   load_env
   local host port url
   host="${PUBLIC_HOST:-localhost}"
@@ -474,6 +516,11 @@ check_client_https_health() {
 }
 
 check_client_https_app() {
+  if ! is_configured; then
+    echo "not_configured"
+    return
+  fi
+
   load_env
   local host port url
   host="${PUBLIC_HOST:-localhost}"
@@ -503,9 +550,18 @@ show_status() {
   print_service_overview
   echo
   print_endpoint_overview
+
+  if is_configured; then
+    echo
+    draw_section "Containers"
+    compose ps
+    return
+  fi
+
   echo
-  draw_section "Containers"
-  compose ps
+  draw_section "Next Step"
+  echo "Configuration is not created yet."
+  echo "Run: sudo yourmsgr service start"
 }
 
 autostart_state() {
@@ -527,6 +583,11 @@ autostart_state() {
 }
 
 autorestart_state() {
+  if ! is_configured; then
+    echo "not_configured"
+    return
+  fi
+
   local policy
   policy="$(current_restart_policy)"
 
@@ -553,20 +614,62 @@ update_env_value() {
   fi
 }
 
+run_installer_mode() {
+  local mode="$1"
+
+  require_root_for_helper_action || return 1
+
+  if [[ ! -f "$INSTALL_DIR/install.sh" ]]; then
+    echo "Installer script not found at $INSTALL_DIR/install.sh"
+    return 1
+  fi
+
+  bash "$INSTALL_DIR/install.sh" "$mode" --skip-repo-sync
+}
+
+configure_stack() {
+  if is_configured; then
+    run_installer_mode --reconfigure
+    return
+  fi
+
+  run_installer_mode --configure
+}
+
 service_start() {
+  if ! is_configured; then
+    configure_stack
+    return
+  fi
+
+  require_root_for_helper_action || return 1
   compose up -d
 }
 
 service_stop() {
+  if ! is_configured; then
+    echo "Application is not configured yet"
+    return
+  fi
+
+  require_root_for_helper_action || return 1
   compose stop
 }
 
 service_restart() {
+  if ! is_configured; then
+    echo "Application is not configured yet"
+    return
+  fi
+
+  require_root_for_helper_action || return 1
   compose restart
 }
 
 service_set_autostart() {
   local mode="$1"
+
+  require_root_for_helper_action || return 1
 
   if ! command -v systemctl >/dev/null 2>&1; then
     echo "systemctl is not available"
@@ -597,6 +700,13 @@ service_set_autostart() {
 
 service_set_autorestart() {
   local mode="$1"
+
+  if ! is_configured; then
+    echo "Application is not configured yet"
+    return 1
+  fi
+
+  require_root_for_helper_action || return 1
 
   case "$mode" in
     on)
@@ -646,19 +756,17 @@ toggle_autorestart() {
 }
 
 reconfigure_stack() {
-  require_root_for_helper_action || return 1
-
-  if [[ ! -f "$INSTALL_DIR/install.sh" ]]; then
-    echo "Installer script not found at $INSTALL_DIR/install.sh"
-    return 1
-  fi
-
-  bash "$INSTALL_DIR/install.sh"
+  configure_stack
 }
 
 print_logs() {
   local service="${1:-}"
   local exit_code=0
+
+  if ! is_configured; then
+    echo "Application is not configured yet"
+    return 0
+  fi
 
   set +e
   if [[ -n "$service" ]]; then
@@ -773,6 +881,8 @@ print_update_status() {
 update_stack() {
   local force="${1:-0}"
 
+  require_root_for_helper_action || return 1
+
   refresh_update_state
 
   case "$UPDATE_STATE" in
@@ -794,7 +904,11 @@ update_stack() {
   fi
   git -C "$INSTALL_DIR" pull --ff-only origin "$UPDATE_BRANCH"
   install -m 0755 "$INSTALL_DIR/scripts/yourmsgr.sh" "$HELPER_TARGET"
-  compose up -d --build
+
+  if is_configured; then
+    compose up -d --build
+  fi
+
   echo "Updated to version $(current_version)"
 }
 
@@ -877,6 +991,11 @@ show_service_menu() {
     printf "%sApplication:%s    %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(render_state "$app_state")"
     printf "%sCurrent auto-start:%s   %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(render_state "$autostart")"
     printf "%sCurrent auto-restart:%s %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(render_state "$autorestart")"
+
+    if [[ "$app_state" == "not_configured" ]]; then
+      echo "First start will open the configuration wizard for domain and HTTPS."
+    fi
+
     echo
     printf "%s[1]%s %s\n" "$COLOR_INFO" "$COLOR_RESET" "$app_toggle_label"
     printf "%s[2]%s Restart application\n" "$COLOR_INFO" "$COLOR_RESET"
@@ -961,6 +1080,15 @@ show_update_menu() {
 }
 
 show_admin_menu() {
+  if ! is_configured; then
+    clear_screen
+    draw_section "Admin Tools"
+    echo "Application is not configured yet."
+    echo "Run: sudo yourmsgr service start"
+    pause_any_key
+    return
+  fi
+
   while true; do
     clear_screen
     draw_section "Admin Tools"
@@ -1072,6 +1200,16 @@ show_admin_menu() {
 show_menu() {
   while true; do
     clear_screen
+    local app_state menu_status_label menu_reconfigure_label
+    app_state="$(application_state)"
+    menu_status_label="Status"
+    menu_reconfigure_label="Reconfigure installation"
+
+    if [[ "$app_state" == "not_configured" ]]; then
+      menu_status_label="Setup status"
+      menu_reconfigure_label="Run setup wizard"
+    fi
+
     print_system_overview
     echo
     print_app_overview
@@ -1079,12 +1217,12 @@ show_menu() {
     print_service_overview
     echo
     draw_section "Main Menu"
-    printf "%s[1]%s Status\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[1]%s %s\n" "$COLOR_INFO" "$COLOR_RESET" "$menu_status_label"
     printf "%s[2]%s Service management\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[3]%s Logs\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[4]%s Check updates\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[5]%s Admin tools\n" "$COLOR_INFO" "$COLOR_RESET"
-    printf "%s[6]%s Reconfigure installation\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[6]%s %s\n" "$COLOR_INFO" "$COLOR_RESET" "$menu_reconfigure_label"
     printf "%s[7]%s Refresh dashboard\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[8]%s Uninstall\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[0]%s Exit\n" "$COLOR_INFO" "$COLOR_RESET"
@@ -1148,6 +1286,7 @@ YourMsgr helper
 
 Commands:
   menu
+  setup
   version
   status
   logs [client|server|postgres]
@@ -1232,6 +1371,10 @@ case "$command_name" in
     fi
     ;;
 
+  setup)
+    configure_stack
+    ;;
+
   reconfigure)
     reconfigure_stack
     ;;
@@ -1257,6 +1400,10 @@ case "$command_name" in
     shift || true
     if [[ $# -eq 0 ]]; then
       echo "Usage: yourmsgr admin <command> [args]"
+      exit 1
+    fi
+    if ! is_configured; then
+      echo "Application is not configured yet"
       exit 1
     fi
     if [[ -t 0 && -t 1 ]]; then

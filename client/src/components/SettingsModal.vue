@@ -47,7 +47,7 @@
 
       <div class="modal__app-info">
         <span class="modal__app-name">YourMsgr</span>
-        <span class="modal__app-version">v2.0.8</span>
+        <span class="modal__app-version">v{{ appVersion }}</span>
       </div>
 
       <IconButton
@@ -75,6 +75,7 @@ const emit = defineEmits<{
 }>()
 
 const auth = useAuthStore()
+const appVersion = __APP_VERSION__
 
 const newUsername = ref('')
 const message = ref('')

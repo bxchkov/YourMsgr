@@ -64,7 +64,18 @@ function bytesToBase64(bytes: Uint8Array): string {
 }
 
 function base64ToBytes(value: string): Uint8Array {
-    return Uint8Array.from(atob(value), (char) => char.charCodeAt(0))
+    const normalizedValue = value
+        .trim()
+        .replace(/-/g, '+')
+        .replace(/_/g, '/')
+        .replace(/\s+/g, '')
+        .padEnd(Math.ceil(value.trim().replace(/\s+/g, '').length / 4) * 4, '=')
+
+    try {
+        return Uint8Array.from(atob(normalizedValue), (char) => char.charCodeAt(0))
+    } catch {
+        throw new Error('Invalid base64 payload')
+    }
 }
 
 function stringToBytes(value: string): Uint8Array {
