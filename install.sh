@@ -139,15 +139,15 @@ detect_public_ip() {
     detected="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"
   fi
 
-  if [[ -z "$detected" ]]; then
-    detected="127.0.0.1"
-  fi
-
   printf '%s' "$detected"
 }
 
 is_ipv4_address() {
   [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]
+}
+
+is_valid_domain_name() {
+  [[ "$1" =~ ^([A-Za-z0-9-]+\.)+[A-Za-z]{2,63}$ ]]
 }
 
 read_env_value() {
@@ -178,27 +178,40 @@ extract_host_from_url() {
 }
 
 prompt_public_host() {
-  local detected_ip="$1"
-  local existing_host="$2"
+  local existing_host="$1"
 
   if [[ -n "${YOURMSGR_PUBLIC_HOST:-}" ]]; then
     printf '%s' "$YOURMSGR_PUBLIC_HOST"
     return
   fi
 
-  if [[ -n "$existing_host" ]]; then
-    printf '%s' "$existing_host"
-    return
-  fi
-
   if ! is_interactive; then
-    printf '%s' "$detected_ip"
-    return
+    if [[ -n "$existing_host" ]]; then
+      printf '%s' "$existing_host"
+      return
+    fi
+
+    fail "A public domain is required. Set YOURMSGR_PUBLIC_HOST for non-interactive install."
   fi
 
   local input_host=""
-  read -r -p "Panel domain (leave blank to use server IP ${detected_ip}): " input_host || true
-  printf '%s' "${input_host:-$detected_ip}"
+  while true; do
+    if [[ -n "$existing_host" ]]; then
+      read -r -p "Panel domain [${existing_host}]: " input_host || true
+      input_host="${input_host:-$existing_host}"
+    else
+      read -r -p "Panel domain (required): " input_host || true
+    fi
+
+    input_host="${input_host//[$'\r\n']}"
+
+    if [[ -n "$input_host" ]]; then
+      printf '%s' "$input_host"
+      return
+    fi
+
+    echo "Domain is required for trusted HTTPS deployment." >&2
+  done
 }
 
 validate_public_host() {
@@ -206,11 +219,15 @@ validate_public_host() {
   local detected_ip="$2"
 
   if [[ "$public_host" == *"/"* || "$public_host" == *" "* || "$public_host" == *":"* ]]; then
-    fail "Public host must be a bare domain or IPv4 address"
+    fail "Public host must be a bare domain name"
   fi
 
   if is_ipv4_address "$public_host"; then
-    return
+    fail "IP-based install is no longer supported. Use a domain name."
+  fi
+
+  if ! is_valid_domain_name "$public_host"; then
+    fail "Invalid domain name '$public_host'"
   fi
 
   local resolved_ips
@@ -220,8 +237,8 @@ validate_public_host() {
     fail "Domain '$public_host' does not resolve on this server"
   fi
 
-  if ! grep -qx "$detected_ip" <<<"$resolved_ips"; then
-    fail "Domain '$public_host' resolves to [$resolved_ips], but this server IP is '$detected_ip'"
+  if [[ -n "$detected_ip" ]] && ! grep -qx "$detected_ip" <<<"$resolved_ips"; then
+    fail "Domain '$public_host' resolves to [$resolved_ips], but this server public IP is '$detected_ip'"
   fi
 }
 
@@ -241,66 +258,13 @@ port_in_use() {
   return 1
 }
 
-find_available_port() {
-  local candidate
-
-  for candidate in "$@"; do
-    if ! port_in_use "$candidate"; then
-      RESOLVED_PORT="$candidate"
-      return 0
-    fi
-  done
-
-  return 1
-}
-
-RESOLVED_PORT=""
-
-resolve_bind_port() {
+ensure_required_port_available() {
   local port_kind="$1"
-  local desired_port="$2"
-  local prompt_label="$3"
-  shift 3
-  local fallback_port=""
-  local input_port=""
+  local port="$2"
 
-  RESOLVED_PORT=""
-
-  if ! port_in_use "$desired_port"; then
-    RESOLVED_PORT="$desired_port"
-    return
+  if port_in_use "$port"; then
+    fail "${port_kind} port ${port} is already in use. Free ports 80 and 443 before installing YourMsgr."
   fi
-
-  if is_interactive; then
-    while true; do
-      read -r -p "$prompt_label [$desired_port]: " input_port || true
-      input_port="${input_port:-$desired_port}"
-
-      if [[ ! "$input_port" =~ ^[0-9]+$ ]]; then
-        echo "Please enter a numeric port" >&2
-        continue
-      fi
-
-      if port_in_use "$input_port"; then
-        echo "Port $input_port is already in use" >&2
-        continue
-      fi
-
-      RESOLVED_PORT="$input_port"
-      return
-    done
-  fi
-
-  if find_available_port "$@"; then
-    fallback_port="$RESOLVED_PORT"
-  fi
-
-  if [[ -n "$fallback_port" ]]; then
-    warn "$port_kind port $desired_port is busy, using $fallback_port"
-    return
-  fi
-
-  fail "$port_kind port $desired_port is already in use and no fallback port was found"
 }
 
 compose() {
@@ -329,31 +293,7 @@ get_project_version() {
 
 build_public_url() {
   local public_host="$1"
-  local https_port="$2"
-
-  if [[ "$https_port" == "443" ]]; then
-    printf 'https://%s' "$public_host"
-    return
-  fi
-
-  printf 'https://%s:%s' "$public_host" "$https_port"
-}
-
-build_tls_alt_names() {
-  local public_host="$1"
-  local detected_ip="$2"
-
-  if is_ipv4_address "$public_host"; then
-    printf 'IP:%s' "$public_host"
-    return
-  fi
-
-  if [[ -n "$detected_ip" ]]; then
-    printf 'DNS:%s,IP:%s' "$public_host" "$detected_ip"
-    return
-  fi
-
-  printf 'DNS:%s' "$public_host"
+  printf 'https://%s' "$public_host"
 }
 
 clone_or_update_repo() {
@@ -372,21 +312,25 @@ clone_or_update_repo() {
   git clone --branch "$REPO_BRANCH" "$REPO_URL" "$INSTALL_DIR"
 }
 
+stop_existing_stack_if_needed() {
+  if [[ "$INSTALL_MODE" != "update" || ! -f "$INSTALL_DIR/.env" ]]; then
+    return
+  fi
+
+  log "Stopping existing stack before reconfiguration"
+  compose down --remove-orphans || true
+}
+
 write_compose_env() {
   local env_path="$INSTALL_DIR/.env"
-  local detected_ip existing_public_host existing_http_port existing_https_port
-  local existing_public_url existing_allowed_origins
-  local public_host public_url tls_alt_names postgres_password
-  local client_http_bind client_http_port client_https_bind client_https_port
-  local server_bind server_port postgres_bind postgres_port restart_policy
-  local postgres_user postgres_db
+  local detected_ip existing_public_host existing_public_url existing_allowed_origins
+  local public_host public_url postgres_password server_bind server_port
+  local postgres_bind postgres_port restart_policy postgres_user postgres_db
 
   detected_ip="$(detect_public_ip)"
   existing_public_host="$(read_env_value "$env_path" PUBLIC_HOST "")"
   existing_public_url="$(read_env_value "$env_path" PUBLIC_URL "")"
   existing_allowed_origins="$(read_env_value "$env_path" ALLOWED_ORIGINS "")"
-  existing_http_port="$(read_env_value "$env_path" CLIENT_HTTP_PORT "")"
-  existing_https_port="$(read_env_value "$env_path" CLIENT_HTTPS_PORT "")"
 
   if [[ -z "$existing_public_host" && -n "$existing_public_url" ]]; then
     existing_public_host="$(extract_host_from_url "$existing_public_url")"
@@ -396,11 +340,12 @@ write_compose_env() {
     existing_public_host="$(extract_host_from_url "${existing_allowed_origins%%,*}")"
   fi
 
-  public_host="$(prompt_public_host "$detected_ip" "$existing_public_host")"
+  public_host="$(prompt_public_host "$existing_public_host")"
   validate_public_host "$public_host" "$detected_ip"
 
-  client_http_bind="${YOURMSGR_CLIENT_HTTP_BIND:-$(read_env_value "$env_path" CLIENT_HTTP_BIND "0.0.0.0")}"
-  client_https_bind="${YOURMSGR_CLIENT_HTTPS_BIND:-$(read_env_value "$env_path" CLIENT_HTTPS_BIND "0.0.0.0")}"
+  ensure_required_port_available "HTTP" 80
+  ensure_required_port_available "HTTPS" 443
+
   server_bind="${YOURMSGR_SERVER_BIND:-$(read_env_value "$env_path" SERVER_BIND "127.0.0.1")}"
   server_port="${YOURMSGR_SERVER_PORT:-$(read_env_value "$env_path" SERVER_PORT "3000")}"
   postgres_bind="${YOURMSGR_POSTGRES_BIND:-$(read_env_value "$env_path" POSTGRES_BIND "127.0.0.1")}"
@@ -409,17 +354,7 @@ write_compose_env() {
   postgres_user="${YOURMSGR_POSTGRES_USER:-$(read_env_value "$env_path" POSTGRES_USER "chat_user")}"
   postgres_db="${YOURMSGR_POSTGRES_DB:-$(read_env_value "$env_path" POSTGRES_DB "chat")}"
   restart_policy="${YOURMSGR_RESTART_POLICY:-$(read_env_value "$env_path" RESTART_POLICY "unless-stopped")}"
-
-  resolve_bind_port "HTTP" "${YOURMSGR_CLIENT_HTTP_PORT:-${existing_http_port:-80}}" "HTTP redirect port" 80 8080 8000 18080
-  client_http_port="$RESOLVED_PORT"
-
-  resolve_bind_port "HTTPS" "${YOURMSGR_CLIENT_HTTPS_PORT:-${existing_https_port:-443}}" "HTTPS panel port" 443 8443 9443 10443
-  client_https_port="$RESOLVED_PORT"
-
-  public_url="$(build_public_url "$public_host" "$client_https_port")"
-  tls_alt_names="$(build_tls_alt_names "$public_host" "$detected_ip")"
-
-  mkdir -p "$INSTALL_DIR/deploy/certs"
+  public_url="$(build_public_url "$public_host")"
 
   cat > "$env_path" <<EOF
 POSTGRES_USER=$postgres_user
@@ -431,10 +366,10 @@ PUBLIC_HOST=$public_host
 PUBLIC_URL=$public_url
 ALLOWED_ORIGINS=$public_url
 
-CLIENT_HTTP_BIND=$client_http_bind
-CLIENT_HTTP_PORT=$client_http_port
-CLIENT_HTTPS_BIND=$client_https_bind
-CLIENT_HTTPS_PORT=$client_https_port
+CLIENT_HTTP_BIND=0.0.0.0
+CLIENT_HTTP_PORT=80
+CLIENT_HTTPS_BIND=0.0.0.0
+CLIENT_HTTPS_PORT=443
 
 SERVER_BIND=$server_bind
 SERVER_PORT=$server_port
@@ -442,9 +377,6 @@ SERVER_PORT=$server_port
 POSTGRES_BIND=$postgres_bind
 POSTGRES_PORT=$postgres_port
 
-TLS_CERT_PATH=/etc/nginx/certs/server.crt
-TLS_KEY_PATH=/etc/nginx/certs/server.key
-TLS_ALT_NAMES=$tls_alt_names
 RESTART_POLICY=$restart_policy
 EOF
 
@@ -482,19 +414,20 @@ start_stack() {
   compose up -d --build
 }
 
-wait_for_url() {
+wait_for_http_url() {
   local url="$1"
   local name="$2"
   local attempts="${3:-60}"
-  local curl_insecure="${4:-0}"
+  local host_header="${4:-}"
+  local attempt
+  local curl_args=(-fsS)
 
-  local attempt curl_args=()
-  if [[ "$curl_insecure" == "1" ]]; then
-    curl_args+=(-k)
+  if [[ -n "$host_header" ]]; then
+    curl_args+=(-H "Host: ${host_header}")
   fi
 
   for attempt in $(seq 1 "$attempts"); do
-    if curl -fsS "${curl_args[@]}" "$url" >/dev/null 2>&1; then
+    if curl "${curl_args[@]}" "$url" >/dev/null 2>&1; then
       log "$name is ready"
       return
     fi
@@ -505,15 +438,41 @@ wait_for_url() {
   fail "$name did not become ready in time ($url)"
 }
 
+wait_for_https_url() {
+  local domain="$1"
+  local port="$2"
+  local path="$3"
+  local name="$4"
+  local attempts="${5:-90}"
+  local attempt url
+
+  if [[ "$port" == "443" ]]; then
+    url="https://${domain}${path}"
+  else
+    url="https://${domain}:${port}${path}"
+  fi
+
+  for attempt in $(seq 1 "$attempts"); do
+    if curl -fsS --resolve "${domain}:${port}:127.0.0.1" "$url" >/dev/null 2>&1; then
+      log "$name is ready"
+      return
+    fi
+
+    sleep 2
+  done
+
+  fail "$name did not become ready in time ($url). Check that domain DNS points to this server and ports 80/443 are reachable from the Internet."
+}
+
 wait_for_stack() {
-  local server_port client_http_port client_https_port
+  local public_host server_port client_https_port
+  public_host="$(get_env_value PUBLIC_HOST "")"
   server_port="$(get_env_value SERVER_PORT 3000)"
-  client_http_port="$(get_env_value CLIENT_HTTP_PORT 80)"
   client_https_port="$(get_env_value CLIENT_HTTPS_PORT 443)"
 
-  wait_for_url "http://127.0.0.1:${server_port}/healthz" "Server" 60
-  wait_for_url "http://127.0.0.1:${client_http_port}/healthz" "Client HTTP" 60
-  wait_for_url "https://127.0.0.1:${client_https_port}/auth" "Client HTTPS" 60 1
+  wait_for_http_url "http://127.0.0.1:${server_port}/healthz" "Server" 60
+  wait_for_https_url "$public_host" "$client_https_port" "/healthz" "Trusted HTTPS health endpoint" 90
+  wait_for_https_url "$public_host" "$client_https_port" "/auth" "Trusted HTTPS endpoint" 90
 }
 
 prepare_bootstrap_admin_credentials() {
@@ -577,7 +536,8 @@ print_summary() {
   echo
   echo "Version: $(get_project_version)"
   echo "Panel URL: $public_url"
-  echo "TLS: self-signed certificate"
+  echo "TLS: trusted certificate via Caddy automatic HTTPS"
+  echo "Requirements: keep ports 80 and 443 reachable for certificate renewal"
   echo
 
   if [[ -n "$BOOTSTRAPPED_ADMIN_LOGIN" ]]; then
@@ -592,6 +552,7 @@ print_summary() {
   echo "  yourmsgr"
   echo "  yourmsgr version"
   echo "  yourmsgr status"
+  echo "  yourmsgr reconfigure"
   echo "  yourmsgr logs"
   echo "  yourmsgr check-update"
   echo "  yourmsgr service start"
@@ -607,6 +568,7 @@ main() {
   install_base_packages
   install_docker_if_needed
   clone_or_update_repo
+  stop_existing_stack_if_needed
   write_compose_env
   write_server_env
   install_helper

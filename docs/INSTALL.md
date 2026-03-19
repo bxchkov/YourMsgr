@@ -8,20 +8,18 @@ curl -fsSL https://raw.githubusercontent.com/bxchkov/YourMsgr/main/install.sh | 
 
 ## Как теперь работает installer
 
-Installer ориентирован на HTTPS-first сценарий:
+Installer ориентирован на production HTTPS с обязательным доменом:
 
 1. Устанавливает Docker при необходимости.
 2. Клонирует или обновляет проект в `/opt/yourmsgr`.
-3. Спрашивает домен панели.
-4. Если домен не указан, использует IP сервера.
-5. Проверяет DNS-резолв домена на текущий сервер.
-6. Если `80` или `443` заняты, просит альтернативный порт или автоматически берёт fallback-порт.
-7. Настраивает самоподписанный TLS-сертификат.
-8. Поднимает стек и ждёт готовности:
+3. Требует домен панели.
+4. Проверяет DNS-резолв домена на текущий сервер.
+5. Проверяет, что `80/tcp` и `443/tcp` свободны.
+6. Поднимает Caddy и ждёт готовности:
    - `http://127.0.0.1:<SERVER_PORT>/healthz`
-   - `http://127.0.0.1:<CLIENT_HTTP_PORT>/healthz`
-   - `https://127.0.0.1:<CLIENT_HTTPS_PORT>/auth`
-9. Создаёт первого admin-пользователя.
+   - `http://127.0.0.1:80/healthz` с `Host: <domain>`
+   - `https://<domain>/auth` через локальный `--resolve`
+7. Создаёт первого admin-пользователя.
 
 ## Какие файлы создаются
 
@@ -29,7 +27,6 @@ Installer ориентирован на HTTPS-first сценарий:
 - helper-команда: `/usr/local/bin/yourmsgr`
 - root `.env` для Docker Compose
 - `server/.env` с секретами backend
-- локальное хранилище TLS-сертификата: `deploy/certs`
 
 ## Основные переменные installer-а
 
@@ -37,8 +34,7 @@ Installer ориентирован на HTTPS-first сценарий:
 
 ```bash
 export YOURMSGR_PUBLIC_HOST=chat.example.com
-export YOURMSGR_CLIENT_HTTP_PORT=8080
-export YOURMSGR_CLIENT_HTTPS_PORT=8443
+export YOURMSGR_REPO_BRANCH=main
 curl -fsSL https://raw.githubusercontent.com/bxchkov/YourMsgr/main/install.sh | sudo bash
 ```
 
@@ -49,10 +45,6 @@ curl -fsSL https://raw.githubusercontent.com/bxchkov/YourMsgr/main/install.sh | 
 - `YOURMSGR_INSTALL_DIR`
 - `YOURMSGR_PUBLIC_HOST`
 - `YOURMSGR_PUBLIC_IP`
-- `YOURMSGR_CLIENT_HTTP_BIND`
-- `YOURMSGR_CLIENT_HTTP_PORT`
-- `YOURMSGR_CLIENT_HTTPS_BIND`
-- `YOURMSGR_CLIENT_HTTPS_PORT`
 - `YOURMSGR_SERVER_BIND`
 - `YOURMSGR_SERVER_PORT`
 - `YOURMSGR_POSTGRES_BIND`
@@ -68,6 +60,18 @@ curl -fsSL https://raw.githubusercontent.com/bxchkov/YourMsgr/main/install.sh | 
 - `YOURMSGR_ADMIN_LOGIN`
 - `YOURMSGR_ADMIN_PASSWORD`
 - `YOURMSGR_ADMIN_USERNAME`
+
+## Обязательные условия
+
+Для успешной установки должны выполняться все пункты:
+
+- у вас есть домен;
+- A-запись домена указывает на этот сервер;
+- `80/tcp` доступен снаружи для ACME HTTP challenge;
+- `443/tcp` доступен снаружи для самой панели;
+- порты `80` и `443` не заняты другими сервисами.
+
+Если какой-то из этих пунктов не выполняется, installer завершится ошибкой.
 
 ## Управление после установки
 
@@ -90,18 +94,18 @@ yourmsgr service autostart on
 yourmsgr service autostart off
 yourmsgr service autorestart on
 yourmsgr service autorestart off
+yourmsgr reconfigure
 yourmsgr admin stats
 yourmsgr uninstall
 ```
 
 ### Что изменилось в helper
 
-- `status` объединяет старые `status` и `health`;
-- `logs` больше не выбрасывает из меню навсегда: после `Ctrl + C` можно сразу вернуться назад;
-- убран `server shell`;
-- обновление теперь завязано на `VERSION`;
-- в главном меню CPU и RAM обновляются раз в секунду;
-- branch/commit из интерфейса helper убраны.
+- `status` объединяет прежние `status` и `health`;
+- `logs` позволяет вернуться обратно в меню после `Ctrl + C`;
+- `reconfigure` повторно запускает installer и позволяет сменить домен;
+- обновления завязаны на `VERSION`;
+- helper больше не использует self-signed/fallback-порты.
 
 ## Обновление
 
@@ -129,10 +133,11 @@ yourmsgr uninstall
 - каталог `/opt/yourmsgr` удаляется;
 - helper удаляется.
 
-## Примечание по TLS
+## Примечание по HTTPS
 
-На текущем этапе installer всегда использует самоподписанный сертификат. Это упрощённый, но предсказуемый HTTPS-first режим:
+Теперь installer не использует self-signed сертификаты. TLS выпускает Caddy автоматически через ACME, поэтому браузерное предупреждение о недоверенном сертификате не должно появляться, если:
 
-- для работы приложения HTTPS обязателен;
-- браузер покажет предупреждение о недоверенном сертификате;
-- позже этот слой можно заменить на доменный ACME/Let's Encrypt flow без смены общей структуры installer-а и helper-а.
+- домен корректно указывает на сервер;
+- `80/443` доступны снаружи;
+- сертификат успел выпуститься;
+- браузер открывает именно доменное имя, а не IP.

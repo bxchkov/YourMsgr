@@ -121,8 +121,8 @@
     &__footer {
       @include flex-column;
       justify-content: center;
-      min-height: calc(#{$input-height} + #{$spacing-3} + #{$spacing-4});
-      padding: $spacing-3 $spacing-4 14px;
+      min-height: $footer-height;
+      padding: $spacing-3 $spacing-4;
       border-top: 1px solid $color-border-dark;
       background-color: $color-bg-input-area;
     }
@@ -132,6 +132,7 @@
       gap: $spacing-3;
       align-items: center;
       padding: $spacing-2;
+      min-height: $input-height;
       border-radius: $radius-md;
       background-color: $color-bg-content;
       border: 1px solid $color-border-dark;
@@ -194,8 +195,8 @@
 
   @include respond-to(sm) {
     .sidebar__footer {
-      min-height: calc(#{$input-height} + #{$spacing-2} + #{$spacing-3});
-      padding: $spacing-2 $spacing-4 10px;
+      min-height: $footer-height;
+      padding: $spacing-3 $spacing-4;
     }
   }
 

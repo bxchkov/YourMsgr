@@ -2,6 +2,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { disconnectSocket } from '@/composables/useWebSocket'
 import { authService } from '@/services/auth'
+import { parseApiResponse } from '@/services/http'
 import router from '@/router'
 
 const API_BASE = window.location.origin
@@ -36,8 +37,8 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}, retr
         credentials: 'include',
     })
 
-    const data = await response.json()
-    const errorMessage = data.message || data.error || 'Request failed'
+    const data = await parseApiResponse(response)
+    const errorMessage = data.message || 'Request failed'
 
     if (!response.ok) {
         if (retry && response.status === 401 && RETRYABLE_AUTH_MESSAGES.has(errorMessage)) {
@@ -48,8 +49,10 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}, retr
             }
         }
 
-        const shouldLogout = response.status === 401
-            || (response.status === 403 && SESSION_ERROR_MESSAGES.has(errorMessage))
+        const shouldLogout = (
+            response.status === 401
+            || response.status === 403
+        ) && SESSION_ERROR_MESSAGES.has(errorMessage)
 
         if (shouldLogout) {
             disconnectSocket()

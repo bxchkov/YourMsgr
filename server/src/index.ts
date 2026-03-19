@@ -255,11 +255,12 @@ Bun.serve<WebSocketData>({
 
           const msg = await messageService.getMessageById(data.id);
           if (!msg) {
+            ws.send(JSON.stringify({ type: "error", message: "Сообщение не найдено" }));
             return;
           }
 
           if (msg.userId !== userPayload.userId && userPayload.userRole < 3) {
-            ws.send(JSON.stringify({ type: "check_session" }));
+            ws.send(JSON.stringify({ type: "error", message: "Недостаточно прав для удаления" }));
             return;
           }
 
@@ -313,6 +314,10 @@ Bun.serve<WebSocketData>({
         }
       } catch (error) {
         console.error("WebSocket message error:", error);
+        ws.send(JSON.stringify({
+          type: "error",
+          message: error instanceof Error ? error.message : "Не удалось обработать действие",
+        }));
       }
     },
     close(ws) {

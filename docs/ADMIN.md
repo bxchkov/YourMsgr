@@ -6,7 +6,7 @@
 
 1. серверного CLI;
 2. роли `admin` (`role = 3`) в JWT и WebSocket-проверках;
-3. права удалять любые сообщения из клиентского интерфейса.
+3. прав на удаление любых сообщений из основного клиентского интерфейса.
 
 ## Что умеет CLI
 
@@ -17,20 +17,15 @@ bun run admin users:list
 bun run admin users:get <login>
 bun run admin users:create
 bun run admin users:create --admin
+bun run admin users:create-auto
+bun run admin users:create-auto --admin
 bun run admin users:bootstrap-admin
 bun run admin users:role <login> <user|admin>
 bun run admin users:logout <login>
 bun run admin users:delete <login>
+bun run admin messages:admin-post <admin-login> <message>
+bun run admin messages:purge-group <login>
 ```
-
-## Почему CLI был сокращён
-
-Во время аудита подтверждились проблемы старого CLI:
-
-- `messages:clear` был слишком разрушительным;
-- `messages:count` грузил всю таблицу сообщений вместо `count(*)`;
-- `messages:user` был больше похож на отладочный хелпер, чем на зрелую moderation-команду;
-- `users:create` обходил часть общей валидации проекта.
 
 ## Что считается админской функциональностью в UI
 
@@ -39,26 +34,29 @@ bun run admin users:delete <login>
 
 На этом UI-функции администратора сейчас заканчиваются.
 
-## Что добавилось после аудита
+## Что было добавлено после аудита
 
-- отдельная команда `health` для быстрой operational-проверки;
+- `health` для быстрой operational-проверки;
 - `users:get` для просмотра конкретного пользователя;
 - `users:logout` для принудительного сброса сессии;
+- `users:create-auto` и `users:create-auto --admin` для быстрого операционного создания аккаунтов;
+- `messages:admin-post` для служебного сообщения в общий чат;
+- `messages:purge-group` для удаления сообщений пользователя из общего чата;
 - `users:bootstrap-admin` для one-command install сценария.
 
 ## Чего пока нет
 
-- страницы администрирования;
-- аудита действий админа;
-- блокировок пользователей;
-- управления чатами/группами через UI;
-- read-only дашборда по системе.
+- отдельной web-admin панели;
+- журнала критичных действий администратора;
+- банов и мутов;
+- управления чатами и группами через UI;
+- read-only dashboard по системе.
 
 ## Следующий логичный этап развития
 
-Если нужна именно полноценная админка, а не CLI, то следующий шаг должен быть таким:
+Если позже понадобится именно полноценная админка, а не только CLI, следующий шаг должен быть таким:
 
 1. вынести отдельные admin API routes;
-2. ввести отдельный admin layout во фронте;
-3. добавить dashboard со статистикой, пользователями и moderation actions;
-4. ввести audit trail для критичных действий.
+2. добавить отдельный admin layout во фронте;
+3. сделать dashboard со статистикой, пользователями и moderation actions;
+4. ввести журнал критичных действий администратора.

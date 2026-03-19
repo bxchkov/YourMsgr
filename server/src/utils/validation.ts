@@ -1,12 +1,27 @@
 import { z } from "zod";
+import { isReservedIdentity } from "./identity";
 
 export const loginSchema = z.object({
-  login: z.string().min(6).max(16).regex(/^[a-zA-Z0-9_-]+$/),
+  login: z
+    .string()
+    .min(6)
+    .max(16)
+    .regex(/^[a-zA-Z0-9_-]+$/)
+    .refine((value) => !isReservedIdentity(value), {
+      message: "Reserved login",
+    }),
   password: z.string().min(8).max(16),
 });
 
 export const registrationSchema = loginSchema.extend({
-  username: z.string().trim().min(2).max(16),
+  username: z
+    .string()
+    .trim()
+    .min(2)
+    .max(16)
+    .refine((value) => !isReservedIdentity(value), {
+      message: "Reserved username",
+    }),
 });
 
 export const messageSchema = z.object({
@@ -14,7 +29,14 @@ export const messageSchema = z.object({
 });
 
 export const usernameSchema = z.object({
-  username: z.string().trim().min(2).max(16),
+  username: z
+    .string()
+    .trim()
+    .min(2)
+    .max(16)
+    .refine((value) => !isReservedIdentity(value), {
+      message: "Reserved username",
+    }),
 });
 
 export const wsMessageSchema = z.object({

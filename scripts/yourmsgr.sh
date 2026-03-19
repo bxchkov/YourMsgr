@@ -51,6 +51,11 @@ current_version() {
   echo "unknown"
 }
 
+current_public_host() {
+  load_env
+  echo "${PUBLIC_HOST:-localhost}"
+}
+
 current_branch() {
   local upstream branch
 
@@ -104,14 +109,30 @@ server_health_url() {
   echo "http://127.0.0.1:${SERVER_PORT:-3000}/healthz"
 }
 
-client_http_health_url() {
+client_https_health_url() {
   load_env
-  echo "http://127.0.0.1:${CLIENT_HTTP_PORT:-80}/healthz"
+  local host="${PUBLIC_HOST:-localhost}"
+  local port="${CLIENT_HTTPS_PORT:-443}"
+
+  if [[ "$port" == "443" ]]; then
+    echo "https://${host}/healthz"
+    return
+  fi
+
+  echo "https://${host}:${port}/healthz"
 }
 
 client_https_app_url() {
   load_env
-  echo "https://127.0.0.1:${CLIENT_HTTPS_PORT:-443}/auth"
+  local host="${PUBLIC_HOST:-localhost}"
+  local port="${CLIENT_HTTPS_PORT:-443}"
+
+  if [[ "$port" == "443" ]]; then
+    echo "https://${host}/auth"
+    return
+  fi
+
+  echo "https://${host}:${port}/auth"
 }
 
 format_value() {
@@ -135,6 +156,15 @@ clear_screen() {
   if [[ -t 1 ]] && command -v clear >/dev/null 2>&1; then
     clear
   fi
+}
+
+require_root_for_helper_action() {
+  if [[ "$(id -u)" -eq 0 ]]; then
+    return 0
+  fi
+
+  echo "This action requires root privileges. Run it with sudo."
+  return 1
 }
 
 pause_any_key() {
@@ -193,8 +223,104 @@ detect_cpu_usage() {
   }'
 }
 
+detect_cpu_model() {
+  if command -v lscpu >/dev/null 2>&1; then
+    lscpu 2>/dev/null | awk -F: '/Model name/ {gsub(/^[ \t]+/, "", $2); print $2; exit}'
+    return
+  fi
+
+  awk -F: '/model name/ {gsub(/^[ \t]+/, "", $2); print $2; exit}' /proc/cpuinfo 2>/dev/null
+}
+
+detect_cpu_cores() {
+  nproc 2>/dev/null || echo ""
+}
+
+detect_cpu_frequency() {
+  local mhz=""
+
+  if command -v lscpu >/dev/null 2>&1; then
+    mhz="$(lscpu 2>/dev/null | awk -F: '/CPU max MHz/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
+    if [[ -z "$mhz" ]]; then
+      mhz="$(lscpu 2>/dev/null | awk -F: '/CPU MHz/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
+    fi
+  fi
+
+  if [[ -z "$mhz" ]]; then
+    mhz="$(awk -F: '/cpu MHz/ {gsub(/^[ \t]+/, "", $2); print $2; exit}' /proc/cpuinfo 2>/dev/null)"
+  fi
+
+  if [[ -n "$mhz" ]]; then
+    awk -v mhz="$mhz" 'BEGIN { printf "%.2fGHz", mhz / 1000 }'
+  fi
+}
+
+detect_cpu_summary() {
+  local model usage cores frequency joined="" detail_part=""
+  local details=()
+
+  usage="$(detect_cpu_usage)"
+  model="$(detect_cpu_model)"
+  cores="$(detect_cpu_cores)"
+  frequency="$(detect_cpu_frequency)"
+
+  if [[ -n "$model" ]]; then
+    details+=("$model")
+  fi
+
+  if [[ -n "$cores" ]]; then
+    details+=("${cores}c")
+  fi
+
+  if [[ -n "$frequency" ]]; then
+    details+=("@ ${frequency}")
+  fi
+
+  if [[ ${#details[@]} -gt 0 ]]; then
+    joined="${details[0]}"
+    for detail_part in "${details[@]:1}"; do
+      joined+=", ${detail_part}"
+    done
+
+    printf "%s (%s)" "${usage:-unknown}" "$joined"
+    return
+  fi
+
+  printf '%s' "${usage:-unknown}"
+}
+
+detect_ram_summary() {
+  free -m 2>/dev/null | awk '/Mem:/ {
+    printf "%.1f%% (%sMB / %sMB)", ($3 / $2) * 100, $3, $2
+  }'
+}
+
 detect_ram_usage() {
-  free 2>/dev/null | awk '/Mem:/ { printf "%.1f%%", ($3 / $2) * 100 }'
+  detect_ram_summary
+}
+
+application_state() {
+  local client_state server_state postgres_state
+  client_state="$(container_state client)"
+  server_state="$(container_state server)"
+  postgres_state="$(container_state postgres)"
+
+  if [[ "$client_state" == "active" && "$server_state" == "active" && "$postgres_state" == "active" ]]; then
+    echo "active"
+    return
+  fi
+
+  if [[ "$client_state" == "starting" || "$server_state" == "starting" || "$postgres_state" == "starting" ]]; then
+    echo "starting"
+    return
+  fi
+
+  if [[ "$client_state" == "inactive" && "$server_state" == "inactive" && "$postgres_state" == "inactive" ]]; then
+    echo "inactive"
+    return
+  fi
+
+  echo "warning"
 }
 
 container_state() {
@@ -280,7 +406,7 @@ print_system_overview() {
   printf "%sOS:%s      %s\n" "$COLOR_OK" "$COLOR_RESET" "$(detect_os)"
   printf "%sARCH:%s    %s\n" "$COLOR_OK" "$COLOR_RESET" "$(detect_arch)"
   printf "%sIP:%s      %s\n" "$COLOR_OK" "$COLOR_RESET" "$(detect_ip)"
-  printf "%sCPU:%s     %s\n" "$COLOR_OK" "$COLOR_RESET" "$(detect_cpu_usage)"
+  printf "%sCPU:%s     %s\n" "$COLOR_OK" "$COLOR_RESET" "$(detect_cpu_summary)"
   printf "%sRAM:%s     %s\n" "$COLOR_OK" "$COLOR_RESET" "$(detect_ram_usage)"
 }
 
@@ -288,6 +414,7 @@ print_app_overview() {
   draw_section "Application"
   printf "%sVersion:%s      %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(current_version)"
   printf "%sURL:%s          %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(current_public_url)"
+  printf "%sState:%s        %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(render_state "$(application_state)")"
   printf "%sAuto-start:%s   %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(render_state "$(autostart_state)")"
   printf "%sAuto-restart:%s %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(render_state "$(autorestart_state)")"
 }
@@ -316,11 +443,55 @@ check_endpoint() {
   fi
 }
 
+check_http_redirect() {
+  load_env
+  local host port headers expected_location
+  host="${PUBLIC_HOST:-localhost}"
+  port="${CLIENT_HTTP_PORT:-80}"
+  expected_location="https://${host}/auth"
+  headers="$(curl -sSI -H "Host: ${host}" "http://127.0.0.1:${port}/auth" 2>/dev/null || true)"
+
+  if grep -Eq '^HTTP/[0-9.]+ 30[1278]' <<<"$headers" && grep -Fqi "location: ${expected_location}" <<<"$headers"; then
+    echo "active"
+  else
+    echo "error"
+  fi
+}
+
+check_client_https_health() {
+  load_env
+  local host port url
+  host="${PUBLIC_HOST:-localhost}"
+  port="${CLIENT_HTTPS_PORT:-443}"
+  url="$(client_https_health_url)"
+
+  if curl -fsS --resolve "${host}:${port}:127.0.0.1" "$url" >/dev/null 2>&1; then
+    echo "active"
+  else
+    echo "error"
+  fi
+}
+
+check_client_https_app() {
+  load_env
+  local host port url
+  host="${PUBLIC_HOST:-localhost}"
+  port="${CLIENT_HTTPS_PORT:-443}"
+  url="$(client_https_app_url)"
+
+  if curl -fsS --resolve "${host}:${port}:127.0.0.1" "$url" >/dev/null 2>&1; then
+    echo "active"
+  else
+    echo "error"
+  fi
+}
+
 print_endpoint_overview() {
   draw_section "Endpoints"
   printf "Server health: %s\n" "$(render_state "$(check_endpoint "$(server_health_url)")")"
-  printf "HTTP redirect: %s\n" "$(render_state "$(check_endpoint "$(client_http_health_url)")")"
-  printf "HTTPS app:     %s\n" "$(render_state "$(check_endpoint "$(client_https_app_url)" 1)")"
+  printf "HTTP redirect: %s\n" "$(render_state "$(check_http_redirect)")"
+  printf "HTTPS health:  %s\n" "$(render_state "$(check_client_https_health)")"
+  printf "HTTPS app:     %s\n" "$(render_state "$(check_client_https_app)")"
 }
 
 show_status() {
@@ -442,6 +613,46 @@ service_set_autorestart() {
       return 1
       ;;
   esac
+}
+
+toggle_application_state() {
+  case "$(application_state)" in
+    active|starting|warning)
+      service_stop
+      ;;
+    *)
+      service_start
+      ;;
+  esac
+}
+
+toggle_autostart() {
+  if [[ "$(autostart_state)" == "enabled" ]]; then
+    service_set_autostart off
+    return
+  fi
+
+  service_set_autostart on
+}
+
+toggle_autorestart() {
+  if [[ "$(autorestart_state)" == "enabled" ]]; then
+    service_set_autorestart off
+    return
+  fi
+
+  service_set_autorestart on
+}
+
+reconfigure_stack() {
+  require_root_for_helper_action || return 1
+
+  if [[ ! -f "$INSTALL_DIR/install.sh" ]]; then
+    echo "Installer script not found at $INSTALL_DIR/install.sh"
+    return 1
+  fi
+
+  bash "$INSTALL_DIR/install.sh"
 }
 
 print_logs() {
@@ -641,17 +852,35 @@ show_logs_menu() {
 show_service_menu() {
   while true; do
     clear_screen
+    local app_state autostart autorestart app_toggle_label autostart_label autorestart_label
+    app_state="$(application_state)"
+    autostart="$(autostart_state)"
+    autorestart="$(autorestart_state)"
+    app_toggle_label="Start application"
+    autostart_label="Enable auto-start"
+    autorestart_label="Enable auto-restart"
+
+    if [[ "$app_state" == "active" || "$app_state" == "starting" || "$app_state" == "warning" ]]; then
+      app_toggle_label="Stop application"
+    fi
+
+    if [[ "$autostart" == "enabled" ]]; then
+      autostart_label="Disable auto-start"
+    fi
+
+    if [[ "$autorestart" == "enabled" ]]; then
+      autorestart_label="Disable auto-restart"
+    fi
+
     draw_section "Service Management"
-    printf "%sCurrent auto-start:%s   %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(render_state "$(autostart_state)")"
-    printf "%sCurrent auto-restart:%s %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(render_state "$(autorestart_state)")"
+    printf "%sApplication:%s    %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(render_state "$app_state")"
+    printf "%sCurrent auto-start:%s   %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(render_state "$autostart")"
+    printf "%sCurrent auto-restart:%s %s\n" "$COLOR_INFO" "$COLOR_RESET" "$(render_state "$autorestart")"
     echo
-    printf "%s[1]%s Start application\n" "$COLOR_INFO" "$COLOR_RESET"
-    printf "%s[2]%s Stop application\n" "$COLOR_INFO" "$COLOR_RESET"
-    printf "%s[3]%s Restart application\n" "$COLOR_INFO" "$COLOR_RESET"
-    printf "%s[4]%s Enable auto-start\n" "$COLOR_INFO" "$COLOR_RESET"
-    printf "%s[5]%s Disable auto-start\n" "$COLOR_INFO" "$COLOR_RESET"
-    printf "%s[6]%s Enable auto-restart\n" "$COLOR_INFO" "$COLOR_RESET"
-    printf "%s[7]%s Disable auto-restart\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[1]%s %s\n" "$COLOR_INFO" "$COLOR_RESET" "$app_toggle_label"
+    printf "%s[2]%s Restart application\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[3]%s %s\n" "$COLOR_INFO" "$COLOR_RESET" "$autostart_label"
+    printf "%s[4]%s %s\n" "$COLOR_INFO" "$COLOR_RESET" "$autorestart_label"
     printf "%s[0]%s Back\n" "$COLOR_INFO" "$COLOR_RESET"
     echo
     printf "%s>%s Press a digit: " "$COLOR_TITLE" "$COLOR_RESET"
@@ -662,31 +891,19 @@ show_service_menu() {
 
     case "$choice" in
       1)
-        service_start
+        toggle_application_state
         pause_any_key
         ;;
       2)
-        service_stop
-        pause_any_key
-        ;;
-      3)
         service_restart
         pause_any_key
         ;;
+      3)
+        toggle_autostart
+        pause_any_key
+        ;;
       4)
-        service_set_autostart on
-        pause_any_key
-        ;;
-      5)
-        service_set_autostart off
-        pause_any_key
-        ;;
-      6)
-        service_set_autorestart on
-        pause_any_key
-        ;;
-      7)
-        service_set_autorestart off
+        toggle_autorestart
         pause_any_key
         ;;
       0)
@@ -748,6 +965,13 @@ show_admin_menu() {
     draw_section "Admin Tools"
     printf "%s[1]%s Stats\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[2]%s Users list\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[3]%s User details\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[4]%s Create user automatically\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[5]%s Create admin automatically\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[6]%s Change user role\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[7]%s Logout user from all sessions\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[8]%s Delete user's group messages\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[9]%s Delete user\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[0]%s Back\n" "$COLOR_INFO" "$COLOR_RESET"
     echo
     printf "%s>%s Press a digit: " "$COLOR_TITLE" "$COLOR_RESET"
@@ -768,6 +992,72 @@ show_admin_menu() {
         draw_section "Users List"
         compose exec server bun src/cli/admin.ts users:list
         pause_any_key
+        ;;
+      3)
+        local details_login=""
+        read -r -p "User login: " details_login || true
+        if [[ -n "$details_login" ]]; then
+          clear_screen
+          draw_section "User Details"
+          compose exec server bun src/cli/admin.ts users:get "$details_login"
+          pause_any_key
+        fi
+        ;;
+      4)
+        clear_screen
+        draw_section "Create User"
+        compose exec server bun src/cli/admin.ts users:create-auto
+        pause_any_key
+        ;;
+      5)
+        clear_screen
+        draw_section "Create Admin"
+        compose exec server bun src/cli/admin.ts users:create-auto --admin
+        pause_any_key
+        ;;
+      6)
+        local role_login="" role_value=""
+        read -r -p "User login: " role_login || true
+        if [[ -z "$role_login" ]]; then
+          continue
+        fi
+        read -r -p "Role (user/admin): " role_value || true
+        if [[ -n "$role_value" ]]; then
+          clear_screen
+          draw_section "Change Role"
+          compose exec server bun src/cli/admin.ts users:role "$role_login" "$role_value"
+          pause_any_key
+        fi
+        ;;
+      7)
+        local logout_login=""
+        read -r -p "User login: " logout_login || true
+        if [[ -n "$logout_login" ]]; then
+          clear_screen
+          draw_section "Logout User"
+          compose exec server bun src/cli/admin.ts users:logout "$logout_login"
+          pause_any_key
+        fi
+        ;;
+      8)
+        local purge_login=""
+        read -r -p "User login: " purge_login || true
+        if [[ -n "$purge_login" ]]; then
+          clear_screen
+          draw_section "Delete User Group Messages"
+          compose exec server bun src/cli/admin.ts messages:purge-group "$purge_login"
+          pause_any_key
+        fi
+        ;;
+      9)
+        local delete_login=""
+        read -r -p "User login: " delete_login || true
+        if [[ -n "$delete_login" ]]; then
+          clear_screen
+          draw_section "Delete User"
+          compose exec server bun src/cli/admin.ts users:delete "$delete_login"
+          pause_any_key
+        fi
         ;;
       0)
         return
@@ -793,15 +1083,15 @@ show_menu() {
     printf "%s[3]%s Logs\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[4]%s Check updates\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[5]%s Admin tools\n" "$COLOR_INFO" "$COLOR_RESET"
-    printf "%s[6]%s Uninstall\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[6]%s Reconfigure installation\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[7]%s Refresh dashboard\n" "$COLOR_INFO" "$COLOR_RESET"
+    printf "%s[8]%s Uninstall\n" "$COLOR_INFO" "$COLOR_RESET"
     printf "%s[0]%s Exit\n" "$COLOR_INFO" "$COLOR_RESET"
     echo
     printf "%s>%s Press a digit: " "$COLOR_TITLE" "$COLOR_RESET"
 
     local choice=""
-    if ! IFS= read -rsn1 -t 1 choice; then
-      continue
-    fi
+    IFS= read -rsn1 choice || true
     echo
 
     case "$choice" in
@@ -823,6 +1113,13 @@ show_menu() {
         show_admin_menu
         ;;
       6)
+        reconfigure_stack
+        pause_any_key
+        ;;
+      7)
+        continue
+        ;;
+      8)
         if confirm_action "Remove stack, volumes, install directory and helper command?"; then
           uninstall_stack
         fi
@@ -855,6 +1152,7 @@ Commands:
   logs [client|server|postgres]
   check-update
   update [--force]
+  reconfigure
   service start
   service stop
   service restart
@@ -931,6 +1229,10 @@ case "$command_name" in
     else
       update_stack
     fi
+    ;;
+
+  reconfigure)
+    reconfigure_stack
     ;;
 
   service)

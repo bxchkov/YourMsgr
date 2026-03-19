@@ -1,7 +1,7 @@
 import { Context } from "hono";
 import { setCookie, deleteCookie, getCookie } from "hono/cookie";
 import { AuthService } from "../services/auth.service";
-import { validateData, loginSchema, registrationSchema, usernameSchema } from "../utils/validation";
+import { loginSchema, registrationSchema, usernameSchema } from "../utils/validation";
 import { sendSuccess, sendError } from "../utils/response";
 import { verifyAccessToken, verifyRefreshToken, generateTokens } from "../utils/jwt";
 
@@ -21,6 +21,10 @@ type RegistrationCredentials = LoginCredentials & {
 };
 
 export class AuthController {
+  private getFirstValidationErrorMessage(result: { error?: { issues?: Array<{ message?: string }> } }, fallback: string) {
+    return result.error?.issues?.[0]?.message || fallback;
+  }
+
   private isFilledString(value: unknown): value is string {
     return typeof value === "string" && value.length > 0;
   }
@@ -143,10 +147,9 @@ export class AuthController {
       return sendError(c, 400, "Missing credentials");
     }
 
-    const validatedData = validateData(registrationSchema, credentials);
-
-    if (!validatedData) {
-      return sendError(c, 400, "Invalid input data");
+    const validatedData = registrationSchema.safeParse(credentials);
+    if (!validatedData.success) {
+      return sendError(c, 400, this.getFirstValidationErrorMessage(validatedData, "Invalid input data"));
     }
 
     const result = await authService.register(
@@ -176,10 +179,9 @@ export class AuthController {
       return sendError(c, 400, "Missing credentials");
     }
 
-    const validatedData = validateData(loginSchema, credentials);
-
-    if (!validatedData) {
-      return sendError(c, 400, "Invalid input data");
+    const validatedData = loginSchema.safeParse(credentials);
+    if (!validatedData.success) {
+      return sendError(c, 400, this.getFirstValidationErrorMessage(validatedData, "Invalid input data"));
     }
 
     const result = await authService.login(credentials.login, credentials.password);
@@ -297,9 +299,9 @@ export class AuthController {
     const user = c.get("user");
     const body = await c.req.json();
 
-    const validatedData = validateData(usernameSchema, body);
-    if (!validatedData) {
-      return sendError(c, 400, "Invalid username");
+    const validatedData = usernameSchema.safeParse(body);
+    if (!validatedData.success) {
+      return sendError(c, 400, this.getFirstValidationErrorMessage(validatedData, "Invalid username"));
     }
 
     const currentUser = await authService.getUserById(user.userId);
@@ -307,7 +309,7 @@ export class AuthController {
       return sendError(c, 404, "User not found");
     }
 
-    const normalizedUsername = validatedData.username.trim();
+    const normalizedUsername = validatedData.data.username.trim();
     if (currentUser.username === normalizedUsername) {
       return sendError(c, 409, "Username unchanged");
     }

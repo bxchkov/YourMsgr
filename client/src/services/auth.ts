@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/stores/auth'
+import { createLocalErrorResponse, parseApiResponse, type ParsedApiResponse } from '@/services/http'
 
 const API_BASE = window.location.origin
 const RETRYABLE_AUTH_MESSAGES = new Set([
@@ -6,7 +7,7 @@ const RETRYABLE_AUTH_MESSAGES = new Set([
     'Invalid or expired token',
 ])
 
-async function authenticatedRequest(endpoint: string, init: RequestInit, retry = true) {
+async function authenticatedRequest(endpoint: string, init: RequestInit, retry = true): Promise<ParsedApiResponse<any>> {
     const auth = useAuthStore()
     const headers: Record<string, string> = {
         ...(init.headers as Record<string, string> || {}),
@@ -22,8 +23,8 @@ async function authenticatedRequest(endpoint: string, init: RequestInit, retry =
         headers,
     })
 
-    const data = await response.json()
-    const errorMessage = data.message || data.error || 'Request failed'
+    const data = await parseApiResponse(response)
+    const errorMessage = data.message || 'Request failed'
 
     if (
         retry
@@ -66,7 +67,7 @@ export const authService = {
                 encryptedPrivateKeySalt,
             }),
         })
-        return await response.json()
+        return parseApiResponse(response)
     },
 
     async login(login: string, password: string) {
@@ -78,7 +79,7 @@ export const authService = {
             },
             body: JSON.stringify({ login, password }),
         })
-        return await response.json()
+        return parseApiResponse(response)
     },
 
     async checkSession() {
@@ -93,7 +94,7 @@ export const authService = {
             credentials: 'include',
             headers,
         })
-        return await response.json()
+        return parseApiResponse(response)
     },
 
     async refreshTokens() {
@@ -108,7 +109,7 @@ export const authService = {
             credentials: 'include',
             headers,
         })
-        return await response.json()
+        return parseApiResponse(response)
     },
 
     async logout() {
@@ -128,7 +129,7 @@ export const authService = {
 
     async updateUsername(username: string) {
         const auth = useAuthStore()
-        if (!auth.token) return { success: false, message: 'Session expired' }
+        if (!auth.token) return createLocalErrorResponse('Session expired', 401)
 
         return authenticatedRequest('/auth/username', {
             method: 'PATCH',
@@ -141,7 +142,7 @@ export const authService = {
 
     async getPublicKeys() {
         const auth = useAuthStore()
-        if (!auth.token) return { success: false, message: 'Session expired' }
+        if (!auth.token) return createLocalErrorResponse('Session expired', 401)
 
         return authenticatedRequest('/auth/publicKeys', {
             method: 'GET',

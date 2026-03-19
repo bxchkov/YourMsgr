@@ -8,15 +8,13 @@ RUN npm ci
 COPY . .
 RUN npm run type-check && npm run build
 
-FROM nginx:alpine
+FROM caddy:2-alpine
 
-RUN apk add --no-cache openssl
+RUN apk add --no-cache curl
 
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/templates/default.conf.template
-COPY docker-entrypoint.d/ /docker-entrypoint.d/
-RUN chmod +x /docker-entrypoint.d/*.sh
+COPY --from=builder /app/dist /srv
+COPY Caddyfile /etc/caddy/Caddyfile
 
 EXPOSE 80 443
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]

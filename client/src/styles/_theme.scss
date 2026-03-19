@@ -21,7 +21,8 @@
       opacity 0.76s ease,
       box-shadow 0.76s ease,
       filter 0.76s ease,
-      backdrop-filter 0.76s ease;
+      backdrop-filter 0.76s ease,
+      caret-color 0.76s ease !important;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -225,6 +226,14 @@
           stroke: currentColor;
         }
       }
+
+      &--admin {
+        background-color: $color-primary-wash-light;
+
+        .message__username {
+          color: $color-primary-dark;
+        }
+      }
     }
 
     .chat-item--active .chat-item__avatar {
@@ -264,7 +273,7 @@
     }
 
     .chat__reply-highlight {
-      background-color: $color-primary-wash-light;
+      background-color: $color-primary-soft-light;
     }
 
     .modal-backdrop,

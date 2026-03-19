@@ -112,7 +112,7 @@
             </div>
             <div class="chat-item__content">
               <div class="chat-item__header">
-                <span class="chat-item__name">{{ chat.otherUser?.username || 'Unknown' }}</span>
+                <span class="chat-item__name">{{ chat.otherUser?.username || 'Неизвестно' }}</span>
                 <span v-if="chat.lastMessageDate" class="chat-item__time">
                   {{ formatTime(chat.lastMessageDate) }}
                 </span>
@@ -291,7 +291,7 @@ function selectPrivateChat(chat: PrivateChat) {
     type: 'private',
     chatId: chat.chatId,
     recipientId: chat.otherUser?.id || null,
-    name: chat.otherUser?.username || 'Unknown',
+    name: chat.otherUser?.username || 'Неизвестно',
     otherUserId: chat.otherUser?.id || null,
   })
 }

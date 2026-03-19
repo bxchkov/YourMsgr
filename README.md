@@ -1,6 +1,6 @@
 # YourMsgr
 
-Защищённый мессенджер с Docker-first развёртыванием, приватными чатами и E2EE для личной переписки.
+Защищённый мессенджер с Docker-first развёртыванием, групповым чатом, личными чатами и E2EE для приватной переписки.
 
 ## Быстрая установка на Linux
 
@@ -8,24 +8,22 @@
 curl -fsSL https://raw.githubusercontent.com/bxchkov/YourMsgr/main/install.sh | sudo bash
 ```
 
-Installer работает в интерактивном режиме:
+Installer теперь работает в production-сценарии:
 
-1. Проверяет и при необходимости ставит Docker.
+1. Проверяет и при необходимости устанавливает Docker.
 2. Клонирует проект в `/opt/yourmsgr`.
-3. Просит домен для панели.
-4. Если домен не введён, использует IP сервера.
-5. Проверяет, что домен резолвится на текущий сервер.
-6. При занятом `80`/`443` просит альтернативный порт или подбирает безопасный fallback.
-7. Настраивает HTTPS-first запуск с самоподписанным сертификатом.
-8. Создаёт `.env`, `server/.env`, helper-команду `yourmsgr`.
-9. Поднимает стек и создаёт первого администратора.
+3. Требует домен для панели.
+4. Проверяет, что домен резолвится на текущий сервер.
+5. Требует свободные и доступные снаружи порты `80/tcp` и `443/tcp`.
+6. Поднимает Caddy с автоматическим выпуском доверенного TLS-сертификата.
+7. Создаёт `.env`, `server/.env`, helper-команду `yourmsgr`.
+8. Поднимает стек и создаёт первого администратора.
 
-По умолчанию приложение работает так:
+Важно:
 
-- `80/tcp` используется только для redirect на HTTPS;
-- `443/tcp` отдаёт саму панель;
-- backend и PostgreSQL наружу не публикуются;
-- сертификат самоподписанный, поэтому браузер покажет стандартное предупреждение доверия.
+- IP-only установка больше не поддерживается.
+- Для нормальной работы HTTPS домен должен смотреть прямо на этот сервер.
+- Порты `80` и `443` должны быть открыты и не заняты сторонними сервисами.
 
 ## Управление после установки
 
@@ -51,8 +49,8 @@ yourmsgr service autostart on
 yourmsgr service autostart off
 yourmsgr service autorestart on
 yourmsgr service autorestart off
+yourmsgr reconfigure
 yourmsgr admin stats
-yourmsgr admin users:list
 yourmsgr uninstall
 ```
 
@@ -60,11 +58,12 @@ yourmsgr uninstall
 
 Меню `yourmsgr`:
 
-- обновляет CPU/RAM раз в секунду;
-- показывает единый статус приложения, контейнеров и HTTPS endpoint’ов;
-- даёт вложенное управление сервисом;
-- позволяет смотреть логи и возвращаться обратно в меню после `Ctrl + C`;
-- проверяет обновления по версии проекта, а не просто по факту любого коммита.
+- показывает единый статус приложения, контейнеров и endpoint-ов;
+- даёт отдельный раздел управления сервисом;
+- даёт раздел логов с возвратом обратно в меню;
+- даёт раздел обновлений, завязанный на `VERSION`;
+- даёт раздел админских CLI-команд;
+- позволяет запустить `reconfigure`, если нужно переехать на другой домен.
 
 ## Обновления
 
@@ -77,12 +76,12 @@ yourmsgr update
 
 Поведение:
 
-- `check-update` сравнивает локальную и удалённую версию из файла `VERSION`;
-- `update` не выполняет лишнюю пересборку, если версия уже актуальна;
-- если удалённый код изменился, но версия не была увеличена, обычный update откажется обновляться;
+- `check-update` сравнивает локальную и удалённую версии из файла `VERSION`;
+- `update` не делает лишнюю пересборку, если версия уже актуальна;
+- если код изменился, а `VERSION` не был увеличен, обычный update откажется обновляться;
 - для принудительного обновления в таком случае есть `yourmsgr update --force`.
 
-Текущая версия проекта: `2.0.3`.
+Текущая версия проекта: `2.0.4`.
 
 ## Удаление
 
@@ -105,11 +104,12 @@ cp server/.env.example server/.env
 docker compose up -d --build
 ```
 
-Локальный compose-профиль теперь тоже ориентирован на HTTPS-first схему:
+Локальный compose-профиль тоже ориентирован на Caddy и trusted-HTTPS flow:
 
+- `PUBLIC_HOST=chat.example.com`
+- `PUBLIC_URL=https://chat.example.com`
 - `CLIENT_HTTP_PORT=80`
 - `CLIENT_HTTPS_PORT=443`
-- `PUBLIC_URL=https://localhost`
 
 ## Админка
 
@@ -134,10 +134,14 @@ bun run admin users:list
 bun run admin users:get <login>
 bun run admin users:create
 bun run admin users:create --admin
+bun run admin users:create-auto
+bun run admin users:create-auto --admin
 bun run admin users:bootstrap-admin
 bun run admin users:role <login> <user|admin>
 bun run admin users:logout <login>
 bun run admin users:delete <login>
+bun run admin messages:admin-post <admin-login> <message>
+bun run admin messages:purge-group <login>
 ```
 
 ## Технологии
@@ -163,7 +167,7 @@ bun run admin users:delete <login>
 ### Infrastructure
 
 - Docker Compose
-- Nginx
+- Caddy
 
 ## Структура
 

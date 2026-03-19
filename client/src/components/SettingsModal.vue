@@ -47,7 +47,7 @@
 
       <div class="modal__app-info">
         <span class="modal__app-name">YourMsgr</span>
-        <span class="modal__app-version">v2.0.0</span>
+        <span class="modal__app-version">v2.0.3</span>
       </div>
 
       <IconButton
@@ -66,6 +66,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { authService } from '@/services/auth'
+import { sanitizeUnexpectedMessage } from '@/services/http'
 import { useAuthStore } from '@/stores/auth'
 import IconButton from '@/components/IconButton.vue'
 
@@ -96,14 +97,19 @@ const SETTINGS_MESSAGES: Record<string, string> = {
   'Invalid or expired token': 'Сессия устарела. Повторите действие',
   'Unauthorized': 'Сессия истекла. Войдите снова',
   'Session expired': 'Сессия истекла. Войдите снова',
+  'Reserved username': 'Этот никнейм зарезервирован',
 }
 
-function localizeSettingsMessage(messageText?: string, fallback = 'Ошибка') {
+function localizeSettingsMessage(messageText?: string, fallback = 'Неизвестная ошибка') {
   if (!messageText) {
     return fallback
   }
 
-  return SETTINGS_MESSAGES[messageText] || messageText
+  if (SETTINGS_MESSAGES[messageText]) {
+    return SETTINGS_MESSAGES[messageText]
+  }
+
+  return sanitizeUnexpectedMessage(messageText, fallback)
 }
 
 function clearMessage() {
@@ -140,9 +146,13 @@ async function handleSave() {
 
     messageTone.value = 'error'
     message.value = localizeSettingsMessage(response.message, 'Ошибка обновления')
-  } catch (requestError: any) {
+  } catch (requestError: unknown) {
+    console.error('[Settings] Update username failed:', requestError)
     messageTone.value = 'error'
-    message.value = localizeSettingsMessage(requestError.message, 'Ошибка')
+    message.value = localizeSettingsMessage(
+      requestError instanceof Error ? requestError.message : undefined,
+      'Ошибка обновления',
+    )
   } finally {
     saving.value = false
   }

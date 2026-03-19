@@ -72,6 +72,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { authService } from '@/services/auth'
+import { sanitizeUnexpectedMessage } from '@/services/http'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -99,6 +100,8 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
   'Session expired': 'Сессия истекла. Войдите снова',
   'Token mismatch': 'Сессия устарела. Войдите снова',
   'Legacy private key requires HTTPS': 'Для входа в этот аккаунт нужен HTTPS: ключ был зашифрован старым способом',
+  'Reserved login': 'Этот логин зарезервирован',
+  'Reserved username': 'Этот никнейм зарезервирован',
 }
 
 async function loadCrypto() {
@@ -133,12 +136,16 @@ const isFormValid = computed(() => {
   return loginOk && passOk
 })
 
-function localizeAuthError(message?: string, fallback = 'Произошла ошибка') {
+function localizeAuthError(message?: string, fallback = 'Неизвестная ошибка') {
   if (!message) {
     return fallback
   }
 
-  return AUTH_ERROR_MESSAGES[message] || message
+  if (AUTH_ERROR_MESSAGES[message]) {
+    return AUTH_ERROR_MESSAGES[message]
+  }
+
+  return sanitizeUnexpectedMessage(message, fallback)
 }
 
 function clearError() {
@@ -184,7 +191,7 @@ async function handleLogin() {
       return
     }
 
-    if (response.data.encryptedPrivateKey) {
+    if (response.data?.encryptedPrivateKey) {
       try {
         const {
           initCrypto,
@@ -219,10 +226,19 @@ async function handleLogin() {
       }
     }
 
-    auth.setAuth(response.data.accessToken)
-    await router.push('/chat')
-  } catch (requestError: any) {
-    error.value = localizeAuthError(requestError.message, 'Ошибка входа')
+    if (response.data?.accessToken) {
+      auth.setAuth(response.data.accessToken)
+      await router.push('/chat')
+      return
+    }
+
+    error.value = 'Не удалось выполнить вход'
+  } catch (requestError: unknown) {
+    console.error('[Login] Request failed:', requestError)
+    error.value = localizeAuthError(
+      requestError instanceof Error ? requestError.message : undefined,
+      'Ошибка входа',
+    )
   } finally {
     loading.value = false
   }
@@ -266,10 +282,19 @@ async function handleRegister() {
       return
     }
 
-    auth.setAuth(response.data.accessToken)
-    await router.push('/chat')
-  } catch (requestError: any) {
-    error.value = localizeAuthError(requestError.message, 'Ошибка регистрации')
+    if (response.data?.accessToken) {
+      auth.setAuth(response.data.accessToken)
+      await router.push('/chat')
+      return
+    }
+
+    error.value = 'Не удалось создать аккаунт'
+  } catch (requestError: unknown) {
+    console.error('[Register] Request failed:', requestError)
+    error.value = localizeAuthError(
+      requestError instanceof Error ? requestError.message : undefined,
+      'Ошибка регистрации',
+    )
   } finally {
     loading.value = false
   }

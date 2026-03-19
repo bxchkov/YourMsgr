@@ -4,12 +4,13 @@ import "dotenv/config";
 import { randomBytes } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { desc, eq, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { db } from "../db";
 import { messages, privateChats, users } from "../db/schema";
 import { AuthService } from "../services/auth.service";
 import { hashPassword } from "../utils/password";
 import { loginSchema, usernameSchema } from "../utils/validation";
+import { assertIdentityIsAllowed } from "../utils/identity";
 
 const args = process.argv.slice(2);
 const command = args[0] ?? "help";
@@ -48,6 +49,9 @@ Commands:
   users:create [login] [password] [username] [--admin]
       Create a user interactively or from arguments
 
+  users:create-auto [--admin]
+      Create a user automatically with generated credentials
+
   users:create-admin [login] [password] [username]
       Create an admin user
 
@@ -62,6 +66,12 @@ Commands:
 
   users:delete <login> [--yes]
       Delete user with confirmation
+
+  messages:purge-group <login> [--yes]
+      Delete all group messages for a user
+
+  messages:admin-post <admin-login> <message>
+      Publish an admin announcement to the general chat
 
   help
       Show this help
@@ -115,6 +125,9 @@ const getUserByLogin = async (login: string) => {
 };
 
 const validateUserInput = (login: string, password: string, username: string) => {
+  assertIdentityIsAllowed(login, "login");
+  assertIdentityIsAllowed(username, "username");
+
   const validatedLogin = loginSchema.safeParse({
     login,
     password,
@@ -316,12 +329,17 @@ const persistUser = async (payload: PreparedUserInput) => {
 
   const hashedPassword = await hashPassword(payload.password);
 
-  await db.insert(users).values({
-    login: payload.login,
-    username: payload.username,
-    password: hashedPassword,
-    role: payload.role,
-  });
+  const [createdUser] = await db
+    .insert(users)
+    .values({
+      login: payload.login,
+      username: payload.username,
+      password: hashedPassword,
+      role: payload.role,
+    })
+    .returning();
+
+  return createdUser;
 };
 
 const createUser = async (inputArgs: string[], forceAdmin = false) => {
@@ -329,6 +347,28 @@ const createUser = async (inputArgs: string[], forceAdmin = false) => {
   await persistUser(prepared);
 
   console.log(`Created ${prepared.role === ROLE_MAP.admin ? "admin" : "user"} '${prepared.login}'`);
+};
+
+const createAutoUser = async (forceAdmin = false) => {
+  const prefix = forceAdmin ? "admin" : "user";
+  const prepared = {
+    login: `${prefix}${generateTokenFriendlyValue(6).toLowerCase()}`,
+    password: generateTokenFriendlyValue(14),
+    username: `${prefix}${generateTokenFriendlyValue(4).toLowerCase()}`,
+    role: forceAdmin ? ROLE_MAP.admin : ROLE_MAP.user,
+  } satisfies PreparedUserInput;
+
+  validateUserInput(prepared.login, prepared.password, prepared.username);
+  await persistUser(prepared);
+
+  console.table([
+    {
+      role: prepared.role === ROLE_MAP.admin ? "admin" : "user",
+      login: prepared.login,
+      password: prepared.password,
+      username: prepared.username,
+    },
+  ]);
 };
 
 const bootstrapAdmin = async (inputArgs: string[]) => {
@@ -408,6 +448,88 @@ const deleteUser = async (login: string, skipConfirmation = false) => {
   console.log(`Deleted user '${user.login}'`);
 };
 
+const purgeGroupMessages = async (login: string, skipConfirmation = false) => {
+  if (!login) {
+    throw new Error("Usage: messages:purge-group <login> [--yes]");
+  }
+
+  const user = await getUserByLogin(login);
+  if (!user) {
+    throw new Error(`User '${normalizeLogin(login)}' not found`);
+  }
+
+  if (!skipConfirmation) {
+    const prompt = createPrompter();
+
+    try {
+      const answer = await prompt.ask(`Delete all group messages for '${user.login}'? (yes/no): `);
+      if (answer.toLowerCase() !== "yes") {
+        console.log("Cancelled");
+        return;
+      }
+    } finally {
+      prompt.close();
+    }
+  }
+
+  const result = await db
+    .delete(messages)
+    .where(
+      and(
+        eq(messages.userId, user.id),
+        or(eq(messages.chatType, "group"), isNull(messages.chatId))
+      )
+    )
+    .returning({ id: messages.id });
+
+  console.log(`Deleted ${result.length} group messages for '${user.login}'`);
+};
+
+const postAdminAnnouncement = async (login: string, rawMessageParts: string[]) => {
+  if (!login || rawMessageParts.length === 0) {
+    throw new Error("Usage: messages:admin-post <admin-login> <message>");
+  }
+
+  const adminUser = await getUserByLogin(login);
+  if (!adminUser) {
+    throw new Error(`User '${normalizeLogin(login)}' not found`);
+  }
+
+  if (adminUser.role !== ROLE_MAP.admin) {
+    throw new Error(`User '${adminUser.login}' is not an admin`);
+  }
+
+  const announcement = rawMessageParts.join(" ").trim();
+  if (!announcement) {
+    throw new Error("Announcement message is required");
+  }
+
+  const [createdMessage] = await db
+    .insert(messages)
+    .values({
+      userId: adminUser.id,
+      username: "Admin",
+      message: announcement,
+      chatType: "group",
+      chatId: null,
+      isEncrypted: 0,
+    })
+    .returning({
+      id: messages.id,
+      date: messages.date,
+    });
+
+  console.table([
+    {
+      id: createdMessage.id,
+      author: "Admin",
+      postedBy: adminUser.login,
+      date: createdMessage.date,
+      message: announcement,
+    },
+  ]);
+};
+
 const run = async () => {
   switch (command) {
     case "stats":
@@ -430,6 +552,10 @@ const run = async () => {
       await createUser(args.slice(1));
       return;
 
+    case "users:create-auto":
+      await createAutoUser(args.includes("--admin"));
+      return;
+
     case "users:create-admin":
       await createUser(args.slice(1), true);
       return;
@@ -448,6 +574,14 @@ const run = async () => {
 
     case "users:delete":
       await deleteUser(args[1], args.includes("--yes"));
+      return;
+
+    case "messages:purge-group":
+      await purgeGroupMessages(args[1], args.includes("--yes"));
+      return;
+
+    case "messages:admin-post":
+      await postAdminAnnouncement(args[1], args.slice(2));
       return;
 
     case "messages:count":

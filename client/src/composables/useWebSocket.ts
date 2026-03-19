@@ -8,6 +8,14 @@ let socket: WebSocket | null = null
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 let isIntentionalClose = false
 const eventHandlers = new Map<string, (data: any) => void>()
+const TERMINAL_SESSION_MESSAGES = new Set([
+    'Unauthorized',
+    'Invalid or expired token',
+    'Session expired',
+    'Token mismatch',
+    'Missing refresh token',
+    'Invalid refresh token',
+])
 
 export const isConnected = ref(false)
 
@@ -176,6 +184,10 @@ export function setupSocketHandlers() {
         chatStore.deleteMessage(data.id)
     })
 
+    onSocketEvent('error', (data: { message?: string }) => {
+        console.error('WebSocket action error:', data.message || 'Unknown error')
+    })
+
     onSocketEvent('check_session', async () => {
         const result = await authService.checkSession()
         if (result.success) {
@@ -183,14 +195,20 @@ export function setupSocketHandlers() {
             if (result.data?.accessToken) {
                 auth.setAuth(result.data.accessToken)
             }
-        } else {
+            return
+        }
+
+        if (TERMINAL_SESSION_MESSAGES.has(result.message || '')) {
             disconnectSocket()
             chatStore.cleanup()
             auth.logout()
             if (router.currentRoute.value.name !== 'auth') {
                 void router.replace('/auth')
             }
+            return
         }
+
+        console.error('WebSocket session check failed:', result.message || 'Unknown error')
     })
 
     onSocketEvent('refresh_tokens', async () => {

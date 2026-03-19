@@ -37,13 +37,13 @@
 
     &__reply-highlight {
       position: absolute;
-      left: -$spacing-6;
-      right: -$spacing-6;
+      left: calc(-1 * #{$spacing-6});
+      right: calc(-1 * #{$spacing-6});
       z-index: 0;
       border-radius: $radius-sm;
       pointer-events: none;
-      background-color: $color-primary-wash-dark;
-      transition: opacity 0.24s ease;
+      background-color: $color-primary-soft-strong-dark;
+      transition: opacity 0.32s ease;
 
       &::before {
         content: '';
@@ -134,10 +134,10 @@
   }
 
   .message-input {
-    min-height: $input-height;
+    min-height: $footer-height;
     height: auto;
     justify-content: center;
-    padding: $spacing-3 $spacing-6 $spacing-4;
+    padding: $spacing-3 $spacing-6;
     background-color: $color-bg-input-area;
     border-top: 1px solid $color-border-dark;
 
@@ -204,7 +204,6 @@
       flex: 1;
       min-width: 0;
       text-align: left;
-      @include hover-brightness;
     }
 
     &__reply-line {
@@ -338,7 +337,7 @@
     }
 
     .message-input {
-      padding: $spacing-2 $spacing-4 $spacing-3;
+      padding: $spacing-3 $spacing-4;
     }
 
     .sidebar {

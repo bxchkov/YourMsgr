@@ -3,6 +3,7 @@ import { db } from "../db";
 import { users } from "../db/schema";
 import { hashPassword, verifyPassword } from "../utils/password";
 import { generateTokens } from "../utils/jwt";
+import { isReservedIdentity } from "../utils/identity";
 
 export class AuthService {
   private async findUsernameConflict(userId: number | null, username: string) {
@@ -38,6 +39,14 @@ export class AuthService {
     encryptedPrivateKeyIv?: string,
     encryptedPrivateKeySalt?: string
   ) {
+    if (isReservedIdentity(login)) {
+      return { error: "Reserved login" as const };
+    }
+
+    if (isReservedIdentity(username)) {
+      return { error: "Reserved username" as const };
+    }
+
     const existingUser = await db.query.users.findFirst({
       where: eq(users.login, login.toLowerCase()),
     });
@@ -132,6 +141,10 @@ export class AuthService {
 
   async updateUsername(userId: number, newUsername: string) {
     const normalizedUsername = newUsername.trim();
+
+    if (isReservedIdentity(normalizedUsername)) {
+      return { error: "Reserved username" as const };
+    }
 
     const existingUser = await this.findUsernameConflict(userId, normalizedUsername);
 
