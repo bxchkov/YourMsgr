@@ -5,8 +5,6 @@ import { loginSchema, registrationSchema, usernameSchema } from "../utils/valida
 import { sendSuccess, sendError } from "../utils/response";
 import { verifyAccessToken, verifyRefreshToken, generateTokens } from "../utils/jwt";
 
-const authService = new AuthService();
-
 type LoginCredentials = {
   login: string;
   password: string;
@@ -21,6 +19,8 @@ type RegistrationCredentials = LoginCredentials & {
 };
 
 export class AuthController {
+  constructor(private readonly authService: AuthService = new AuthService()) {}
+
   private getFirstValidationErrorMessage(result: { error?: { issues?: Array<{ message?: string }> } }, fallback: string) {
     return result.error?.issues?.[0]?.message || fallback;
   }
@@ -68,7 +68,7 @@ export class AuthController {
       return sendError(c, 400, this.getFirstValidationErrorMessage(validatedData, "Invalid input data"));
     }
 
-    const result = await authService.register(
+    const result = await this.authService.register(
       validatedData.data.login,
       validatedData.data.password,
       validatedData.data.username,
@@ -100,7 +100,7 @@ export class AuthController {
       return sendError(c, 400, this.getFirstValidationErrorMessage(validatedData, "Invalid input data"));
     }
 
-    const result = await authService.login(validatedData.data.login, validatedData.data.password);
+    const result = await this.authService.login(validatedData.data.login, validatedData.data.password);
 
     if ("error" in result) {
       return sendError(c, 401, result.error ?? "Login failed");
@@ -129,7 +129,7 @@ export class AuthController {
       return sendError(c, 403, "Invalid refresh token");
     }
 
-    const user = await authService.getUserById(refreshPayload.userId);
+    const user = await this.authService.getUserById(refreshPayload.userId);
     if (!user || user.refreshToken !== refreshToken) {
       return sendError(c, 403, "Token mismatch");
     }
@@ -140,7 +140,7 @@ export class AuthController {
     }
 
     const newTokens = generateTokens(user.id, user.username, user.role, user.login);
-    await authService.saveRefreshToken(user.id, newTokens.refreshToken);
+    await this.authService.saveRefreshToken(user.id, newTokens.refreshToken);
 
     setCookie(c, "refreshToken", newTokens.refreshToken, this.getRefreshCookieOptions(c));
 
@@ -157,11 +157,11 @@ export class AuthController {
     const refreshPayload = refreshToken ? verifyRefreshToken(refreshToken) : null;
 
     if (accessPayload?.userId) {
-      await authService.clearRefreshToken(accessPayload.userId);
+      await this.authService.clearRefreshToken(accessPayload.userId);
     } else if (refreshPayload?.userId && refreshToken) {
-      const user = await authService.getUserById(refreshPayload.userId);
+      const user = await this.authService.getUserById(refreshPayload.userId);
       if (user?.refreshToken === refreshToken) {
-        await authService.clearRefreshToken(refreshPayload.userId);
+        await this.authService.clearRefreshToken(refreshPayload.userId);
       }
     }
 
@@ -185,7 +185,7 @@ export class AuthController {
       return sendError(c, 403, "Session expired");
     }
 
-    const user = await authService.getValidSessionUser(refreshPayload.userId, refreshToken);
+    const user = await this.authService.getValidSessionUser(refreshPayload.userId, refreshToken);
     if (!user) {
       return sendError(c, 403, "Session expired");
     }
@@ -202,7 +202,7 @@ export class AuthController {
     }
 
     const newTokens = generateTokens(user.id, user.username, user.role, user.login);
-    await authService.saveRefreshToken(user.id, newTokens.refreshToken);
+    await this.authService.saveRefreshToken(user.id, newTokens.refreshToken);
 
     setCookie(c, "refreshToken", newTokens.refreshToken, this.getRefreshCookieOptions(c));
 
@@ -223,7 +223,7 @@ export class AuthController {
       return sendError(c, 400, this.getFirstValidationErrorMessage(validatedData, "Invalid username"));
     }
 
-    const currentUser = await authService.getUserById(user.userId);
+    const currentUser = await this.authService.getUserById(user.userId);
     if (!currentUser) {
       return sendError(c, 404, "User not found");
     }
@@ -233,7 +233,7 @@ export class AuthController {
       return sendError(c, 409, "Username unchanged");
     }
 
-    const updateResult = await authService.updateUsername(user.userId, normalizedUsername);
+    const updateResult = await this.authService.updateUsername(user.userId, normalizedUsername);
 
     if ("error" in updateResult) {
       return sendError(c, 409, updateResult.error);
@@ -245,7 +245,7 @@ export class AuthController {
     }
 
     const newTokens = generateTokens(updatedUser.id, updatedUser.username, updatedUser.role, updatedUser.login);
-    await authService.saveRefreshToken(updatedUser.id, newTokens.refreshToken);
+    await this.authService.saveRefreshToken(updatedUser.id, newTokens.refreshToken);
 
     setCookie(c, "refreshToken", newTokens.refreshToken, this.getRefreshCookieOptions(c));
 
@@ -256,7 +256,7 @@ export class AuthController {
   }
 
   async getPublicKeys(c: Context) {
-    const publicKeys = await authService.getAllPublicKeys();
+    const publicKeys = await this.authService.getAllPublicKeys();
     return sendSuccess(c, "Public keys retrieved", { publicKeys });
   }
 }

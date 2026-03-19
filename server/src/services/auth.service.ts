@@ -1,15 +1,17 @@
 import { and, eq, ne, or } from "drizzle-orm";
-import { db } from "../db";
+import { db, type Database } from "../db";
 import { users } from "../db/schema";
 import { hashPassword, verifyPassword } from "../utils/password";
 import { generateTokens } from "../utils/jwt";
 import { isReservedIdentity } from "../utils/identity";
 
 export class AuthService {
+  constructor(private readonly database: Database = db) {}
+
   private async findUsernameConflict(userId: number | null, username: string) {
     const normalizedUsername = username.trim();
 
-    return db.query.users.findFirst({
+    return this.database.query.users.findFirst({
       where: userId
         ? and(
             ne(users.id, userId),
@@ -47,7 +49,7 @@ export class AuthService {
       return { error: "Reserved username" as const };
     }
 
-    const existingUser = await db.query.users.findFirst({
+    const existingUser = await this.database.query.users.findFirst({
       where: eq(users.login, login.toLowerCase()),
     });
 
@@ -62,7 +64,7 @@ export class AuthService {
 
     const hashedPassword = await hashPassword(password);
 
-    const [newUser] = await db
+    const [newUser] = await this.database
       .insert(users)
       .values({
         login: login.toLowerCase(),
@@ -82,7 +84,7 @@ export class AuthService {
   }
 
   async login(login: string, password: string) {
-    const user = await db.query.users.findFirst({
+    const user = await this.database.query.users.findFirst({
       where: eq(users.login, login.toLowerCase()),
     });
 
@@ -110,21 +112,21 @@ export class AuthService {
   }
 
   async saveRefreshToken(userId: number, refreshToken: string) {
-    await db
+    await this.database
       .update(users)
       .set({ refreshToken })
       .where(eq(users.id, userId));
   }
 
   async clearRefreshToken(userId: number) {
-    await db
+    await this.database
       .update(users)
       .set({ refreshToken: null })
       .where(eq(users.id, userId));
   }
 
   async getUserById(userId: number) {
-    return await db.query.users.findFirst({
+    return await this.database.query.users.findFirst({
       where: eq(users.id, userId),
     });
   }
@@ -152,7 +154,7 @@ export class AuthService {
       return { error: "Username already taken" as const };
     }
 
-    const [updatedUser] = await db
+    const [updatedUser] = await this.database
       .update(users)
       .set({ username: normalizedUsername })
       .where(eq(users.id, userId))
@@ -161,7 +163,7 @@ export class AuthService {
     return { user: updatedUser };
   }
   async getAllPublicKeys() {
-    const allUsers = await db.query.users.findMany({
+    const allUsers = await this.database.query.users.findMany({
       columns: {
         id: true,
         username: true,

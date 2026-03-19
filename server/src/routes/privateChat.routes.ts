@@ -5,65 +5,73 @@ import { logger } from "../utils/logger";
 import { sendSuccess, sendError } from "../utils/response";
 import type { AppEnv } from "../types/hono";
 
-const privateChatRoutes = new Hono<AppEnv>();
-const privateChatService = new PrivateChatService();
+export const createPrivateChatRoutes = (
+  privateChatService: PrivateChatService = new PrivateChatService(),
+  protectedAuthMiddleware = authMiddleware,
+) => {
+  const privateChatRoutes = new Hono<AppEnv>();
 
-privateChatRoutes.use("/*", authMiddleware);
+  privateChatRoutes.use("/*", protectedAuthMiddleware);
 
-privateChatRoutes.post("/", async (c) => {
-  try {
-    const user = c.get("user");
-    const body = await c.req.json();
-    const otherUserId = Number(body?.otherUserId);
+  privateChatRoutes.post("/", async (c) => {
+    try {
+      const user = c.get("user");
+      const body = await c.req.json();
+      const otherUserId = Number(body?.otherUserId);
 
-    if (!Number.isInteger(otherUserId) || otherUserId <= 0 || otherUserId === user.userId) {
-      return sendError(c, 400, "Invalid user ID");
+      if (!Number.isInteger(otherUserId) || otherUserId <= 0 || otherUserId === user.userId) {
+        return sendError(c, 400, "Invalid user ID");
+      }
+
+      const chat = await privateChatService.getOrCreatePrivateChat(user.userId, otherUserId);
+
+      return sendSuccess(c, "Chat created", { chat });
+    } catch (error: unknown) {
+      logger.error("Failed to create private chat", error);
+      if (error instanceof Error && error.message === "User not found") {
+        return sendError(c, 404, "User not found");
+      }
+      return sendError(c, 500, "Failed to create chat");
     }
+  });
 
-    const chat = await privateChatService.getOrCreatePrivateChat(user.userId, otherUserId);
+  privateChatRoutes.get("/", async (c) => {
+    try {
+      const user = c.get("user");
+      const chats = await privateChatService.getUserPrivateChats(user.userId);
 
-    return sendSuccess(c, "Chat created", { chat });
-  } catch (error: unknown) {
-    logger.error("Failed to create private chat", error);
-    if (error instanceof Error && error.message === "User not found") {
-      return sendError(c, 404, "User not found");
+      return sendSuccess(c, "Chats retrieved", { chats });
+    } catch (error) {
+      logger.error("Failed to fetch private chats", error);
+      return sendError(c, 500, "Failed to fetch chats");
     }
-    return sendError(c, 500, "Failed to create chat");
-  }
-});
+  });
 
-privateChatRoutes.get("/", async (c) => {
-  try {
-    const user = c.get("user");
-    const chats = await privateChatService.getUserPrivateChats(user.userId);
+  privateChatRoutes.get("/:chatId/messages", async (c) => {
+    try {
+      const user = c.get("user");
+      const chatId = Number(c.req.param("chatId"));
+      const lastMessageId = c.req.query("lastMessageId") ? Number(c.req.query("lastMessageId")) : undefined;
 
-    return sendSuccess(c, "Chats retrieved", { chats });
-  } catch (error) {
-    logger.error("Failed to fetch private chats", error);
-    return sendError(c, 500, "Failed to fetch chats");
-  }
-});
+      if (!chatId) {
+        return sendError(c, 400, "Invalid chat ID");
+      }
 
-privateChatRoutes.get("/:chatId/messages", async (c) => {
-  try {
-    const user = c.get("user");
-    const chatId = Number(c.req.param("chatId"));
-    const lastMessageId = c.req.query("lastMessageId") ? Number(c.req.query("lastMessageId")) : undefined;
+      const messages = await privateChatService.getPrivateChatMessages(chatId, user.userId, lastMessageId);
 
-    if (!chatId) {
-      return sendError(c, 400, "Invalid chat ID");
+      return sendSuccess(c, "Messages retrieved", { messages });
+    } catch (error: unknown) {
+      logger.error("Failed to fetch private chat messages", error);
+      if (error instanceof Error && error.message === "Chat not found or access denied") {
+        return sendError(c, 403, error.message);
+      }
+      return sendError(c, 500, error instanceof Error ? error.message : "Failed to fetch messages");
     }
+  });
 
-    const messages = await privateChatService.getPrivateChatMessages(chatId, user.userId, lastMessageId);
+  return privateChatRoutes;
+};
 
-    return sendSuccess(c, "Messages retrieved", { messages });
-  } catch (error: unknown) {
-    logger.error("Failed to fetch private chat messages", error);
-    if (error instanceof Error && error.message === "Chat not found or access denied") {
-      return sendError(c, 403, error.message);
-    }
-    return sendError(c, 500, error instanceof Error ? error.message : "Failed to fetch messages");
-  }
-});
+const privateChatRoutes = createPrivateChatRoutes();
 
 export default privateChatRoutes;

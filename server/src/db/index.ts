@@ -1,8 +1,19 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import postgres, { type Sql } from "postgres";
 import * as schema from "./schema";
 
-const connectionString = process.env.DATABASE_URL!;
-const client = postgres(connectionString);
+export type Database = PostgresJsDatabase<typeof schema>;
+export type DatabaseClient = Sql<Record<string, unknown>>;
 
-export const db = drizzle(client, { schema });
+export const createDbClient = (connectionString = process.env.DATABASE_URL!) => {
+  return postgres(connectionString);
+};
+
+export const createDatabase = (client: DatabaseClient): Database => {
+  return drizzle(client, { schema });
+};
+
+const client = createDbClient();
+
+export const dbClient = client;
+export const db = createDatabase(client);

@@ -1,11 +1,13 @@
 import { eq, or, and, lt, inArray, asc, desc } from "drizzle-orm";
-import { db } from "../db";
+import { db, type Database } from "../db";
 import { privateChats, messages, users } from "../db/schema";
 import { attachReplyTarget, attachReplyTargets, validateReplyTarget } from "./reply.service";
 
 export class PrivateChatService {
+  constructor(private readonly database: Database = db) {}
+
   async getOrCreatePrivateChat(user1Id: number, user2Id: number) {
-    const otherUser = await db.query.users.findFirst({
+    const otherUser = await this.database.query.users.findFirst({
       where: eq(users.id, user2Id),
       columns: {
         id: true,
@@ -18,7 +20,7 @@ export class PrivateChatService {
 
     const [smallerId, largerId] = user1Id < user2Id ? [user1Id, user2Id] : [user2Id, user1Id];
 
-    const existingChat = await db.query.privateChats.findFirst({
+    const existingChat = await this.database.query.privateChats.findFirst({
       where: and(
         eq(privateChats.user1Id, smallerId),
         eq(privateChats.user2Id, largerId)
@@ -29,7 +31,7 @@ export class PrivateChatService {
       return existingChat;
     }
 
-    const [newChat] = await db
+    const [newChat] = await this.database
       .insert(privateChats)
       .values({
         user1Id: smallerId,
@@ -41,7 +43,7 @@ export class PrivateChatService {
   }
 
   async getUserPrivateChats(userId: number) {
-    const chats = await db.query.privateChats.findMany({
+    const chats = await this.database.query.privateChats.findMany({
       where: or(
         eq(privateChats.user1Id, userId),
         eq(privateChats.user2Id, userId)
@@ -58,7 +60,7 @@ export class PrivateChatService {
     const chatIds = chats.map((chat) => chat.id);
 
     const [otherUsers, lastMessages] = await Promise.all([
-      db.query.users.findMany({
+      this.database.query.users.findMany({
         where: inArray(users.id, otherUserIds),
         columns: {
           id: true,
@@ -67,7 +69,7 @@ export class PrivateChatService {
           publicKey: true,
         },
       }),
-      db
+      this.database
         .select({
           id: messages.id,
           chatId: messages.chatId,
@@ -116,7 +118,7 @@ export class PrivateChatService {
   }
 
   async getPrivateChatMessages(chatId: number, userId: number, lastMessageId?: number, limitMsgs = 50) {
-    const chat = await db.query.privateChats.findFirst({
+    const chat = await this.database.query.privateChats.findFirst({
       where: and(
         eq(privateChats.id, chatId),
         or(
@@ -139,13 +141,13 @@ export class PrivateChatService {
       conditions.push(lt(messages.id, lastMessageId));
     }
 
-    const chatMessages = await db.query.messages.findMany({
+    const chatMessages = await this.database.query.messages.findMany({
       where: and(...conditions),
       orderBy: (messages, { desc }) => [desc(messages.date)],
       limit: limitMsgs,
     });
 
-    return attachReplyTargets(chatMessages);
+    return attachReplyTargets(chatMessages, this.database);
   }
 
   async sendPrivateMessage(
@@ -159,7 +161,7 @@ export class PrivateChatService {
     isEncrypted?: number,
     replyToMessageId?: number | null
   ) {
-    const chat = await db.query.privateChats.findFirst({
+    const chat = await this.database.query.privateChats.findFirst({
       where: and(
         eq(privateChats.id, chatId),
         or(
@@ -181,9 +183,9 @@ export class PrivateChatService {
     const replyTarget = await validateReplyTarget(replyToMessageId, {
       chatType: "private",
       chatId,
-    });
+    }, this.database);
 
-    const [newMessage] = await db
+    const [newMessage] = await this.database
       .insert(messages)
       .values({
         userId,
@@ -199,6 +201,6 @@ export class PrivateChatService {
       })
       .returning();
 
-    return attachReplyTarget(newMessage);
+    return attachReplyTarget(newMessage, this.database);
   }
 }

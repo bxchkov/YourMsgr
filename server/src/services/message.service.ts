@@ -1,15 +1,17 @@
 import { eq, desc, or, isNull, lt, and } from "drizzle-orm";
-import { db } from "../db";
+import { db, type Database } from "../db";
 import { messages } from "../db/schema";
 import { attachReplyTarget, attachReplyTargets, validateReplyTarget } from "./reply.service";
 
 export class MessageService {
+  constructor(private readonly database: Database = db) {}
+
   async getAllMessages() {
-    const allMessages = await db.query.messages.findMany({
+    const allMessages = await this.database.query.messages.findMany({
       orderBy: [desc(messages.date)],
     });
 
-    return attachReplyTargets(allMessages);
+    return attachReplyTargets(allMessages, this.database);
   }
 
   async getGroupMessages(lastMessageId?: number, limitMsgs = 50) {
@@ -19,13 +21,13 @@ export class MessageService {
       conditions.push(lt(messages.id, lastMessageId));
     }
 
-    const groupMessages = await db.query.messages.findMany({
+    const groupMessages = await this.database.query.messages.findMany({
       where: and(...conditions),
       orderBy: [desc(messages.date)],
       limit: limitMsgs,
     });
 
-    return attachReplyTargets(groupMessages);
+    return attachReplyTargets(groupMessages, this.database);
   }
 
   async createMessage(
@@ -37,9 +39,9 @@ export class MessageService {
     isEncrypted?: number,
     replyToMessageId?: number | null
   ) {
-    const replyTarget = await validateReplyTarget(replyToMessageId, { chatType: "group" });
+    const replyTarget = await validateReplyTarget(replyToMessageId, { chatType: "group" }, this.database);
 
-    const [newMessage] = await db
+    const [newMessage] = await this.database
       .insert(messages)
       .values({
         userId,
@@ -52,15 +54,15 @@ export class MessageService {
       })
       .returning();
 
-    return attachReplyTarget(newMessage);
+    return attachReplyTarget(newMessage, this.database);
   }
 
   async deleteMessage(messageId: number) {
-    await db.delete(messages).where(eq(messages.id, messageId));
+    await this.database.delete(messages).where(eq(messages.id, messageId));
   }
 
   async getMessageById(messageId: number) {
-    return await db.query.messages.findFirst({
+    return await this.database.query.messages.findFirst({
       where: eq(messages.id, messageId),
     });
   }

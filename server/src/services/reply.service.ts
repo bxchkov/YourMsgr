@@ -1,5 +1,5 @@
 import { eq, inArray } from "drizzle-orm";
-import { db } from "../db";
+import { db, type Database } from "../db";
 import { messages } from "../db/schema";
 
 export type MessageRecord = typeof messages.$inferSelect;
@@ -43,13 +43,14 @@ function toReplyPreview(message: MessageRecord): ReplyPreview {
 
 export async function validateReplyTarget(
   replyToMessageId: number | null | undefined,
-  context: ReplyContext
+  context: ReplyContext,
+  database: Database = db,
 ): Promise<MessageRecord | null> {
   if (!replyToMessageId) {
     return null;
   }
 
-  const replyTarget = await db.query.messages.findFirst({
+  const replyTarget = await database.query.messages.findFirst({
     where: eq(messages.id, replyToMessageId),
   });
 
@@ -68,7 +69,10 @@ export async function validateReplyTarget(
   return replyTarget;
 }
 
-export async function attachReplyTargets(messageList: MessageRecord[]): Promise<MessageWithReply[]> {
+export async function attachReplyTargets(
+  messageList: MessageRecord[],
+  database: Database = db,
+): Promise<MessageWithReply[]> {
   const replyIds = Array.from(
     new Set(
       messageList
@@ -84,7 +88,7 @@ export async function attachReplyTargets(messageList: MessageRecord[]): Promise<
     }));
   }
 
-  const replyMessages = await db.query.messages.findMany({
+  const replyMessages = await database.query.messages.findMany({
     where: inArray(messages.id, replyIds),
   });
 
@@ -96,7 +100,7 @@ export async function attachReplyTargets(messageList: MessageRecord[]): Promise<
   }));
 }
 
-export async function attachReplyTarget(message: MessageRecord): Promise<MessageWithReply> {
-  const [result] = await attachReplyTargets([message]);
+export async function attachReplyTarget(message: MessageRecord, database: Database = db): Promise<MessageWithReply> {
+  const [result] = await attachReplyTargets([message], database);
   return result;
 }
