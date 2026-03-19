@@ -148,4 +148,25 @@ export const authService = {
             method: 'GET',
         })
     },
+
+    async updateEncryptedPrivateKey(
+        encryptedPrivateKey: string,
+        encryptedPrivateKeyIv: string,
+        encryptedPrivateKeySalt: string,
+    ) {
+        const auth = useAuthStore()
+        if (!auth.token) return createLocalErrorResponse('Session expired', 401)
+
+        return authenticatedRequest('/auth/privateKey', {
+            method: 'PATCH',
+            headers: {
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                encryptedPrivateKey,
+                encryptedPrivateKeyIv,
+                encryptedPrivateKeySalt,
+            }),
+        })
+    },
 }

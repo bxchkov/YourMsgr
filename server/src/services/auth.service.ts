@@ -161,6 +161,25 @@ export class AuthService {
     return { user: updatedUser };
   }
 
+  async updateEncryptedPrivateKey(
+    userId: number,
+    encryptedPrivateKey: string,
+    encryptedPrivateKeyIv: string,
+    encryptedPrivateKeySalt: string,
+  ) {
+    const [updatedUser] = await db
+      .update(users)
+      .set({
+        encryptedPrivateKey,
+        encryptedPrivateKeyIv,
+        encryptedPrivateKeySalt,
+      })
+      .where(eq(users.id, userId))
+      .returning({ id: users.id });
+
+    return updatedUser ?? null;
+  }
+
   async getAllPublicKeys() {
     const allUsers = await db.query.users.findMany({
       columns: {

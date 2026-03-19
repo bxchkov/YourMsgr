@@ -39,6 +39,12 @@ export const usernameSchema = z.object({
     }),
 });
 
+export const encryptedPrivateKeySchema = z.object({
+  encryptedPrivateKey: z.string().min(1),
+  encryptedPrivateKeyIv: z.string().min(1),
+  encryptedPrivateKeySalt: z.string().min(1),
+});
+
 export const wsMessageSchema = z.object({
   type: z.literal("send_message"),
   accessToken: z.string().min(1),

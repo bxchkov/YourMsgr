@@ -10,11 +10,10 @@ export default defineConfig({
     resolve: {
         alias: {
             '@': path.resolve(__dirname, './src'),
-            'libsodium-wrappers-sumo': path.resolve(__dirname, 'node_modules/libsodium-wrappers-sumo/dist/modules-sumo/libsodium-wrappers.js'),
         },
     },
     optimizeDeps: {
-        include: ['libsodium-wrappers-sumo'],
+        include: ['tweetnacl'],
     },
     css: {
         preprocessorOptions: {
@@ -47,8 +46,12 @@ export default defineConfig({
         rollupOptions: {
             output: {
                 manualChunks(id) {
+                    if (id.includes('libsodium-wrappers-sumo')) {
+                        return 'crypto-legacy'
+                    }
+
                     if (id.includes('libsodium')) {
-                        return 'crypto'
+                        return 'crypto-core'
                     }
 
                     if (id.includes('node_modules')) {

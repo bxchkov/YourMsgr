@@ -1,7 +1,7 @@
 import { Context } from "hono";
 import { setCookie, deleteCookie, getCookie } from "hono/cookie";
 import { AuthService } from "../services/auth.service";
-import { loginSchema, registrationSchema, usernameSchema } from "../utils/validation";
+import { encryptedPrivateKeySchema, loginSchema, registrationSchema, usernameSchema } from "../utils/validation";
 import { sendSuccess, sendError } from "../utils/response";
 import { verifyAccessToken, verifyRefreshToken, generateTokens } from "../utils/jwt";
 
@@ -339,5 +339,28 @@ export class AuthController {
   async getPublicKeys(c: Context) {
     const publicKeys = await authService.getAllPublicKeys();
     return sendSuccess(c, "Public keys retrieved", { publicKeys });
+  }
+
+  async updateEncryptedPrivateKey(c: Context) {
+    const user = c.get("user");
+    const body = await c.req.json();
+
+    const validatedData = encryptedPrivateKeySchema.safeParse(body);
+    if (!validatedData.success) {
+      return sendError(c, 400, this.getFirstValidationErrorMessage(validatedData, "Invalid encrypted private key payload"));
+    }
+
+    const updatedUser = await authService.updateEncryptedPrivateKey(
+      user.userId,
+      validatedData.data.encryptedPrivateKey,
+      validatedData.data.encryptedPrivateKeyIv,
+      validatedData.data.encryptedPrivateKeySalt,
+    );
+
+    if (!updatedUser) {
+      return sendError(c, 404, "User not found");
+    }
+
+    return sendSuccess(c, "Encrypted private key updated");
   }
 }

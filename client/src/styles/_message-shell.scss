@@ -199,7 +199,8 @@
     &__e2ee-toggle {
       @include reset-button;
       @include flex-center;
-      width: 28px;
+      width: auto;
+      min-width: 0;
       height: 28px;
       cursor: pointer;
       background-color: transparent;
@@ -243,7 +244,8 @@
     &__button {
       @include reset-button;
       @include flex-center;
-      width: 28px;
+      width: auto;
+      min-width: 0;
       height: 28px;
       pointer-events: none;
       border-radius: $radius-sm;
