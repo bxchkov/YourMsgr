@@ -445,10 +445,11 @@ check_endpoint() {
 
 check_http_redirect() {
   load_env
-  local host port headers expected_location
+  local host port headers expected_location public_url
   host="${PUBLIC_HOST:-localhost}"
   port="${CLIENT_HTTP_PORT:-80}"
-  expected_location="https://${host}/auth"
+  public_url="${PUBLIC_URL:-https://${host}}"
+  expected_location="${public_url}/auth"
   headers="$(curl -sSI -H "Host: ${host}" "http://127.0.0.1:${port}/auth" 2>/dev/null || true)"
 
   if grep -Eq '^HTTP/[0-9.]+ 30[1278]' <<<"$headers" && grep -Fqi "location: ${expected_location}" <<<"$headers"; then
