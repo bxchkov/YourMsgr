@@ -1,3 +1,4 @@
+import { isTerminalSessionMessage } from '@/constants/auth'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
@@ -7,15 +8,6 @@ import { initCrypto } from '@/composables/useCrypto'
 import { disconnectSocket, initSocket, setupSocketHandlers } from '@/composables/useWebSocket'
 import type { PrivateChat } from '@/stores/chat'
 import type { PublicKeyEntry } from '@/types/api'
-
-const TERMINAL_SESSION_MESSAGES = new Set([
-  'Unauthorized',
-  'Invalid or expired token',
-  'Session expired',
-  'Token mismatch',
-  'Missing refresh token',
-  'Invalid refresh token',
-])
 
 export function useChatSession() {
   const chatStore = useChatStore()
@@ -85,7 +77,7 @@ export function useChatSession() {
   async function bootstrapChatSession() {
     const sessionRes = await authService.checkSession()
     if (!sessionRes.success) {
-      if (TERMINAL_SESSION_MESSAGES.has(sessionRes.message || '')) {
+      if (isTerminalSessionMessage(sessionRes.message)) {
         await logoutFromChatSession()
         return false
       }

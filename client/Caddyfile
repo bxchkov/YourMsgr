@@ -1,6 +1,12 @@
 {
 	http_port {$CLIENT_HTTP_PORT}
 	https_port {$CLIENT_HTTPS_PORT}
+	servers {
+		listener_wrappers {
+			http_redirect
+			tls
+		}
+	}
 }
 
 http://{$PUBLIC_HOST} {

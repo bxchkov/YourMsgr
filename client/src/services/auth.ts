@@ -1,3 +1,4 @@
+import { isRetryableAuthMessage } from '@/constants/auth'
 import { useAuthStore } from '@/stores/auth'
 import { createLocalErrorResponse, parseApiResponse, type ParsedApiResponse } from '@/services/http'
 import type {
@@ -8,11 +9,6 @@ import type {
 } from '@/types/api'
 
 const API_BASE = window.location.origin
-const RETRYABLE_AUTH_MESSAGES = new Set([
-    'Unauthorized',
-    'Invalid or expired token',
-])
-
 async function authenticatedRequest<T>(
     endpoint: string,
     init: RequestInit,
@@ -39,7 +35,7 @@ async function authenticatedRequest<T>(
     if (
         retry
         && response.status === 401
-        && RETRYABLE_AUTH_MESSAGES.has(errorMessage)
+        && isRetryableAuthMessage(errorMessage)
     ) {
         const refreshResponse = await authService.refreshTokens()
         if (refreshResponse.success && refreshResponse.data?.accessToken) {

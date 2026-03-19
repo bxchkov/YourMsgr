@@ -1,23 +1,12 @@
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { disconnectSocket } from '@/composables/useWebSocket'
+import { isRetryableAuthMessage, isTerminalSessionMessage } from '@/constants/auth'
 import { authService } from '@/services/auth'
 import { parseApiResponse, type ParsedApiResponse } from '@/services/http'
 import router from '@/router'
 
 const API_BASE = window.location.origin
-const SESSION_ERROR_MESSAGES = new Set([
-    'Unauthorized',
-    'Invalid or expired token',
-    'Session expired',
-    'Token mismatch',
-    'Missing refresh token',
-    'Invalid refresh token',
-])
-const RETRYABLE_AUTH_MESSAGES = new Set([
-    'Unauthorized',
-    'Invalid or expired token',
-])
 
 export async function apiFetch<T = unknown>(
     endpoint: string,
@@ -45,7 +34,7 @@ export async function apiFetch<T = unknown>(
     const errorMessage = data.message || 'Request failed'
 
     if (!response.ok) {
-        if (retry && response.status === 401 && RETRYABLE_AUTH_MESSAGES.has(errorMessage)) {
+        if (retry && response.status === 401 && isRetryableAuthMessage(errorMessage)) {
             const refreshResponse = await authService.refreshTokens()
             if (refreshResponse.success && refreshResponse.data?.accessToken) {
                 auth.setAuth(refreshResponse.data.accessToken)
@@ -56,7 +45,7 @@ export async function apiFetch<T = unknown>(
         const shouldLogout = (
             response.status === 401
             || response.status === 403
-        ) && SESSION_ERROR_MESSAGES.has(errorMessage)
+        ) && isTerminalSessionMessage(errorMessage)
 
         if (shouldLogout) {
             disconnectSocket()

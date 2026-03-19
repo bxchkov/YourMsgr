@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { isTerminalSessionMessage } from '@/constants/auth'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore, type Message } from '@/stores/chat'
 import { authService } from '@/services/auth'
@@ -15,15 +16,6 @@ let socket: WebSocket | null = null
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 let isIntentionalClose = false
 const eventHandlers = new Map<SocketIncomingEventType, (data: SocketIncomingEvent) => void>()
-const TERMINAL_SESSION_MESSAGES = new Set([
-    'Unauthorized',
-    'Invalid or expired token',
-    'Session expired',
-    'Token mismatch',
-    'Missing refresh token',
-    'Invalid refresh token',
-])
-
 export const isConnected = ref(false)
 
 const SOCKET_INCOMING_EVENT_TYPES = [
@@ -230,7 +222,7 @@ export function setupSocketHandlers() {
             return
         }
 
-        if (TERMINAL_SESSION_MESSAGES.has(result.message || '')) {
+        if (isTerminalSessionMessage(result.message)) {
             disconnectSocket()
             chatStore.cleanup()
             auth.logout()
