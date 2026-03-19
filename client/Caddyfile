@@ -2,7 +2,7 @@
 	http_port {$CLIENT_HTTP_PORT}
 	https_port {$CLIENT_HTTPS_PORT}
 	auto_https disable_redirects
-	servers {
+	servers :{$CLIENT_HTTPS_PORT} {
 		listener_wrappers {
 			http_redirect
 			tls
