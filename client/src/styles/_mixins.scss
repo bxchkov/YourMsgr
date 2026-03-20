@@ -122,18 +122,29 @@
     opacity var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear;
 }
 
+@mixin theme-accent-ink-transition {
+  transition:
+    background-color var(--theme-accent-transition-duration, #{$transition-fast-duration}) linear,
+    border-color var(--theme-accent-transition-duration, #{$transition-fast-duration}) linear,
+    box-shadow var(--theme-accent-transition-duration, #{$transition-fast-duration}) linear,
+    color var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear,
+    stroke var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear,
+    fill var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear,
+    opacity var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear;
+}
+
 @mixin theme-accent-transition {
   transition:
-    background-color var(--theme-surface-transition-duration, #{$transition-fast-duration}) linear,
-    border-color var(--theme-surface-transition-duration, #{$transition-fast-duration}) linear,
+    background-color var(--theme-accent-transition-duration, #{$transition-fast-duration}) linear,
+    border-color var(--theme-accent-transition-duration, #{$transition-fast-duration}) linear,
     opacity var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear;
 }
 
 @mixin theme-interactive-transition {
   transition:
-    background-color var(--theme-surface-transition-duration, #{$transition-fast-duration}) linear,
-    border-color var(--theme-surface-transition-duration, #{$transition-fast-duration}) linear,
-    box-shadow var(--theme-surface-transition-duration, #{$transition-fast-duration}) linear,
+    background-color var(--theme-accent-transition-duration, #{$transition-fast-duration}) linear,
+    border-color var(--theme-accent-transition-duration, #{$transition-fast-duration}) linear,
+    box-shadow var(--theme-accent-transition-duration, #{$transition-fast-duration}) linear,
     color var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear,
     stroke var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear,
     fill var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear,

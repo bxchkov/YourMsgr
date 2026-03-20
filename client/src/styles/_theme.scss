@@ -5,14 +5,16 @@
   :root {
     --hover-filter-brightness: 1.1;
     --hover-backdrop-brightness: 1.1;
-    --theme-transition-duration: 1440ms;
+    --theme-transition-duration: 600ms;
+    --theme-accent-transition-duration: #{$transition-fast-duration};
     --theme-surface-transition-duration: #{$transition-fast-duration};
     --theme-ink-transition-duration: #{$transition-fast-duration};
   }
 
   :root.theme-switching {
+    --theme-accent-transition-duration: calc(var(--theme-transition-duration) * 0.6);
     --theme-surface-transition-duration: var(--theme-transition-duration);
-    --theme-ink-transition-duration: var(--theme-transition-duration);
+    --theme-ink-transition-duration: calc(var(--theme-transition-duration) * 0.36);
   }
 
   @media (prefers-reduced-motion: reduce) {

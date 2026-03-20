@@ -157,7 +157,7 @@
 
     &__user-avatar {
       @include flex-center;
-      @include theme-surface-ink-transition;
+      @include theme-accent-ink-transition;
       width: 48px;
       height: 48px;
       border-radius: $radius-full;
@@ -270,7 +270,7 @@
 
     &__avatar {
       @include flex-center;
-      @include theme-surface-ink-transition;
+      @include theme-accent-ink-transition;
       width: 48px;
       height: 48px;
       border-radius: $radius-full;
