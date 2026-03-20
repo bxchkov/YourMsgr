@@ -12,9 +12,9 @@
   }
 
   :root.theme-switching {
-    --theme-accent-transition-duration: calc(var(--theme-transition-duration) * 0.6);
+    --theme-accent-transition-duration: var(--theme-transition-duration);
     --theme-surface-transition-duration: var(--theme-transition-duration);
-    --theme-ink-transition-duration: calc(var(--theme-transition-duration) * 0.36);
+    --theme-ink-transition-duration: var(--theme-transition-duration);
   }
 
   @media (prefers-reduced-motion: reduce) {
