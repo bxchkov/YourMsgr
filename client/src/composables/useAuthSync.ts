@@ -2,7 +2,6 @@ import type { Pinia } from 'pinia'
 import type { Router } from 'vue-router'
 import { useChatStore } from '@/stores/chat'
 import {
-    AUTH_STORAGE_KEY,
     AUTH_SYNC_CHANNEL_NAME,
     AUTH_SYNC_STORAGE_KEY,
     type AuthSyncEvent,
@@ -69,16 +68,6 @@ export function setupAuthSync(pinia: Pinia, router: Router) {
     }
 
     window.addEventListener('storage', (event) => {
-        if (event.key === AUTH_STORAGE_KEY) {
-            if (!event.newValue) {
-                void handleRemoteLogout(pinia, router)
-                return
-            }
-
-            void handleRemoteLogin(pinia, router, event.newValue)
-            return
-        }
-
         if (event.key === AUTH_SYNC_STORAGE_KEY) {
             void handleSyncEvent(pinia, router, parseAuthSyncEvent(event.newValue))
         }

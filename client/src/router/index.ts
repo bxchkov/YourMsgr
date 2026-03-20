@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
+import { AUTH_SESSION_HINT_STORAGE_KEY, useAuthStore } from '@/stores/auth'
 
 const router = createRouter({
     history: createWebHistory(),
@@ -38,7 +38,10 @@ const router = createRouter({
 
 router.beforeEach((to) => {
     const auth = useAuthStore()
-    if (to.meta.requiresAuth && !auth.isAuthenticated) {
+    const hasSessionHint = typeof window !== 'undefined'
+        && window.localStorage.getItem(AUTH_SESSION_HINT_STORAGE_KEY) === '1'
+
+    if (to.meta.requiresAuth && !auth.isAuthenticated && !hasSessionHint) {
         return '/auth'
     }
     if (to.name === 'auth' && auth.isAuthenticated) {

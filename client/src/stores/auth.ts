@@ -12,6 +12,51 @@ export type AuthSyncEvent =
 
 let authSyncChannel: BroadcastChannel | null = null
 
+function getSessionStorage() {
+    if (typeof window === 'undefined') {
+        return null
+    }
+
+    return window.sessionStorage
+}
+
+function getLocalStorage() {
+    if (typeof window === 'undefined') {
+        return null
+    }
+
+    return window.localStorage
+}
+
+function getStoredAccessToken() {
+    const sessionStorage = getSessionStorage()
+    const localStorage = getLocalStorage()
+
+    const sessionToken = sessionStorage?.getItem(AUTH_STORAGE_KEY)
+    if (sessionToken) {
+        return sessionToken
+    }
+
+    const legacyLocalToken = localStorage?.getItem(AUTH_STORAGE_KEY)
+    if (!legacyLocalToken) {
+        return null
+    }
+
+    sessionStorage?.setItem(AUTH_STORAGE_KEY, legacyLocalToken)
+    localStorage?.removeItem(AUTH_STORAGE_KEY)
+    return legacyLocalToken
+}
+
+function persistAccessToken(accessToken: string) {
+    getSessionStorage()?.setItem(AUTH_STORAGE_KEY, accessToken)
+    getLocalStorage()?.removeItem(AUTH_STORAGE_KEY)
+}
+
+function clearStoredAccessToken() {
+    getSessionStorage()?.removeItem(AUTH_STORAGE_KEY)
+    getLocalStorage()?.removeItem(AUTH_STORAGE_KEY)
+}
+
 function decodeJwtPayload(token: string) {
     const payload = token.split('.')[1]
     if (!payload) {
@@ -65,7 +110,7 @@ function setSessionHint(hasSession: boolean) {
 }
 
 export const useAuthStore = defineStore('auth', () => {
-    const token = ref<string | null>(localStorage.getItem(AUTH_STORAGE_KEY))
+    const token = ref<string | null>(getStoredAccessToken())
     const userId = ref<number | null>(null)
     const username = ref<string | null>(null)
     const login = ref<string | null>(null)
@@ -105,7 +150,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     function setAuth(accessToken: string, options: { sync?: boolean } = {}) {
         applyTokenState(accessToken)
-        localStorage.setItem(AUTH_STORAGE_KEY, accessToken)
+        persistAccessToken(accessToken)
         setSessionHint(true)
 
         if (options.sync !== false) {
@@ -128,12 +173,12 @@ export const useAuthStore = defineStore('auth', () => {
     function logout(options: { sync?: boolean } = {}) {
         applyTokenState(null)
         publicKey.value = null
-        localStorage.removeItem(AUTH_STORAGE_KEY)
+        clearStoredAccessToken()
         setSessionHint(false)
-        sessionStorage.removeItem('e2ee_private_key')
-        sessionStorage.removeItem('e2ee_public_key')
-        localStorage.removeItem('e2ee_private_key')
-        localStorage.removeItem('e2ee_public_key')
+        getSessionStorage()?.removeItem('e2ee_private_key')
+        getSessionStorage()?.removeItem('e2ee_public_key')
+        getLocalStorage()?.removeItem('e2ee_private_key')
+        getLocalStorage()?.removeItem('e2ee_public_key')
 
         if (options.sync !== false) {
             broadcastAuthSync({
