@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { useTestRuntime, registerUser, requestJson } from "./support/testServer";
-import { users } from "../../src/db/schema";
+import { messages, users } from "../../src/db/schema";
 import { eq } from "drizzle-orm";
 
 const getRuntime = useTestRuntime();
@@ -70,11 +70,11 @@ describe("HTTP integration: auth and private chats", () => {
     const { app } = getRuntime();
     const alice = await registerUser(app, {
       login: "alice01",
-      username: "Alice",
+      username: "Alice01",
     });
     const bob = await registerUser(app, {
       login: "bob0001",
-      username: "Bob",
+      username: "Bob0001",
     });
 
     const createChatResult = await requestJson<{ chat: { id: number } }>(app, "/api/private-chats", {
@@ -149,5 +149,45 @@ describe("HTTP integration: auth and private chats", () => {
     expect(response.status).toBe(400);
     expect(data.success).toBe(false);
     expect(data.message).toBe("Invalid request body");
+  });
+
+  test("updates stored message usernames when username changes", async () => {
+    const { app, dependencies, db } = getRuntime();
+    const alice = await registerUser(app, {
+      login: "rename01",
+      username: "Rename01",
+    });
+
+    const createdMessage = await dependencies.messageService.createMessage(
+      1,
+      "Rename01",
+      "Original message",
+    );
+
+    expect(createdMessage.username).toBe("Rename01");
+
+    const updateResult = await requestJson<{ accessToken: string; username: string }>(app, "/auth/username", {
+      method: "PATCH",
+      cookie: alice.cookie,
+      headers: {
+        authorization: `Bearer ${alice.accessToken}`,
+      },
+      body: {
+        username: "Rename02",
+      },
+    });
+
+    expect(updateResult.response.status).toBe(200);
+    expect(updateResult.data.success).toBe(true);
+    expect(updateResult.data.data?.username).toBe("Rename02");
+
+    const storedMessage = await db.query.messages.findFirst({
+      where: eq(messages.id, createdMessage.id),
+      columns: {
+        username: true,
+      },
+    });
+
+    expect(storedMessage?.username).toBe("Rename02");
   });
 });

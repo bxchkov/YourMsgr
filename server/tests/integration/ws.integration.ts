@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { fetchJson, loginUser, registerUser, useTestRuntime } from "./support/testServer";
-import { openSocket, waitForSocketMessage } from "./support/wsTestUtils";
+import { openSocket, waitForSocketMessage, waitForSocketMessages } from "./support/wsTestUtils";
 
 const getRuntime = useTestRuntime({ withRealtime: true });
 
@@ -15,11 +15,11 @@ describe("WebSocket integration", () => {
     const { app, origin } = getRuntime();
     const aliceRegistration = await registerUser(app, {
       login: "wsalice",
-      username: "Alice",
+      username: "Alice01",
     });
     const bobRegistration = await registerUser(app, {
       login: "wsbob01",
-      username: "Bob",
+      username: "Bob0001",
     });
 
     const aliceSession = await loginUser(origin, {
@@ -80,15 +80,15 @@ describe("WebSocket integration", () => {
     expect(secondReceived.recipientId).toBe(2);
   });
 
-  test("pushes private chat sync to both participants after HTTP chat creation", async () => {
+  test("pushes private chat sync only to the initiator after HTTP chat creation", async () => {
     const { app, origin } = getRuntime();
     const aliceRegistration = await registerUser(app, {
       login: "syncchat",
-      username: "Alice",
+      username: "Alice01",
     });
     const bobRegistration = await registerUser(app, {
       login: "syncbob1",
-      username: "Bob",
+      username: "Bob0001",
     });
 
     const aliceSession = await loginUser(origin, {
@@ -108,7 +108,12 @@ describe("WebSocket integration", () => {
     expect((await waitForSocketMessage(bobSocket)).type).toBe("load_messages");
 
     const aliceSyncPromise = waitForSocketMessage(aliceSocket);
-    const bobSyncPromise = waitForSocketMessage(bobSocket);
+    const bobSyncPromise = Promise.race([
+      waitForSocketMessage(bobSocket, 400)
+        .then(() => "message")
+        .catch(() => "timeout"),
+      new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 450)),
+    ]);
 
     const createChatResult = await fetchJson<{ chat: { id: number } }>(origin, "/api/private-chats", {
       method: "POST",
@@ -125,7 +130,7 @@ describe("WebSocket integration", () => {
     expect(createChatResult.data.data?.chat.id).toBe(1);
 
     expect((await aliceSyncPromise).type).toBe("sync_private_chats");
-    expect((await bobSyncPromise).type).toBe("sync_private_chats");
+    expect(await bobSyncPromise).toBe("timeout");
   });
 
   test("logs out an already connected socket immediately after HTTP logout", async () => {
@@ -159,5 +164,64 @@ describe("WebSocket integration", () => {
 
     const logoutMessage = await logoutMessagePromise;
     expect(logoutMessage.type).toBe("client_logout");
+  });
+
+  test("pushes username changes to related clients through realtime sync events", async () => {
+    const { app, origin } = getRuntime();
+    const aliceRegistration = await registerUser(app, {
+      login: "renamews",
+      username: "Rename01",
+    });
+    const bobRegistration = await registerUser(app, {
+      login: "renameb1",
+      username: "Rename02",
+    });
+
+    const aliceSession = await loginUser(origin, {
+      login: aliceRegistration.login,
+      password: aliceRegistration.password,
+    });
+    const bobSession = await loginUser(origin, {
+      login: bobRegistration.login,
+      password: bobRegistration.password,
+    });
+
+    const createChatResult = await fetchJson<{ chat: { id: number } }>(origin, "/api/private-chats", {
+      method: "POST",
+      cookie: aliceSession.cookie,
+      headers: {
+        authorization: `Bearer ${aliceSession.accessToken}`,
+      },
+      body: {
+        otherUserId: 2,
+      },
+    });
+
+    expect(createChatResult.response.status).toBe(200);
+
+    const bobSocket = await openSocket(origin, bobSession.cookie);
+    activeSockets.push(bobSocket);
+    expect((await waitForSocketMessage(bobSocket)).type).toBe("load_messages");
+
+    const syncEventsPromise = waitForSocketMessages(bobSocket, 2);
+
+    const updateResult = await fetchJson<{ accessToken: string; username: string }>(origin, "/auth/username", {
+      method: "PATCH",
+      cookie: aliceSession.cookie,
+      headers: {
+        authorization: `Bearer ${aliceSession.accessToken}`,
+      },
+      body: {
+        username: "Rename03",
+      },
+    });
+
+    expect(updateResult.response.status).toBe(200);
+
+    const syncEvents = await syncEventsPromise;
+    const eventTypes = new Set(syncEvents.map((event) => event.type));
+
+    expect(eventTypes.has("sync_group_messages")).toBe(true);
+    expect(eventTypes.has("sync_private_chats")).toBe(true);
   });
 });

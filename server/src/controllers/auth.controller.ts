@@ -263,6 +263,15 @@ export class AuthController {
 
     setCookie(c, "refreshToken", newTokens.refreshToken, this.getRefreshCookieOptions(c));
 
+    await publishRealtimeEventSafe({
+      type: "sync_group_messages",
+    }, undefined, this.realtimeChannel);
+
+    await publishRealtimeEventSafe({
+      type: "sync_private_chats",
+      userIds: updateResult.affectedUserIds,
+    }, undefined, this.realtimeChannel);
+
     return sendSuccess(c, "Username updated successfully", {
       accessToken: newTokens.accessToken,
       username: updatedUser.username,

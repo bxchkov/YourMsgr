@@ -46,6 +46,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { useUiStore } from '@/stores/ui'
 import { emitSocketEvent } from '@/composables/useWebSocket'
+import { loadPrivateChatsIntoStore } from '@/composables/useChatSync'
 import { privateChatsService } from '@/services/privateChats'
 
 const auth = useAuthStore()
@@ -123,9 +124,10 @@ async function handleSendMessage() {
 
     if (response.success && response.data?.chat) {
       const chat = response.data.chat
-      const existingChat = chatStore.privateChats.find((privateChat) => privateChat.chatId === chat.id)
+      await loadPrivateChatsIntoStore(chatStore)
 
-      if (!existingChat) {
+      const syncedChat = chatStore.privateChats.find((privateChat) => privateChat.chatId === chat.id)
+      if (!syncedChat) {
         chatStore.addPrivateChat({
           chatId: chat.id,
           otherUser: {
@@ -140,14 +142,7 @@ async function handleSendMessage() {
         })
       }
 
-      chatStore.setCurrentChat({
-        id: `private-${chat.id}`,
-        type: 'private',
-        chatId: chat.id,
-        recipientId: userId,
-        name: username,
-        otherUserId: userId,
-      })
+      hide()
 
       await router.push({
         name: 'chat-private',
@@ -158,9 +153,9 @@ async function handleSendMessage() {
     }
   } catch (error) {
     console.error('Failed to create private chat:', error)
+  } finally {
+    hide()
   }
-
-  hide()
 }
 
 function handleClickOutside(event: MouseEvent) {

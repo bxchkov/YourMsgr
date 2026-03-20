@@ -27,6 +27,43 @@ export const waitForSocketMessage = async (socket: WebSocket, timeoutMs = 5_000)
   });
 };
 
+export const waitForSocketMessages = async (
+  socket: WebSocket,
+  count: number,
+  timeoutMs = 5_000,
+): Promise<WsEnvelope[]> => {
+  return new Promise((resolve, reject) => {
+    const messages: WsEnvelope[] = [];
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("Timed out while waiting for WebSocket messages"));
+    }, timeoutMs);
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      socket.removeEventListener("message", handleMessage);
+      socket.removeEventListener("error", handleError);
+    };
+
+    const handleMessage = (event: MessageEvent) => {
+      messages.push(JSON.parse(String(event.data)) as WsEnvelope);
+
+      if (messages.length >= count) {
+        cleanup();
+        resolve(messages);
+      }
+    };
+
+    const handleError = (event: Event) => {
+      cleanup();
+      reject(event);
+    };
+
+    socket.addEventListener("message", handleMessage);
+    socket.addEventListener("error", handleError, { once: true });
+  });
+};
+
 export const openSocket = async (origin: string, cookie: string) => {
   const websocketOrigin = origin.replace("http://", "ws://").replace("https://", "wss://");
   const socket = new WebSocket(`${websocketOrigin}/ws`, {

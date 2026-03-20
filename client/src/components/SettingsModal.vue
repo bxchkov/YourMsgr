@@ -13,7 +13,7 @@
           class="form__input"
           :class="{ 'form__input--error': messageTone === 'error' && !!message }"
           type="text"
-          placeholder="2-16 символов"
+          placeholder="6-16 символов, англ. буквы/цифры"
           required
           @input="clearMessage"
         >
@@ -84,9 +84,9 @@ const saving = ref(false)
 
 const normalizedUsername = computed(() => newUsername.value.trim())
 const currentUsername = computed(() => (auth.username || '').trim())
+const USERNAME_PATTERN = /^[a-zA-Z0-9_-]{6,16}$/
 const isValid = computed(() => (
-  normalizedUsername.value.length >= 2
-  && normalizedUsername.value.length <= 16
+  USERNAME_PATTERN.test(normalizedUsername.value)
   && normalizedUsername.value !== currentUsername.value
 ))
 

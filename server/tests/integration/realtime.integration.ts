@@ -84,11 +84,11 @@ describe("Realtime notify integration", () => {
     const { app, origin, client, db, realtimeChannel } = getRuntime();
     const aliceRegistration = await registerUser(app, {
       login: "notify03",
-      username: "Alice",
+      username: "Alice01",
     });
     const bobRegistration = await registerUser(app, {
       login: "notify04",
-      username: "Bob",
+      username: "Bob0001",
     });
 
     const aliceSession = await loginUser(origin, {

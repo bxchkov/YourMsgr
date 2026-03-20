@@ -26,7 +26,8 @@
     width: 100%;
 
     &__wrapper {
-      padding: 0 $spacing-6;
+      --chat-inline-gutter: #{$spacing-6};
+      padding: 0 var(--chat-inline-gutter);
       background-color: $color-bg-chat;
     }
 
@@ -37,12 +38,12 @@
 
     &__reply-highlight {
       position: absolute;
-      left: calc(-1 * #{$spacing-6});
-      right: calc(-1 * #{$spacing-6});
+      left: calc(-1 * var(--chat-inline-gutter));
+      width: calc(100% + (2 * var(--chat-inline-gutter)));
       z-index: 0;
-      border-radius: $radius-sm;
+      border-radius: 0;
       pointer-events: none;
-      background-color: $color-primary-soft-strong-dark;
+      background-color: $color-bg-content;
       transition: opacity 0.32s ease;
 
       &::before {
@@ -53,7 +54,7 @@
         width: 4px;
         height: 100%;
         border-radius: $radius-full;
-        background-color: $color-primary;
+        background-color: $color-primary-soft-dark;
         opacity: 0.9;
       }
     }
@@ -327,12 +328,7 @@
 
     .chat {
       &__wrapper {
-        padding: 0 $spacing-4;
-      }
-
-      &__reply-highlight {
-        left: -$spacing-4;
-        right: -$spacing-4;
+        --chat-inline-gutter: #{$spacing-4};
       }
     }
 

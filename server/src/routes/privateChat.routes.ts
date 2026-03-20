@@ -32,7 +32,7 @@ export const createPrivateChatRoutes = (
       const chat = await privateChatService.getOrCreatePrivateChat(user.userId, otherUserId);
       await publishRealtimeEventSafe({
         type: "sync_private_chats",
-        userIds: [user.userId, otherUserId],
+        userIds: [user.userId],
       }, undefined, realtimeChannel);
 
       return sendSuccess(c, "Chat created", { chat });

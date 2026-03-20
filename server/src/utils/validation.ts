@@ -1,27 +1,35 @@
 import { z } from "zod";
 import { isReservedIdentity } from "./identity";
 
+const identityPattern = /^[a-zA-Z0-9_-]+$/;
+
+const loginValueSchema = z
+  .string()
+  .trim()
+  .refine((value) => identityPattern.test(value) && value.length >= 6 && value.length <= 16, {
+    message: "Invalid login",
+  })
+  .refine((value) => !isReservedIdentity(value), {
+    message: "Reserved login",
+  });
+
+const usernameValueSchema = z
+  .string()
+  .trim()
+  .refine((value) => identityPattern.test(value) && value.length >= 6 && value.length <= 16, {
+    message: "Invalid username",
+  })
+  .refine((value) => !isReservedIdentity(value), {
+    message: "Reserved username",
+  });
+
 export const loginSchema = z.object({
-  login: z
-    .string()
-    .min(6)
-    .max(16)
-    .regex(/^[a-zA-Z0-9_-]+$/)
-    .refine((value) => !isReservedIdentity(value), {
-      message: "Reserved login",
-    }),
+  login: loginValueSchema,
   password: z.string().min(8).max(16),
 });
 
 export const registrationSchema = loginSchema.extend({
-  username: z
-    .string()
-    .trim()
-    .min(2)
-    .max(16)
-    .refine((value) => !isReservedIdentity(value), {
-      message: "Reserved username",
-    }),
+  username: usernameValueSchema,
   publicKey: z.string().min(1),
   encryptedPrivateKey: z.string().min(1),
   encryptedPrivateKeyIv: z.string().min(1),
@@ -33,14 +41,7 @@ export const messageSchema = z.object({
 });
 
 export const usernameSchema = z.object({
-  username: z
-    .string()
-    .trim()
-    .min(2)
-    .max(16)
-    .refine((value) => !isReservedIdentity(value), {
-      message: "Reserved username",
-    }),
+  username: usernameValueSchema,
 });
 
 export const wsMessageSchema = z.object({

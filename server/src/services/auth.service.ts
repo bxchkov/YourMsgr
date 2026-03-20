@@ -1,6 +1,6 @@
 import { and, eq, ne, or } from "drizzle-orm";
 import { db, type Database } from "../db";
-import { users } from "../db/schema";
+import { messages, privateChats, users } from "../db/schema";
 import { hashPassword, verifyPassword } from "../utils/password";
 import { generateTokens } from "../utils/jwt";
 import { isReservedIdentity } from "../utils/identity";
@@ -161,7 +161,32 @@ export class AuthService {
       .where(eq(users.id, userId))
       .returning();
 
-    return { user: updatedUser };
+    await this.database
+      .update(messages)
+      .set({ username: normalizedUsername })
+      .where(eq(messages.userId, userId));
+
+    const relatedPrivateChats = await this.database.query.privateChats.findMany({
+      where: or(
+        eq(privateChats.user1Id, userId),
+        eq(privateChats.user2Id, userId),
+      ),
+      columns: {
+        user1Id: true,
+        user2Id: true,
+      },
+    });
+
+    const affectedUserIds = new Set<number>([userId]);
+    for (const chat of relatedPrivateChats) {
+      affectedUserIds.add(chat.user1Id);
+      affectedUserIds.add(chat.user2Id);
+    }
+
+    return {
+      user: updatedUser,
+      affectedUserIds: [...affectedUserIds],
+    };
   }
   async getAllPublicKeys() {
     const allUsers = await this.database.query.users.findMany({

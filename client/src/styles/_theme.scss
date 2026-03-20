@@ -1,11 +1,19 @@
 @use 'variables' as *;
 @use 'mixins' as *;
 
-@mixin theme-transition {
+@mixin theme-surface-transition {
   transition:
     background-color var(--theme-transition-duration, 720ms) linear,
     border-color var(--theme-transition-duration, 720ms) linear,
     box-shadow var(--theme-transition-duration, 720ms) linear;
+}
+
+@mixin theme-ink-transition {
+  transition:
+    color var(--theme-transition-duration, 720ms) linear,
+    stroke var(--theme-transition-duration, 720ms) linear,
+    fill var(--theme-transition-duration, 720ms) linear,
+    opacity var(--theme-transition-duration, 720ms) linear;
 }
 
 @mixin render {
@@ -46,7 +54,60 @@
       .message-input__wrapper,
       .chat-screen__state-card
     ) {
-      @include theme-transition;
+      @include theme-surface-transition;
+    }
+
+    :where(
+      .chat-header,
+      .chat-header__title,
+      .chat-header .icon-button,
+      .chat-header .icon-button svg,
+      .sidebar,
+      .sidebar__filter,
+      .sidebar__filter svg,
+      .sidebar__user-name,
+      .sidebar__user-login,
+      .sidebar__logout-button,
+      .sidebar__logout-button svg,
+      .chat-item__name,
+      .chat-item__time,
+      .chat-item__message,
+      .chat-item__author,
+      .chat-item__avatar,
+      .chat-item__avatar svg,
+      .message,
+      .message__username,
+      .message__reply-author,
+      .message__reply-preview,
+      .message__time,
+      .message__time-fake,
+      .message__encrypted,
+      .message__encrypted-fake,
+      .message-input__notice,
+      .message-input__reply-title,
+      .message-input__reply-text,
+      .message-input__reply-close,
+      .message-input__reply-close svg,
+      .message-input__field,
+      .message-input__button,
+      .message-input__button svg,
+      .message-input__e2ee-toggle,
+      .message-input__e2ee-toggle svg,
+      .modal__header,
+      .modal__footer,
+      .modal__close,
+      .modal__close svg,
+      .form__label,
+      .form__input,
+      .form__button,
+      .form__link,
+      .form__response,
+      .context-menu__item,
+      .context-menu__item svg,
+      .chat-screen__state-title,
+      .chat-screen__state-text
+    ) {
+      @include theme-ink-transition;
     }
   }
 
@@ -339,7 +400,11 @@
     }
 
     .chat__reply-highlight {
-      background-color: $color-primary-soft-light;
+      background-color: $color-border-light;
+
+      &::before {
+        background-color: $color-primary-dark;
+      }
     }
 
     .modal__content {
