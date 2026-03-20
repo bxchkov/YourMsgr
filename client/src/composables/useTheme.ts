@@ -8,20 +8,15 @@ declare global {
             get: () => ThemeMode
             set: (nextTheme: ThemeMode, durationMs?: number) => ThemeMode
             toggle: (durationMs?: number) => ThemeMode
-            debugSet: (nextTheme: ThemeMode, durationMs?: number) => ThemeMode
-            debugToggle: (durationMs?: number) => ThemeMode
         }
         toggleYourMsgrTheme?: (durationMs?: number) => ThemeMode
         setYourMsgrTheme?: (nextTheme: ThemeMode, durationMs?: number) => ThemeMode
-        toggleYourMsgrThemeDebug?: (durationMs?: number) => ThemeMode
-        setYourMsgrThemeDebug?: (nextTheme: ThemeMode, durationMs?: number) => ThemeMode
     }
 }
 
 const STORAGE_KEY = 'yourmsgr-theme'
 const TRANSITION_CLASS = 'theme-switching'
 const DEFAULT_TRANSITION_DURATION_MS = 600
-const DEBUG_TRANSITION_DURATION_MS = 3000
 const theme = ref<ThemeMode>('dark')
 
 let initialized = false
@@ -37,6 +32,9 @@ function clearThemeTransition() {
     const root = document.documentElement
     root.classList.remove(TRANSITION_CLASS)
     root.style.removeProperty('--theme-transition-duration')
+    root.style.removeProperty('--theme-accent-transition-duration')
+    root.style.removeProperty('--theme-surface-transition-duration')
+    root.style.removeProperty('--theme-ink-transition-duration')
 }
 
 function cancelThemeFrame() {
@@ -51,6 +49,9 @@ function startThemeTransition(durationMs: number) {
     clearThemeTransition()
     void root.offsetWidth
     root.style.setProperty('--theme-transition-duration', `${durationMs}ms`)
+    root.style.setProperty('--theme-accent-transition-duration', `${durationMs}ms`)
+    root.style.setProperty('--theme-surface-transition-duration', `${durationMs}ms`)
+    root.style.setProperty('--theme-ink-transition-duration', `${durationMs}ms`)
     root.classList.add(TRANSITION_CLASS)
 
     cancelThemeFrame()
@@ -132,24 +133,11 @@ function registerThemeConsoleApi() {
         get: () => theme.value,
         set: (nextTheme: ThemeMode, durationMs?: number) => applyTheme(nextTheme, { durationMs }),
         toggle: (durationMs?: number) => applyTheme(theme.value === 'light' ? 'dark' : 'light', { durationMs }),
-        debugSet: (nextTheme: ThemeMode, durationMs = DEBUG_TRANSITION_DURATION_MS) => applyTheme(nextTheme, {
-            durationMs,
-        }),
-        debugToggle: (durationMs = DEBUG_TRANSITION_DURATION_MS) => applyTheme(
-            theme.value === 'light' ? 'dark' : 'light',
-            { durationMs },
-        ),
     }
 
     window.toggleYourMsgrTheme = (durationMs?: number) => window.YourMsgrTheme!.toggle(durationMs)
     window.setYourMsgrTheme = (nextTheme: ThemeMode, durationMs?: number) => (
         window.YourMsgrTheme!.set(nextTheme, durationMs)
-    )
-    window.toggleYourMsgrThemeDebug = (durationMs = DEBUG_TRANSITION_DURATION_MS) => (
-        window.YourMsgrTheme!.debugToggle(durationMs)
-    )
-    window.setYourMsgrThemeDebug = (nextTheme: ThemeMode, durationMs = DEBUG_TRANSITION_DURATION_MS) => (
-        window.YourMsgrTheme!.debugSet(nextTheme, durationMs)
     )
 }
 

@@ -11,14 +11,9 @@
     --theme-ink-transition-duration: #{$transition-fast-duration};
   }
 
-  :root.theme-switching {
-    --theme-accent-transition-duration: var(--theme-transition-duration);
-    --theme-surface-transition-duration: var(--theme-transition-duration);
-    --theme-ink-transition-duration: var(--theme-transition-duration);
-  }
-
   @media (prefers-reduced-motion: reduce) {
     :root.theme-switching {
+      --theme-accent-transition-duration: 0ms !important;
       --theme-surface-transition-duration: 0ms !important;
       --theme-ink-transition-duration: 0ms !important;
     }

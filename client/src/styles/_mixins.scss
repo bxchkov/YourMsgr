@@ -140,6 +140,17 @@
     opacity var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear;
 }
 
+@mixin theme-interactive-core-transition {
+  transition:
+    background-color var(--theme-accent-transition-duration, #{$transition-fast-duration}) linear,
+    border-color var(--theme-accent-transition-duration, #{$transition-fast-duration}) linear,
+    box-shadow var(--theme-accent-transition-duration, #{$transition-fast-duration}) linear,
+    color var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear,
+    stroke var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear,
+    fill var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear,
+    opacity var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear;
+}
+
 @mixin theme-interactive-transition {
   transition:
     background-color var(--theme-accent-transition-duration, #{$transition-fast-duration}) linear,
@@ -154,9 +165,16 @@
 }
 
 @mixin hover-brightness {
-  @include theme-interactive-transition;
+  @include theme-interactive-core-transition;
+
+  :root.theme-switching & {
+    @include theme-interactive-core-transition;
+    filter: none !important;
+    backdrop-filter: none !important;
+  }
 
   &:hover:not(:disabled) {
+    @include theme-interactive-transition;
     filter: brightness(var(--hover-filter-brightness, 1.1));
     backdrop-filter: brightness(var(--hover-backdrop-brightness, 1.1));
   }
