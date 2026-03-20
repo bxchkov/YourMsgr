@@ -3,6 +3,7 @@
 
 @mixin render {
   .sidebar {
+    @include theme-surface-transition;
     display: flex;
     flex-direction: column;
     width: 420px;
@@ -31,6 +32,7 @@
     &__header {
       display: flex;
       height: $header-height;
+      @include theme-surface-transition;
       background-color: $color-primary;
       border-bottom: 1px solid $color-border-dark;
     }
@@ -39,6 +41,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      @include theme-surface-transition;
       width: 80px;
       background-color: $color-primary;
       border-right: 1px solid $color-border-dark;
@@ -48,6 +51,7 @@
     &__header-main {
       flex: 1;
       min-width: 0;
+      @include theme-surface-transition;
       background-color: $color-primary;
     }
 
@@ -62,10 +66,12 @@
       flex: 1;
       min-height: 0;
       overflow: hidden;
+      @include theme-surface-transition;
     }
 
     &__filters {
       @include flex-column;
+      @include theme-surface-transition;
       width: 80px;
       background-color: $color-bg-body;
       border-right: 1px solid $color-border-dark;
@@ -76,6 +82,7 @@
       @include reset-button;
       @include flex-column;
       @include flex-center;
+      @include theme-ink-transition;
       height: 70px;
       gap: $spacing-1;
       color: $color-text-tertiary;
@@ -90,9 +97,11 @@
         width: 24px;
         height: 24px;
         stroke-width: 2;
+        @include theme-ink-transition;
       }
 
       span {
+        @include theme-ink-transition;
         text-align: center;
         line-height: 1.2;
       }
@@ -109,6 +118,7 @@
       flex-direction: column;
       min-width: 0;
       overflow: hidden;
+      @include theme-surface-transition;
       background-color: $color-bg-chat;
     }
 
@@ -123,6 +133,7 @@
       justify-content: center;
       min-height: $footer-height;
       padding: $footer-shell-padding-y $footer-shell-padding-x;
+      @include theme-surface-transition;
       border-top: 1px solid $color-border-dark;
       background-color: $color-bg-input-area;
     }
@@ -133,6 +144,7 @@
       align-items: center;
       padding: 10px 12px;
       min-height: $input-height;
+      @include theme-surface-transition;
       border-radius: $radius-md;
       background-color: $color-bg-content;
       border: 1px solid $color-border-dark;
@@ -140,6 +152,8 @@
 
     &__user-avatar {
       @include flex-center;
+      @include theme-surface-transition;
+      @include theme-ink-transition;
       width: 48px;
       height: 48px;
       border-radius: $radius-full;
@@ -151,6 +165,7 @@
         width: 24px;
         height: 24px;
         stroke-width: 2;
+        @include theme-ink-transition;
       }
     }
 
@@ -179,6 +194,7 @@
     }
 
     &__user-name {
+      @include theme-ink-transition;
       font-size: $font-size-base;
       font-weight: $font-weight-semibold;
       color: $color-text-primary;
@@ -186,6 +202,7 @@
     }
 
     &__user-login {
+      @include theme-ink-transition;
       font-size: $font-size-sm;
       color: $color-text-tertiary;
       @include text-ellipsis;
@@ -201,6 +218,7 @@
   }
 
   .chat-item {
+    @include theme-surface-transition;
     @include flex-center;
     gap: $spacing-3;
     padding: 0 $spacing-4;
@@ -216,6 +234,8 @@
 
     &__avatar {
       @include flex-center;
+      @include theme-surface-transition;
+      @include theme-ink-transition;
       width: 48px;
       height: 48px;
       border-radius: $radius-full;
@@ -226,6 +246,7 @@
       svg {
         width: 24px;
         height: 24px;
+        @include theme-ink-transition;
       }
     }
 
@@ -243,6 +264,7 @@
     }
 
     &__name {
+      @include theme-ink-transition;
       font-weight: $font-weight-semibold;
       font-size: $font-size-base;
       color: $color-text-primary;
@@ -250,6 +272,7 @@
     }
 
     &__time {
+      @include theme-ink-transition;
       font-size: $font-size-xs;
       color: $color-text-tertiary;
       flex-shrink: 0;
@@ -261,6 +284,7 @@
     }
 
     &__message {
+      @include theme-ink-transition;
       font-size: $font-size-sm;
       color: $color-text-tertiary;
       @include text-ellipsis;

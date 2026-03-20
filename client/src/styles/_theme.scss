@@ -1,191 +1,24 @@
 @use 'variables' as *;
 @use 'mixins' as *;
 
-@mixin theme-surface-transition {
-  transition:
-    background-color var(--theme-transition-duration, 720ms) linear,
-    border-color var(--theme-transition-duration, 720ms) linear,
-    box-shadow var(--theme-transition-duration, 720ms) linear;
-}
-
-@mixin theme-ink-transition {
-  transition:
-    color var(--theme-transition-duration, 720ms) linear,
-    stroke var(--theme-transition-duration, 720ms) linear,
-    fill var(--theme-transition-duration, 720ms) linear,
-    opacity var(--theme-transition-duration, 720ms) linear;
-}
-
 @mixin render {
   :root {
     --hover-filter-brightness: 1.1;
     --hover-backdrop-brightness: 1.1;
-    --theme-transition-duration: 720ms;
+    --theme-transition-duration: 1440ms;
+    --theme-surface-transition-duration: #{$transition-fast};
+    --theme-ink-transition-duration: #{$transition-fast};
   }
 
   :root.theme-switching {
-    :where(
-      body,
-      .app,
-      .main-content,
-      .chat-screen,
-      .chat,
-      .chat__wrapper,
-      .chat__messages,
-      .chat-header,
-      .sidebar,
-      .sidebar__header,
-      .sidebar__header-side,
-      .sidebar__header-main,
-      .sidebar__content,
-      .sidebar__filters,
-      .sidebar__filter,
-      .sidebar__filter--active,
-      .sidebar__chats,
-      .sidebar__footer,
-      .sidebar__user-info,
-      .sidebar__user-avatar,
-      .chat-item,
-      .chat-item--active,
-      .chat-item__avatar,
-      .message,
-      .message__reply,
-      .message-input,
-      .chat__reply-highlight,
-      .modal-backdrop,
-      .modal__backdrop,
-      .modal__content,
-      .modal__header,
-      .modal__form,
-      .modal__footer,
-      .context-menu,
-      .message-input__reply,
-      .message-input__wrapper,
-      .message-input__button,
-      .message-input__e2ee-toggle,
-      .chat-screen__state-card
-    ) {
-      @include theme-surface-transition;
-    }
-
-    :where(
-      .chat-header,
-      .chat-header__title,
-      .chat-header .icon-button,
-      .chat-header .icon-button svg,
-      .sidebar,
-      .sidebar__filter,
-      .sidebar__filter svg,
-      .sidebar__filter--active,
-      .sidebar__filter--active svg,
-      .sidebar__user-name,
-      .sidebar__user-login,
-      .sidebar__logout-button,
-      .sidebar__logout-button svg,
-      .chat-item__name,
-      .chat-item__time,
-      .chat-item__message,
-      .chat-item__author,
-      .chat-item__avatar,
-      .chat-item__avatar svg,
-      .chat-item--active .chat-item__avatar,
-      .chat-item--active .chat-item__avatar svg,
-      .message,
-      .message__username,
-      .message__reply-author,
-      .message__reply-preview,
-      .message__time,
-      .message__time-fake,
-      .message__encrypted,
-      .message__encrypted-fake,
-      .message__reply-line,
-      .message-input__notice,
-      .message-input__actions,
-      .message-input__reply-title,
-      .message-input__reply-text,
-      .message-input__reply-line,
-      .message-input__reply-close,
-      .message-input__reply-close svg,
-      .message-input__field,
-      .message-input__button,
-      .message-input__button svg,
-      .message-input__e2ee-toggle,
-      .message-input__e2ee-toggle svg,
-      .modal__header,
-      .modal__footer,
-      .modal__close,
-      .modal__close svg,
-      .form__label,
-      .form__input,
-      .form__button,
-      .form__link,
-      .form__response,
-      .context-menu__item,
-      .context-menu__item svg,
-      .chat-screen__state-title,
-      .chat-screen__state-text
-    ) {
-      @include theme-ink-transition;
-    }
-
-    .chat__reply-highlight::before,
-    .message__reply-line,
-    .message-input__reply-line,
-    .chat__resize-handle::before {
-      transition:
-        background-color var(--theme-transition-duration, 720ms) linear,
-        opacity var(--theme-transition-duration, 720ms) linear;
-    }
+    --theme-surface-transition-duration: var(--theme-transition-duration);
+    --theme-ink-transition-duration: var(--theme-transition-duration);
   }
 
   @media (prefers-reduced-motion: reduce) {
     :root.theme-switching {
-      :where(
-        body,
-        .app,
-        .main-content,
-        .chat-screen,
-        .chat,
-        .chat__wrapper,
-        .chat__messages,
-        .chat-header,
-        .sidebar,
-        .sidebar__header,
-        .sidebar__header-side,
-        .sidebar__header-main,
-        .sidebar__content,
-        .sidebar__filters,
-        .sidebar__filter,
-        .sidebar__chats,
-        .sidebar__footer,
-        .sidebar__user-info,
-        .sidebar__user-avatar,
-        .chat-item,
-        .message,
-        .message-input,
-        .chat__reply-highlight,
-        .modal-backdrop,
-        .modal__backdrop,
-        .modal__content,
-        .modal__header,
-        .modal__form,
-        .modal__footer,
-        .context-menu,
-        .message-input__reply,
-        .message-input__wrapper,
-        .message-input__button,
-        .message-input__e2ee-toggle,
-        .chat-screen__state-card
-      ) {
-        transition: none;
-      }
-
-      .chat__reply-highlight::before,
-      .message__reply-line,
-      .message-input__reply-line,
-      .chat__resize-handle::before {
-        transition: none;
-      }
+      --theme-surface-transition-duration: 0ms !important;
+      --theme-ink-transition-duration: 0ms !important;
     }
   }
 
@@ -215,15 +48,6 @@
   .chat-header .icon-button,
   .sidebar__header .icon-button {
     color: rgba(255, 255, 255, 0.88);
-  }
-
-  .modal .modal__close {
-    transition: color $transition-fast, filter $transition-fast;
-
-    &:hover:not(:disabled) {
-      filter: brightness(var(--hover-filter-brightness, 1.1));
-      backdrop-filter: none;
-    }
   }
 
   [data-theme='light'] {

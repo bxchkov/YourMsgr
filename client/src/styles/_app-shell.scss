@@ -7,6 +7,8 @@
   // ============================================
 
   body {
+    @include theme-surface-transition;
+    @include theme-ink-transition;
     background-color: $color-bg-body;
     color: $color-text-primary;
     font-family: $font-primary;
@@ -26,10 +28,12 @@
     flex-direction: column;
     flex: 1;
     overflow: hidden;
+    @include theme-surface-transition;
   }
 
   .chat-header {
     @include flex-between;
+    @include theme-surface-transition;
     height: $header-height;
     padding: 0 $spacing-4;
     background-color: $color-bg-header;
@@ -43,12 +47,14 @@
     }
 
     &__title {
+      @include theme-ink-transition;
       font-size: $font-size-lg;
       font-weight: $font-weight-semibold;
       color: $color-text-primary;
     }
 
     &__status {
+      @include theme-ink-transition;
       font-size: $font-size-xs;
       color: $color-text-tertiary;
     }
@@ -78,6 +84,7 @@
   }
 
   .chat-screen__state-card {
+    @include theme-surface-transition;
     width: min(420px, 100%);
     display: flex;
     flex-direction: column;
@@ -89,6 +96,7 @@
   }
 
   .chat-screen__state-title {
+    @include theme-ink-transition;
     margin: 0;
     font-family: $font-display;
     font-size: $font-size-2xl;
@@ -97,6 +105,7 @@
   }
 
   .chat-screen__state-text {
+    @include theme-ink-transition;
     margin: 0;
     color: $color-text-secondary;
     line-height: $line-height-normal;
@@ -104,6 +113,7 @@
 
   .chat-screen__state-button {
     @include reset-button;
+    @include hover-brightness;
     width: 100%;
     min-height: 40px;
     border-radius: $radius-md;
@@ -111,15 +121,6 @@
     color: #ffffff;
     font-size: $font-size-base;
     font-weight: $font-weight-semibold;
-    transition:
-      background-color $transition-fast,
-      color $transition-fast,
-      filter $transition-base;
-
-    &:hover:not(:disabled) {
-      filter: brightness(var(--hover-filter-brightness, 1.1));
-      backdrop-filter: brightness(var(--hover-backdrop-brightness, 1.1));
-    }
   }
 
   // ============================================

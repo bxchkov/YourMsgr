@@ -3,6 +3,8 @@
 
 @mixin render {
   .message {
+    @include theme-surface-transition;
+    @include theme-ink-transition;
     position: relative;
     display: flex;
     flex-direction: column;
@@ -55,6 +57,7 @@
     }
 
     &__username {
+      @include theme-ink-transition;
       font-weight: $font-weight-bold;
       white-space: nowrap;
       font-size: $font-size-base;
@@ -88,6 +91,7 @@
 
     &__encrypted-fake {
       flex-shrink: 0;
+      @include theme-ink-transition;
       stroke: $color-text-muted;
       opacity: 0.7;
       width: 14px;
@@ -95,6 +99,7 @@
     }
 
     &__time-fake {
+      @include theme-ink-transition;
       align-self: flex-end;
       font-size: $font-size-xs;
     }
@@ -112,6 +117,7 @@
 
     &__encrypted {
       flex-shrink: 0;
+      @include theme-ink-transition;
       stroke: $color-text-muted;
       opacity: 0.7;
       width: 14px;
@@ -120,6 +126,7 @@
     }
 
     &__time {
+      @include theme-ink-transition;
       color: $color-text-muted;
       font-size: $font-size-xs;
       line-height: $line-height-tight;
@@ -143,6 +150,7 @@
     align-items: stretch;
     min-height: $footer-height;
     height: auto;
+    @include theme-surface-transition;
     background-color: $color-bg-input-area;
     position: relative;
 
@@ -161,6 +169,7 @@
     &__wrapper {
       width: 100%;
       min-height: $input-height;
+      @include theme-surface-transition;
       background-color: $color-bg-field;
       border-radius: $radius-md;
       padding: $footer-panel-padding-y $footer-panel-padding-x;
@@ -211,7 +220,7 @@
         width: auto;
         height: 100%;
         stroke: $color-text-muted;
-        transition: stroke $transition-fast;
+        @include theme-ink-transition;
       }
 
       &--active {
@@ -232,6 +241,7 @@
       min-height: calc(1.35em + 2px);
       font-size: $font-size-sm;
       line-height: 1.35;
+      @include theme-ink-transition;
       color: $color-text-primary;
       background-color: transparent;
       resize: none;
@@ -260,7 +270,7 @@
         height: 100%;
         stroke: $color-text-muted;
         fill: none;
-        transition: stroke $transition-fast;
+        @include theme-ink-transition;
       }
 
       &--active {

@@ -3,6 +3,7 @@
 
 @mixin render {
   .chat-screen {
+    @include theme-surface-transition;
     background-color: $color-bg-body;
   }
 
@@ -13,10 +14,12 @@
 
   .main-content {
     min-width: 0;
+    @include theme-surface-transition;
     background-color: $color-bg-body;
   }
 
   .chat-header {
+    @include theme-surface-transition;
     padding: 0 $spacing-6;
     background-color: $color-primary;
     border-bottom: 1px solid $color-border-dark;
@@ -28,6 +31,7 @@
     &__wrapper {
       --chat-inline-gutter: #{$spacing-6};
       position: relative;
+      @include theme-surface-transition;
       padding: 0 var(--chat-inline-gutter);
       background-color: $color-bg-chat;
     }
@@ -35,18 +39,23 @@
     &__messages {
       position: relative;
       z-index: 1;
+      @include theme-surface-transition;
       padding: $spacing-5 0 $spacing-4;
     }
 
     &__reply-highlight {
       position: absolute;
+      @include theme-accent-transition;
       left: 0;
       right: 0;
       z-index: 0;
       border-radius: 0;
       pointer-events: none;
       background-color: $color-bg-content;
-      transition: opacity 0.32s ease;
+      transition:
+        background-color var(--theme-surface-transition-duration, #{$transition-fast}) linear,
+        border-color var(--theme-surface-transition-duration, #{$transition-fast}) linear,
+        opacity 0.32s ease;
 
       &::before {
         content: '';
@@ -58,6 +67,7 @@
         border-radius: $radius-full;
         background-color: $color-primary-soft-dark;
         opacity: 0.9;
+        @include theme-accent-transition;
       }
     }
   }
@@ -89,6 +99,7 @@
       width: 2px;
       border-radius: $radius-full;
       flex-shrink: 0;
+      @include theme-accent-transition;
       background-color: $color-primary;
     }
 
@@ -100,6 +111,7 @@
     }
 
     &__reply-author {
+      @include theme-ink-transition;
       font-size: 0.78rem;
       font-weight: $font-weight-semibold;
       color: $color-primary;
@@ -107,6 +119,7 @@
     }
 
     &__reply-preview {
+      @include theme-ink-transition;
       font-size: 0.82rem;
       color: $color-text-secondary;
       line-height: 1.15;
@@ -132,6 +145,7 @@
   }
 
   .message-input {
+    @include theme-surface-transition;
     min-height: $footer-height;
     height: auto;
     justify-content: center;
@@ -165,6 +179,7 @@
       overflow: hidden;
       opacity: 0;
       transform: translateY(-4px);
+      @include theme-ink-transition;
       color: $color-error;
       font-size: $font-size-sm;
       line-height: 1.35;
@@ -189,6 +204,7 @@
       width: 100%;
       min-height: 44px;
       padding: 7px 10px;
+      @include theme-surface-transition;
       border: 1px solid $color-border-dark;
       border-radius: $radius-md;
       background-color: $color-bg-content;
@@ -208,6 +224,7 @@
       width: 2px;
       border-radius: $radius-full;
       flex-shrink: 0;
+      @include theme-accent-transition;
       background-color: $color-primary;
     }
 
@@ -219,6 +236,7 @@
     }
 
     &__reply-title {
+      @include theme-ink-transition;
       font-size: $font-size-sm;
       font-weight: $font-weight-medium;
       line-height: 1.1;
@@ -226,6 +244,7 @@
     }
 
     &__reply-text {
+      @include theme-ink-transition;
       font-size: $font-size-sm;
       color: $color-text-secondary;
       line-height: 1.15;
@@ -254,6 +273,7 @@
 
     &__wrapper {
       min-height: $input-height;
+      @include theme-surface-transition;
       border: 1px solid $color-border-dark;
       background-color: $color-bg-content;
       box-shadow: none;
@@ -289,7 +309,7 @@
         height: 100%;
         background-color: $color-primary-soft-strong-dark;
         opacity: 0;
-        transition: opacity $transition-base;
+        @include theme-accent-transition;
       }
 
       &:hover::before {
@@ -305,6 +325,7 @@
     }
 
     &__author {
+      @include theme-ink-transition;
       color: $color-primary;
       font-size: $font-size-sm;
       font-weight: $font-weight-medium;
