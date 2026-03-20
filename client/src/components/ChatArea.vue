@@ -10,7 +10,7 @@
       >
         <div v-if="replyHighlightStyle" class="chat__reply-highlight" :style="replyHighlightStyle" />
         <MessageItem
-          v-for="msg in displayMessages"
+          v-for="msg in visibleMessages"
           :key="msg.id"
           :message="msg"
           :is-own="Number(msg.userId) === auth.userId"
@@ -147,9 +147,29 @@ let highlightTimeout: number | null = null
 let removeHighlightTimeout: number | null = null
 let privateMessagesRequestId = 0
 
-const displayMessages = computed(() => chatStore.activeMessages)
+const visibleMessages = ref<Message[]>(chatStore.activeMessages)
+const visibleChatId = ref(chatStore.currentChat.id)
 const normalizedComposerText = computed(() => normalizeMessageText(messageText.value))
 const replyHighlight = ref<{ top: number; height: number; visible: boolean } | null>(null)
+const currentPrivateChatId = computed(() => (
+  chatStore.currentChat.type === 'private' && chatStore.currentChat.chatId !== null
+    ? chatStore.currentChat.chatId
+    : null
+))
+const currentPrivateMessages = computed(() => {
+  if (currentPrivateChatId.value === null) {
+    return []
+  }
+
+  return chatStore.privateMessagesByChatId[currentPrivateChatId.value] ?? []
+})
+const currentPrivateMessagesLoaded = computed(() => {
+  if (currentPrivateChatId.value === null) {
+    return false
+  }
+
+  return Boolean(chatStore.privateMessagesLoadedByChatId[currentPrivateChatId.value])
+})
 const isE2eeAvailable = computed(() => {
   cryptoRevision.value
   return Boolean(getPrivateKey() && getPublicKey())
@@ -193,6 +213,11 @@ const replyHighlightStyle = computed(() => {
     opacity: replyHighlight.value.visible ? '1' : '0',
   }
 })
+
+function setVisibleMessages(messages: Message[], chatId = chatStore.currentChat.id) {
+  visibleMessages.value = messages
+  visibleChatId.value = chatId
+}
 
 function setComposerNotice(message: string) {
   composerNotice.value = message
@@ -289,11 +314,6 @@ async function resolveRecipientPublicKey(recipientId: number) {
   return null
 }
 
-watch(displayMessages, async () => {
-  await nextTick()
-  scrollToBottom()
-}, { deep: true })
-
 watch(messageText, async () => {
   await nextTick()
   syncMessageInputHeight()
@@ -306,17 +326,81 @@ watch(
     e2eeEnabled.value = false
     clearComposerNotice()
 
-    if (chatStore.currentChat.type === 'private' && chatStore.currentChat.chatId) {
-      chatStore.setPrivateMessages([])
-      await loadPrivateChatMessages(chatStore.currentChat.chatId, requestId)
+    if (chatStore.currentChat.type === 'group' || chatStore.currentChat.chatId === null) {
+      setVisibleMessages(chatStore.groupMessages, chatStore.currentChat.id)
+    } else if (chatStore.privateMessagesLoadedByChatId[chatStore.currentChat.chatId]) {
+      setVisibleMessages(currentPrivateMessages.value, chatStore.currentChat.id)
     } else {
-      chatStore.setPrivateMessages([])
+      setVisibleMessages([], chatStore.currentChat.id)
+    }
+
+    if (chatStore.currentChat.type === 'private' && chatStore.currentChat.chatId) {
+      await loadPrivateChatMessages(chatStore.currentChat.chatId, requestId)
     }
 
     await nextTick()
     syncMessageInputHeight()
+  },
+)
+
+watch(
+  () => ({
+    chatId: chatStore.currentChat.id,
+    groupLength: chatStore.groupMessages.length,
+    groupFirstId: chatStore.groupMessages[0]?.id ?? null,
+    privateChatId: currentPrivateChatId.value,
+    privateLoaded: currentPrivateMessagesLoaded.value,
+    privateLength: currentPrivateMessages.value.length,
+    privateFirstId: currentPrivateMessages.value[0]?.id ?? null,
+  }),
+  (currentState, previousState) => {
+    const chatChanged = currentState.chatId !== previousState?.chatId
+
+    if (chatStore.currentChat.type === 'group') {
+      const groupMessagesChanged = currentState.groupLength !== previousState?.groupLength
+        || currentState.groupFirstId !== previousState?.groupFirstId
+
+      if (chatChanged || groupMessagesChanged) {
+        setVisibleMessages(chatStore.groupMessages, chatStore.currentChat.id)
+      }
+      return
+    }
+
+    if (!currentState.privateLoaded) {
+      return
+    }
+
+    const privateMessagesChanged = currentState.privateChatId !== previousState?.privateChatId
+      || currentState.privateLength !== previousState?.privateLength
+      || currentState.privateFirstId !== previousState?.privateFirstId
+      || currentState.privateLoaded !== previousState?.privateLoaded
+
+    if (chatChanged || privateMessagesChanged) {
+      setVisibleMessages(currentPrivateMessages.value, chatStore.currentChat.id)
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  () => ({
+    chatId: visibleChatId.value,
+    length: visibleMessages.value.length,
+    firstId: visibleMessages.value[0]?.id ?? null,
+  }),
+  async (currentState, previousState) => {
+    const chatChanged = currentState.chatId !== previousState?.chatId
+    const appendedNewMessage = currentState.length > (previousState?.length ?? 0)
+      && currentState.firstId !== previousState?.firstId
+
+    if (!chatChanged && !appendedNewMessage) {
+      return
+    }
+
+    await nextTick()
     scrollToBottom()
   },
+  { immediate: true },
 )
 
 watch(isE2eeAvailable, (available) => {
@@ -357,13 +441,17 @@ async function loadPrivateChatMessages(chatId: number, requestId: number) {
       }
 
       chatStore.setPrivateMessages(response.data.messages)
+      setVisibleMessages(response.data.messages, chatStore.currentChat.id)
     }
   } catch (requestError) {
     if (requestId !== privateMessagesRequestId) {
       return
     }
 
-    chatStore.setPrivateMessages([])
+    if (chatStore.currentChat.type === 'private' && chatStore.currentChat.chatId === chatId) {
+      setVisibleMessages([], chatStore.currentChat.id)
+    }
+
     console.error('Failed to load private chat messages:', requestError)
   }
 }

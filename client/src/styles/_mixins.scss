@@ -98,10 +98,11 @@
 
 @mixin hover-brightness {
   transition:
-    filter $transition-slow linear,
-    color $transition-fast linear,
-    background-color $transition-fast linear,
-    border-color $transition-fast linear;
+    filter $transition-base ease,
+    color $transition-fast ease,
+    background-color $transition-fast ease,
+    border-color $transition-fast ease,
+    box-shadow $transition-fast ease;
 
   &:hover:not(:disabled) {
     filter: brightness(var(--hover-filter-brightness, 1.1));

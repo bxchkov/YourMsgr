@@ -11,10 +11,10 @@
     border-radius: $radius-md;
     color: rgba(255, 255, 255, 0.84);
     transition:
-      color $transition-fast linear,
-      background-color $transition-fast linear,
-      border-color $transition-fast linear,
-      filter $transition-slow linear;
+      color $transition-fast ease,
+      background-color $transition-fast ease,
+      border-color $transition-fast ease,
+      filter $transition-base ease;
 
     svg {
       width: 20px;

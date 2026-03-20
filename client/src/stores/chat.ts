@@ -70,7 +70,8 @@ export function createGeneralCurrentChat(): CurrentChat {
 
 export const useChatStore = defineStore('chat', () => {
     const groupMessages = ref<Message[]>([])
-    const privateMessages = ref<Message[]>([])
+    const privateMessagesByChatId = ref<Record<number, Message[]>>({})
+    const privateMessagesLoadedByChatId = ref<Record<number, boolean>>({})
     const privateChats = ref<PrivateChat[]>([])
     const publicKeys = ref<Record<number, string>>({})
     const replyTarget = ref<Message | null>(null)
@@ -78,7 +79,11 @@ export const useChatStore = defineStore('chat', () => {
     const currentChat = ref<CurrentChat>(createGeneralCurrentChat())
 
     const activeMessages = computed(() => {
-        return currentChat.value.type === 'group' ? groupMessages.value : privateMessages.value
+        if (currentChat.value.type === 'group' || currentChat.value.chatId === null) {
+            return groupMessages.value
+        }
+
+        return privateMessagesByChatId.value[currentChat.value.chatId] ?? []
     })
 
     function mergeMessages(existing: Message[], incoming: Message[]) {
@@ -97,7 +102,19 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     function setPrivateMessages(messages: Message[]) {
-        privateMessages.value = messages
+        if (currentChat.value.type !== 'private' || currentChat.value.chatId === null) {
+            return
+        }
+
+        const chatId = currentChat.value.chatId
+        privateMessagesByChatId.value = {
+            ...privateMessagesByChatId.value,
+            [chatId]: messages,
+        }
+        privateMessagesLoadedByChatId.value = {
+            ...privateMessagesLoadedByChatId.value,
+            [chatId]: true,
+        }
     }
 
     function appendGroupMessages(messages: Message[]) {
@@ -105,22 +122,61 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     function appendPrivateMessages(messages: Message[]) {
-        privateMessages.value = mergeMessages(privateMessages.value, messages)
+        if (currentChat.value.type !== 'private' || currentChat.value.chatId === null) {
+            return
+        }
+
+        const chatId = currentChat.value.chatId
+        const existingMessages = privateMessagesByChatId.value[chatId] ?? []
+
+        privateMessagesByChatId.value = {
+            ...privateMessagesByChatId.value,
+            [chatId]: mergeMessages(existingMessages, messages),
+        }
+        privateMessagesLoadedByChatId.value = {
+            ...privateMessagesLoadedByChatId.value,
+            [chatId]: true,
+        }
+    }
+
+    function upsertPrivateMessage(chatId: number, message: Message) {
+        const hasLoadedCache = Boolean(privateMessagesLoadedByChatId.value[chatId])
+        const isActiveChat = currentChat.value.type === 'private' && currentChat.value.chatId === chatId
+
+        if (!hasLoadedCache && !isActiveChat) {
+            return
+        }
+
+        const existingMessages = privateMessagesByChatId.value[chatId] ?? []
+
+        privateMessagesByChatId.value = {
+            ...privateMessagesByChatId.value,
+            [chatId]: [message, ...existingMessages.filter((entry) => entry.id !== message.id)],
+        }
+
+        privateMessagesLoadedByChatId.value = {
+            ...privateMessagesLoadedByChatId.value,
+            [chatId]: true,
+        }
     }
 
     function addMessage(msg: Message) {
         if (!msg.chatType || msg.chatType === 'group') {
             groupMessages.value.unshift(msg)
         }
-        // For private messages, add only if it's for the current chat
-        if (msg.chatType === 'private' && msg.chatId === currentChat.value.chatId) {
-            privateMessages.value.unshift(msg)
+
+        if (msg.chatType === 'private' && typeof msg.chatId === 'number') {
+            upsertPrivateMessage(msg.chatId, msg)
         }
     }
 
     function deleteMessage(msgId: number) {
         groupMessages.value = groupMessages.value.filter(m => m.id !== msgId)
-        privateMessages.value = privateMessages.value.filter(m => m.id !== msgId)
+        const updatedPrivateMessages: Record<number, Message[]> = {}
+        for (const [chatId, messages] of Object.entries(privateMessagesByChatId.value)) {
+            updatedPrivateMessages[Number(chatId)] = messages.filter(m => m.id !== msgId)
+        }
+        privateMessagesByChatId.value = updatedPrivateMessages
         if (replyTarget.value?.id === msgId) {
             replyTarget.value = null
         }
@@ -129,6 +185,7 @@ export const useChatStore = defineStore('chat', () => {
     function setPrivateChats(chats: PrivateChat[]) {
         privateChats.value = chats
         sortPrivateChats()
+        syncCurrentPrivateChatSnapshot()
     }
 
     function addPrivateChat(chat: PrivateChat) {
@@ -145,6 +202,7 @@ export const useChatStore = defineStore('chat', () => {
             privateChats.value.unshift(chat)
         }
         sortPrivateChats()
+        syncCurrentPrivateChatSnapshot()
     }
 
     function updateChatLastMessage(
@@ -163,14 +221,33 @@ export const useChatStore = defineStore('chat', () => {
             chat.lastMessageNonce = nonce
             chat.lastMessageSenderPublicKey = senderPublicKey
             sortPrivateChats()
+            syncCurrentPrivateChatSnapshot()
         }
     }
 
     function setCurrentChat(chat: CurrentChat) {
         currentChat.value = chat
         replyTarget.value = null
-        if (chat.type === 'group') {
-            privateMessages.value = []
+        if (chat.type === 'private') {
+            syncCurrentPrivateChatSnapshot()
+        }
+    }
+
+    function syncCurrentPrivateChatSnapshot() {
+        if (currentChat.value.type !== 'private' || currentChat.value.chatId === null) {
+            return
+        }
+
+        const privateChat = privateChats.value.find((chat) => chat.chatId === currentChat.value.chatId)
+        if (!privateChat) {
+            return
+        }
+
+        currentChat.value = {
+            ...currentChat.value,
+            recipientId: privateChat.otherUser?.id || null,
+            otherUserId: privateChat.otherUser?.id || null,
+            name: privateChat.otherUser?.username || 'РќРµРёР·РІРµСЃС‚РЅРѕ',
         }
     }
 
@@ -188,7 +265,8 @@ export const useChatStore = defineStore('chat', () => {
 
     function cleanup() {
         groupMessages.value = []
-        privateMessages.value = []
+        privateMessagesByChatId.value = {}
+        privateMessagesLoadedByChatId.value = {}
         privateChats.value = []
         publicKeys.value = {}
         replyTarget.value = null
@@ -197,7 +275,8 @@ export const useChatStore = defineStore('chat', () => {
 
     return {
         groupMessages,
-        privateMessages,
+        privateMessagesByChatId,
+        privateMessagesLoadedByChatId,
         privateChats,
         publicKeys,
         replyTarget,
@@ -213,6 +292,7 @@ export const useChatStore = defineStore('chat', () => {
         addPrivateChat,
         updateChatLastMessage,
         setCurrentChat,
+        syncCurrentPrivateChatSnapshot,
         setReplyTarget,
         clearReplyTarget,
         setPublicKeys,

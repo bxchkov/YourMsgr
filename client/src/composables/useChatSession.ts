@@ -7,6 +7,10 @@ import { initCrypto } from '@/composables/useCrypto'
 import { loadGroupMessagesIntoStore, loadPrivateChatsIntoStore, loadPublicKeysIntoStore } from '@/composables/useChatSync'
 import { disconnectSocket, initSocket, setupSocketHandlers } from '@/composables/useWebSocket'
 
+export type ChatSessionBootstrapResult =
+  | { ok: true }
+  | { ok: false; kind: 'terminal' | 'transient'; message: string }
+
 export function useChatSession() {
   const chatStore = useChatStore()
   const auth = useAuthStore()
@@ -15,48 +19,70 @@ export function useChatSession() {
   function stopChatSessionSync() {
   }
 
-  async function forceClientLogout() {
+  function resetChatSessionRuntime() {
     stopChatSessionSync()
     disconnectSocket()
     chatStore.cleanup()
+  }
+
+  async function forceClientLogout() {
+    resetChatSessionRuntime()
     auth.logout()
     await router.replace('/auth')
   }
 
   async function logoutFromChatSession() {
-    stopChatSessionSync()
     await authService.logout()
-    disconnectSocket()
-    chatStore.cleanup()
+    resetChatSessionRuntime()
     auth.logout()
     await router.replace('/auth')
   }
 
-  async function bootstrapChatSession() {
-    const sessionRes = await authService.checkSession()
-    if (!sessionRes.success) {
-      if (isTerminalSessionMessage(sessionRes.message)) {
-        await forceClientLogout()
-        return false
+  async function bootstrapChatSession(): Promise<ChatSessionBootstrapResult> {
+    try {
+      const sessionRes = await authService.checkSession()
+      if (!sessionRes.success) {
+        if (isTerminalSessionMessage(sessionRes.message)) {
+          await forceClientLogout()
+          return {
+            ok: false,
+            kind: 'terminal',
+            message: sessionRes.message || 'Session expired',
+          }
+        }
+
+        console.error('Chat session bootstrap failed:', sessionRes.message || 'Unknown error')
+        resetChatSessionRuntime()
+        return {
+          ok: false,
+          kind: 'transient',
+          message: 'Не удалось загрузить сессию. Проверьте подключение и попробуйте снова.',
+        }
       }
 
-      console.error('Chat session bootstrap failed:', sessionRes.message || 'Unknown error')
-      return false
+      if (sessionRes.data?.accessToken) {
+        auth.setAuth(sessionRes.data.accessToken, { sync: false })
+      }
+
+      await initCrypto()
+      await loadPublicKeysIntoStore(chatStore)
+
+      setupSocketHandlers()
+      initSocket()
+
+      await loadGroupMessagesIntoStore(chatStore)
+      await loadPrivateChatsIntoStore(chatStore)
+
+      return { ok: true }
+    } catch (error) {
+      console.error('Chat session bootstrap error:', error)
+      resetChatSessionRuntime()
+      return {
+        ok: false,
+        kind: 'transient',
+        message: 'Не удалось загрузить чат. Проверьте подключение и попробуйте снова.',
+      }
     }
-
-    if (sessionRes.data?.accessToken) {
-      auth.setAuth(sessionRes.data.accessToken, { sync: false })
-    }
-
-    await initCrypto()
-    await loadPublicKeysIntoStore(chatStore)
-
-    setupSocketHandlers()
-    initSocket()
-
-    await loadGroupMessagesIntoStore(chatStore)
-    await loadPrivateChatsIntoStore(chatStore)
-    return true
   }
 
   return {

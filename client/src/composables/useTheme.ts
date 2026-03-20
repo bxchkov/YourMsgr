@@ -16,7 +16,7 @@ declare global {
 
 const STORAGE_KEY = 'yourmsgr-theme'
 const TRANSITION_CLASS = 'theme-switching'
-const TRANSITION_DURATION_MS = 560
+const TRANSITION_DURATION_MS = 720
 const theme = ref<ThemeMode>('dark')
 
 let initialized = false

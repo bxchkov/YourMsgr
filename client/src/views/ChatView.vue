@@ -4,7 +4,26 @@
       <SettingsModal v-if="showSettings" @close="showSettings = false" />
     </Transition>
 
-    <div class="app">
+    <div v-if="isBootstrapping || bootstrapError" class="chat-screen__state">
+      <div class="chat-screen__state-card">
+        <h1 class="chat-screen__state-title">
+          {{ isBootstrapping ? 'Загрузка чата' : 'Не удалось загрузить чат' }}
+        </h1>
+        <p class="chat-screen__state-text">
+          {{ isBootstrapping ? 'Подготавливаем сессию и подключение…' : bootstrapError }}
+        </p>
+        <button
+          v-if="bootstrapError"
+          type="button"
+          class="chat-screen__state-button"
+          @click="startChatSessionBootstrap"
+        >
+          Повторить
+        </button>
+      </div>
+    </div>
+
+    <div v-else class="app">
       <Sidebar
         :is-open="isSidebarOpen"
         @toggle-settings="showSettings = true"
@@ -21,7 +40,7 @@
               @click="toggleMobileSidebar"
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path d="M3 12h18M3 6h18M3 18h18" stroke-width="2" stroke-linecap="round"/>
+                <path d="M3 12h18M3 6h18M3 18h18" stroke-width="2" stroke-linecap="round" />
               </svg>
             </IconButton>
             <h1 class="chat-header__title">{{ chatStore.currentChat.name }}</h1>
@@ -41,7 +60,12 @@
                 fill="none"
                 stroke="currentColor"
               >
-                <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                <path
+                  d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
               </svg>
               <svg
                 v-else
@@ -51,7 +75,11 @@
                 stroke="currentColor"
               >
                 <circle cx="12" cy="12" r="4" stroke-width="2" />
-                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" stroke-width="2" stroke-linecap="round" />
+                <path
+                  d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
               </svg>
             </IconButton>
           </div>
@@ -61,7 +89,7 @@
       </div>
     </div>
 
-    <ContextMenu />
+    <ContextMenu v-if="!isBootstrapping && !bootstrapError" />
   </div>
 </template>
 
@@ -71,7 +99,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { createGeneralCurrentChat, useChatStore, type CurrentChat } from '@/stores/chat'
 import { useTheme } from '@/composables/useTheme'
 import { disconnectSocket } from '@/composables/useWebSocket'
-import { useChatSession } from '@/composables/useChatSession'
+import { useChatSession, type ChatSessionBootstrapResult } from '@/composables/useChatSession'
 import Sidebar from '@/components/Sidebar.vue'
 import ChatArea from '@/components/ChatArea.vue'
 import ContextMenu from '@/components/ContextMenu.vue'
@@ -83,6 +111,8 @@ const route = useRoute()
 const router = useRouter()
 const showSettings = ref(false)
 const isSidebarOpen = ref(false)
+const isBootstrapping = ref(true)
+const bootstrapError = ref('')
 const { isLightTheme, toggleTheme } = useTheme()
 const { bootstrapChatSession, logoutFromChatSession, stopChatSessionSync } = useChatSession()
 
@@ -179,15 +209,30 @@ async function handleLogout() {
   await logoutFromChatSession()
 }
 
-onMounted(async () => {
-  isSidebarOpen.value = false
-  showSettings.value = false
-  const bootstrapped = await bootstrapChatSession()
-  if (!bootstrapped) {
+async function handleBootstrapResult(result: ChatSessionBootstrapResult) {
+  if (!result.ok) {
+    isBootstrapping.value = false
+    bootstrapError.value = result.kind === 'transient' ? result.message : ''
     return
   }
 
+  bootstrapError.value = ''
   await syncChatWithRoute()
+  isBootstrapping.value = false
+}
+
+async function startChatSessionBootstrap() {
+  isSidebarOpen.value = false
+  showSettings.value = false
+  bootstrapError.value = ''
+  isBootstrapping.value = true
+
+  const result = await bootstrapChatSession()
+  await handleBootstrapResult(result)
+}
+
+onMounted(async () => {
+  await startChatSessionBootstrap()
 })
 
 onUnmounted(() => {
@@ -198,9 +243,15 @@ onUnmounted(() => {
 })
 
 watch(
-  () => [route.name, route.params.chatId, chatStore.privateChats.length],
+  () => [
+    route.name,
+    route.params.chatId,
+    chatStore.privateChats.map((chat) => chat.chatId).join(','),
+  ],
   () => {
-    void syncChatWithRoute()
+    if (!isBootstrapping.value && !bootstrapError.value) {
+      void syncChatWithRoute()
+    }
   },
 )
 </script>

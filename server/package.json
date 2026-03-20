@@ -1,6 +1,6 @@
 {
   "name": "chat-server",
-  "version": "2.0.25",
+  "version": "2.0.26",
   "description": "Secure private chat server",
   "type": "module",
   "scripts": {
