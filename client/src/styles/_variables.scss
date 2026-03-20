@@ -119,9 +119,12 @@ $shadow-glow: 0 0 20px rgba($color-primary, 0.3);
 // ПЕРЕХОДЫ
 // ============================================
 
-$transition-fast: 0.1s ease;
-$transition-base: 0.15s ease;
-$transition-slow: 0.2s ease;
+$transition-fast-duration: 0.1s;
+$transition-base-duration: 0.15s;
+$transition-slow-duration: 0.2s;
+$transition-fast: $transition-fast-duration ease;
+$transition-base: $transition-base-duration ease;
+$transition-slow: $transition-slow-duration ease;
 
 // ============================================
 // Z-INDEX

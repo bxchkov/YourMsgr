@@ -295,12 +295,19 @@ export const createRealtimeServer = async ({
                   safeSendToClient(client, payload);
                 }
               });
+
+              broadcastToUsers(
+                [msg.userId, msg.recipientId],
+                JSON.stringify({ type: "sync_private_chats" }),
+              );
               return;
             }
 
             clients.forEach((client) => {
               safeSendToClient(client, payload);
             });
+
+            broadcastToAll(JSON.stringify({ type: "sync_group_messages" }));
             return;
           }
 

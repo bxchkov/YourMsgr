@@ -242,6 +242,14 @@ confirm_action() {
   [[ "$answer" == "y" || "$answer" == "Y" ]]
 }
 
+sanitize_login_input() {
+  printf '%s' "$1" | LC_ALL=C tr -cd 'A-Za-z0-9_-'
+}
+
+sanitize_role_input() {
+  printf '%s' "$1" | LC_ALL=C tr -cd 'A-Za-z' | tr '[:upper:]' '[:lower:]'
+}
+
 detect_os() {
   if [[ -r /etc/os-release ]]; then
     # shellcheck disable=SC1091
@@ -1261,6 +1269,7 @@ show_admin_menu() {
       3)
         local details_login=""
         read -r -p "User login: " details_login || true
+        details_login="$(sanitize_login_input "$details_login")"
         if [[ -n "$details_login" ]]; then
           clear_screen
           draw_section "User Details"
@@ -1277,10 +1286,12 @@ show_admin_menu() {
       5)
         local role_login="" role_value=""
         read -r -p "User login: " role_login || true
+        role_login="$(sanitize_login_input "$role_login")"
         if [[ -z "$role_login" ]]; then
           continue
         fi
         read -r -p "Role (user/admin): " role_value || true
+        role_value="$(sanitize_role_input "$role_value")"
         if [[ -n "$role_value" ]]; then
           clear_screen
           draw_section "Change Role"
@@ -1291,6 +1302,7 @@ show_admin_menu() {
       6)
         local announcement_login="" announcement_message=""
         read -r -p "Admin login: " announcement_login || true
+        announcement_login="$(sanitize_login_input "$announcement_login")"
         if [[ -z "$announcement_login" ]]; then
           continue
         fi
@@ -1305,6 +1317,7 @@ show_admin_menu() {
       7)
         local logout_login=""
         read -r -p "User login: " logout_login || true
+        logout_login="$(sanitize_login_input "$logout_login")"
         if [[ -n "$logout_login" ]]; then
           clear_screen
           draw_section "Logout User"
@@ -1315,6 +1328,7 @@ show_admin_menu() {
       8)
         local purge_login=""
         read -r -p "User login: " purge_login || true
+        purge_login="$(sanitize_login_input "$purge_login")"
         if [[ -n "$purge_login" ]]; then
           clear_screen
           draw_section "Delete User Group Messages"
@@ -1325,6 +1339,7 @@ show_admin_menu() {
       9)
         local delete_login=""
         read -r -p "User login: " delete_login || true
+        delete_login="$(sanitize_login_input "$delete_login")"
         if [[ -n "$delete_login" ]]; then
           clear_screen
           draw_section "Delete User"

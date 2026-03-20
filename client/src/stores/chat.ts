@@ -97,6 +97,29 @@ export const useChatStore = defineStore('chat', () => {
         )
     }
 
+    function syncPrivateChatPreviewFromCache(chatId: number) {
+        const chat = privateChats.value.find((entry) => entry.chatId === chatId)
+        if (!chat) {
+            return
+        }
+
+        const nextMessage = (privateMessagesByChatId.value[chatId] ?? [])[0]
+        if (!nextMessage) {
+            chat.lastMessage = null
+            chat.lastMessageNonce = null
+            chat.lastMessageIsEncrypted = 0
+            chat.lastMessageSenderPublicKey = null
+            chat.lastMessageDate = chat.createdAt
+            return
+        }
+
+        chat.lastMessage = nextMessage.message
+        chat.lastMessageDate = nextMessage.date
+        chat.lastMessageNonce = nextMessage.nonce ?? null
+        chat.lastMessageIsEncrypted = nextMessage.isEncrypted ?? 0
+        chat.lastMessageSenderPublicKey = nextMessage.senderPublicKey ?? null
+    }
+
     function setGroupMessages(messages: Message[]) {
         groupMessages.value = messages
     }
@@ -174,9 +197,15 @@ export const useChatStore = defineStore('chat', () => {
         groupMessages.value = groupMessages.value.filter(m => m.id !== msgId)
         const updatedPrivateMessages: Record<number, Message[]> = {}
         for (const [chatId, messages] of Object.entries(privateMessagesByChatId.value)) {
-            updatedPrivateMessages[Number(chatId)] = messages.filter(m => m.id !== msgId)
+            const numericChatId = Number(chatId)
+            updatedPrivateMessages[numericChatId] = messages.filter(m => m.id !== msgId)
         }
         privateMessagesByChatId.value = updatedPrivateMessages
+        Object.keys(updatedPrivateMessages).forEach((chatId) => {
+            syncPrivateChatPreviewFromCache(Number(chatId))
+        })
+        sortPrivateChats()
+        syncCurrentPrivateChatSnapshot()
         if (replyTarget.value?.id === msgId) {
             replyTarget.value = null
         }

@@ -6,8 +6,8 @@
     --hover-filter-brightness: 1.1;
     --hover-backdrop-brightness: 1.1;
     --theme-transition-duration: 1440ms;
-    --theme-surface-transition-duration: #{$transition-fast};
-    --theme-ink-transition-duration: #{$transition-fast};
+    --theme-surface-transition-duration: #{$transition-fast-duration};
+    --theme-ink-transition-duration: #{$transition-fast-duration};
   }
 
   :root.theme-switching {

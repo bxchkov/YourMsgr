@@ -59,16 +59,25 @@
     &__wrapper {
       --chat-inline-gutter: #{$spacing-6};
       position: relative;
+      height: 100%;
+      @include flex-column;
       @include theme-surface-transition;
       padding: 0 var(--chat-inline-gutter);
       background-color: $color-bg-chat;
     }
 
     &__messages {
+      @include flex-column;
+      flex-direction: column-reverse;
+      flex: 1;
       position: relative;
       z-index: 1;
       @include theme-surface-transition;
       padding: $spacing-5 0 $spacing-4;
+      gap: $spacing-2;
+      overflow-y: auto;
+      overflow-x: hidden;
+      @include scrollbar-custom;
     }
 
     &__reply-highlight {
@@ -81,8 +90,8 @@
       pointer-events: none;
       background-color: $color-bg-content;
       transition:
-        background-color var(--theme-surface-transition-duration, #{$transition-fast}) linear,
-        border-color var(--theme-surface-transition-duration, #{$transition-fast}) linear,
+        background-color var(--theme-surface-transition-duration, #{$transition-fast-duration}) linear,
+        border-color var(--theme-surface-transition-duration, #{$transition-fast-duration}) linear,
         opacity 0.32s ease;
 
       &::before {
