@@ -20,22 +20,13 @@ declare global {
 
 const STORAGE_KEY = 'yourmsgr-theme'
 const TRANSITION_CLASS = 'theme-switching'
-const VIEW_TRANSITION_CLASS = 'theme-view-switching'
-const DEFAULT_TRANSITION_DURATION_MS = 2400
-const DEBUG_TRANSITION_DURATION_MS = 4800
+const DEFAULT_TRANSITION_DURATION_MS = 1000
+const DEBUG_TRANSITION_DURATION_MS = 3000
 const theme = ref<ThemeMode>('dark')
 
 let initialized = false
 let transitionTimeout: number | null = null
 let transitionFrame: number | null = null
-
-type ThemeViewTransition = {
-    finished: Promise<unknown>
-}
-
-type DocumentWithViewTransition = Document & {
-    startViewTransition?: (callback: () => void | Promise<void>) => ThemeViewTransition
-}
 
 function syncDocumentTheme(nextTheme: ThemeMode) {
     document.documentElement.dataset.theme = nextTheme
@@ -45,7 +36,6 @@ function syncDocumentTheme(nextTheme: ThemeMode) {
 function clearThemeTransition() {
     const root = document.documentElement
     root.classList.remove(TRANSITION_CLASS)
-    root.classList.remove(VIEW_TRANSITION_CLASS)
     root.style.removeProperty('--theme-transition-duration')
 }
 
@@ -73,49 +63,6 @@ function startThemeTransition(durationMs: number) {
         clearThemeTransition()
         transitionTimeout = null
     }, durationMs + 120)
-}
-
-function prefersReducedMotion() {
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
-
-function supportsViewThemeTransition() {
-    return typeof (document as DocumentWithViewTransition).startViewTransition === 'function'
-        && !prefersReducedMotion()
-}
-
-function startViewThemeTransition(nextTheme: ThemeMode, durationMs: number) {
-    const root = document.documentElement
-    const doc = document as DocumentWithViewTransition
-
-    clearThemeTransition()
-    void root.offsetWidth
-    root.style.setProperty('--theme-transition-duration', `${durationMs}ms`)
-    root.classList.add(VIEW_TRANSITION_CLASS)
-
-    cancelThemeFrame()
-
-    if (transitionTimeout !== null) {
-        window.clearTimeout(transitionTimeout)
-    }
-
-    const viewTransition = doc.startViewTransition?.(() => {
-        syncDocumentTheme(nextTheme)
-    })
-
-    transitionTimeout = window.setTimeout(() => {
-        clearThemeTransition()
-        transitionTimeout = null
-    }, durationMs + 160)
-
-    void viewTransition?.finished.finally(() => {
-        if (transitionTimeout !== null) {
-            window.clearTimeout(transitionTimeout)
-            transitionTimeout = null
-        }
-
-        clearThemeTransition()
-    })
 }
 
 function normalizeTheme(nextTheme: ThemeMode | string | null): ThemeMode {
@@ -148,8 +95,6 @@ function applyTheme(
             cancelThemeFrame()
             clearThemeTransition()
             syncDocumentTheme(normalizedTheme)
-        } else if (supportsViewThemeTransition()) {
-            startViewThemeTransition(normalizedTheme, durationMs)
         } else {
             startThemeTransition(durationMs)
             void document.documentElement.offsetWidth
