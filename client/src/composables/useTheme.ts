@@ -25,6 +25,9 @@ let transitionFrame: number | null = null
 
 function syncDocumentTheme(nextTheme: ThemeMode) {
     document.documentElement.dataset.theme = nextTheme
+}
+
+function syncDocumentColorScheme(nextTheme: ThemeMode) {
     document.documentElement.style.colorScheme = nextTheme
 }
 
@@ -62,9 +65,10 @@ function startThemeTransition(durationMs: number) {
     }
 }
 
-function scheduleThemeTransitionCleanup(durationMs: number) {
+function scheduleThemeTransitionCleanup(durationMs: number, nextTheme: ThemeMode) {
     transitionTimeout = window.setTimeout(() => {
         clearThemeTransition()
+        syncDocumentColorScheme(nextTheme)
         transitionTimeout = null
     }, durationMs + 180)
 }
@@ -105,7 +109,7 @@ function applyTheme(
             transitionFrame = window.requestAnimationFrame(() => {
                 transitionFrame = window.requestAnimationFrame(() => {
                     syncDocumentTheme(normalizedTheme)
-                    scheduleThemeTransitionCleanup(durationMs)
+                    scheduleThemeTransitionCleanup(durationMs, normalizedTheme)
                     transitionFrame = null
                 })
             })
@@ -119,6 +123,7 @@ function applyTheme(
         cancelThemeFrame()
         clearThemeTransition()
         syncDocumentTheme(normalizedTheme)
+        syncDocumentColorScheme(normalizedTheme)
     }
     localStorage.setItem(STORAGE_KEY, normalizedTheme)
     return normalizedTheme
@@ -152,6 +157,7 @@ export function initTheme() {
 
     theme.value = nextTheme
     syncDocumentTheme(nextTheme)
+    syncDocumentColorScheme(nextTheme)
     registerThemeConsoleApi()
     initialized = true
 }
