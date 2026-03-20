@@ -150,7 +150,13 @@ let privateMessagesRequestId = 0
 const visibleMessages = ref<Message[]>(chatStore.activeMessages)
 const visibleChatId = ref(chatStore.currentChat.id)
 const normalizedComposerText = computed(() => normalizeMessageText(messageText.value))
-const replyHighlight = ref<{ top: number; height: number; visible: boolean } | null>(null)
+const replyHighlight = ref<{
+  top: number
+  left: number
+  width: number
+  height: number
+  visible: boolean
+} | null>(null)
 const currentPrivateChatId = computed(() => (
   chatStore.currentChat.type === 'private' && chatStore.currentChat.chatId !== null
     ? chatStore.currentChat.chatId
@@ -209,6 +215,8 @@ const replyHighlightStyle = computed(() => {
 
   return {
     top: `${replyHighlight.value.top}px`,
+    left: `${replyHighlight.value.left}px`,
+    width: `${replyHighlight.value.width}px`,
     height: `${replyHighlight.value.height}px`,
     opacity: replyHighlight.value.visible ? '1' : '0',
   }
@@ -341,6 +349,7 @@ watch(
     await nextTick()
     syncMessageInputHeight()
   },
+  { immediate: true },
 )
 
 watch(
@@ -420,6 +429,7 @@ watch(
     messageInputRef.value?.focus()
     syncMessageInputHeight()
   },
+  { immediate: true },
 )
 
 function scrollToBottom() {
@@ -539,6 +549,12 @@ function jumpToMessage(messageId: number) {
     return
   }
 
+  const chatShell = document.querySelector('.main-content') as HTMLElement | null
+  const messagesRect = messagesContainer.value.getBoundingClientRect()
+  const chatShellRect = chatShell?.getBoundingClientRect()
+  const highlightLeft = chatShellRect ? chatShellRect.left - messagesRect.left : 0
+  const highlightWidth = chatShellRect?.width ?? messagesContainer.value.clientWidth
+
   targetElement.scrollIntoView({
     behavior: 'smooth',
     block: 'center',
@@ -556,6 +572,8 @@ function jumpToMessage(messageId: number) {
 
   replyHighlight.value = {
     top: targetElement.offsetTop,
+    left: highlightLeft,
+    width: highlightWidth,
     height: targetElement.offsetHeight,
     visible: false,
   }

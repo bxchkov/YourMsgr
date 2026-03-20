@@ -38,11 +38,16 @@
       .sidebar__header-main,
       .sidebar__content,
       .sidebar__filters,
+      .sidebar__filter,
       .sidebar__chats,
       .sidebar__footer,
+      .sidebar__user-info,
+      .sidebar__user-avatar,
       .chat-item,
+      .chat-item__avatar,
       .message,
       .message-input,
+      .chat__reply-highlight,
       .modal-backdrop,
       .modal__backdrop,
       .modal__content,
@@ -52,6 +57,8 @@
       .context-menu,
       .message-input__reply,
       .message-input__wrapper,
+      .message-input__button,
+      .message-input__e2ee-toggle,
       .chat-screen__state-card
     ) {
       @include theme-surface-transition;

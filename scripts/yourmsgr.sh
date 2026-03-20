@@ -288,6 +288,35 @@ detect_isp() {
   echo "unknown"
 }
 
+detect_cpu_usage() {
+  if [[ ! -r /proc/stat ]]; then
+    echo "unknown"
+    return
+  fi
+
+  local cpu user1 nice1 system1 idle1 iowait1 irq1 softirq1 steal1 total1 busy1
+  local user2 nice2 system2 idle2 iowait2 irq2 softirq2 steal2 total2 busy2
+
+  read -r cpu user1 nice1 system1 idle1 iowait1 irq1 softirq1 steal1 _ < /proc/stat
+  total1=$((user1 + nice1 + system1 + idle1 + iowait1 + irq1 + softirq1 + steal1))
+  busy1=$((user1 + nice1 + system1 + irq1 + softirq1 + steal1))
+
+  sleep 0.2
+
+  read -r cpu user2 nice2 system2 idle2 iowait2 irq2 softirq2 steal2 _ < /proc/stat
+  total2=$((user2 + nice2 + system2 + idle2 + iowait2 + irq2 + softirq2 + steal2))
+  busy2=$((user2 + nice2 + system2 + irq2 + softirq2 + steal2))
+
+  if (( total2 <= total1 )); then
+    echo "unknown"
+    return
+  fi
+
+  awk -v busy_diff="$((busy2 - busy1))" -v total_diff="$((total2 - total1))" 'BEGIN {
+    printf "%.1f%%", (busy_diff / total_diff) * 100
+  }'
+}
+
 detect_ram_summary() {
   free -m 2>/dev/null | awk '/Mem:/ {
     printf "%.1f%% (%sMB / %sMB)", ($3 / $2) * 100, $3, $2
@@ -457,10 +486,10 @@ print_system_overview() {
     "$(format_value "$COLOR_OK" "ARCH:") $(detect_arch)"
   print_two_column_row \
     "$(format_value "$COLOR_OK" "ISP:") $(detect_isp)" \
-    "$(format_value "$COLOR_OK" "RAM: ") $(detect_ram_usage)"
+    "$(format_value "$COLOR_OK" "CPU: ") $(detect_cpu_usage)"
   print_two_column_row \
     "$(format_value "$COLOR_OK" "IP: ") $(detect_ip)" \
-    ""
+    "$(format_value "$COLOR_OK" "RAM: ") $(detect_ram_usage)"
 }
 
 print_app_overview() {
