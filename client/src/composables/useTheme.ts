@@ -103,6 +103,7 @@ function applyTheme(
             cancelThemeFrame()
             clearThemeTransition()
             syncDocumentTheme(normalizedTheme)
+            syncDocumentColorScheme(normalizedTheme)
         } else {
             startThemeTransition(durationMs)
             void document.documentElement.offsetWidth
