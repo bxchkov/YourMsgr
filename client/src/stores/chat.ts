@@ -276,7 +276,7 @@ export const useChatStore = defineStore('chat', () => {
             ...currentChat.value,
             recipientId: privateChat.otherUser?.id || null,
             otherUserId: privateChat.otherUser?.id || null,
-            name: privateChat.otherUser?.username || 'РќРµРёР·РІРµСЃС‚РЅРѕ',
+            name: privateChat.otherUser?.username || 'Неизвестно',
         }
     }
 
