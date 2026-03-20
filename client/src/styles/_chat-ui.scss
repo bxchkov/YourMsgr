@@ -27,19 +27,21 @@
 
     &__wrapper {
       --chat-inline-gutter: #{$spacing-6};
+      position: relative;
       padding: 0 var(--chat-inline-gutter);
       background-color: $color-bg-chat;
     }
 
     &__messages {
       position: relative;
+      z-index: 1;
       padding: $spacing-5 0 $spacing-4;
     }
 
     &__reply-highlight {
       position: absolute;
-      left: calc(-1 * var(--chat-inline-gutter));
-      width: calc(100% + (2 * var(--chat-inline-gutter)));
+      left: 0;
+      right: 0;
       z-index: 0;
       border-radius: 0;
       pointer-events: none;
@@ -57,11 +59,6 @@
         background-color: $color-primary-soft-dark;
         opacity: 0.9;
       }
-    }
-
-    &__messages > :not(.chat__reply-highlight) {
-      position: relative;
-      z-index: 1;
     }
   }
 

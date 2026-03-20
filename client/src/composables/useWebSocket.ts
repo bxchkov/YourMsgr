@@ -5,6 +5,7 @@ import { useChatStore, type Message } from '@/stores/chat'
 import { authService } from '@/services/auth'
 import { loadGroupMessagesIntoStore, syncPrivateChatsIntoStore } from '@/composables/useChatSync'
 import router from '@/router'
+import { logger } from '@/utils/logger'
 import type {
     SocketIncomingEvent,
     SocketIncomingEventMap,
@@ -67,7 +68,7 @@ export function initSocket() {
 
     socket.onopen = () => {
         if (DEBUG_SOCKET_LOGS) {
-            console.log('WebSocket connected')
+            logger.log('WebSocket connected')
         }
         isConnected.value = true
         if (reconnectTimeout) {
@@ -88,17 +89,17 @@ export function initSocket() {
                 void handler(data as SocketIncomingEvent)
             }
         } catch (error) {
-            console.error('WebSocket message error:', error)
+            logger.error('WebSocket message error:', error)
         }
     }
 
     socket.onerror = (error) => {
-        console.error('WebSocket error:', error)
+        logger.error('WebSocket error:', error)
     }
 
     socket.onclose = () => {
         if (DEBUG_SOCKET_LOGS) {
-            console.log('WebSocket disconnected')
+            logger.log('WebSocket disconnected')
         }
         isConnected.value = false
         socket = null
@@ -217,7 +218,7 @@ export function setupSocketHandlers() {
     })
 
     onSocketEvent('error', (data: { message?: string }) => {
-        console.error('WebSocket action error:', data.message || 'Unknown error')
+        logger.error('WebSocket action error:', data.message || 'Unknown error')
     })
 
     onSocketEvent('check_session', async () => {
@@ -240,7 +241,7 @@ export function setupSocketHandlers() {
             return
         }
 
-        console.error('WebSocket session check failed:', result.message || 'Unknown error')
+        logger.error('WebSocket session check failed:', result.message || 'Unknown error')
     })
 
     onSocketEvent('refresh_tokens', async () => {

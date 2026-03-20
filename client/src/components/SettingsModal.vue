@@ -68,6 +68,7 @@ import { computed, onMounted, ref } from 'vue'
 import { authService } from '@/services/auth'
 import { sanitizeUnexpectedMessage } from '@/services/http'
 import { useAuthStore } from '@/stores/auth'
+import { logger } from '@/utils/logger'
 import IconButton from '@/components/IconButton.vue'
 
 const emit = defineEmits<{
@@ -148,7 +149,7 @@ async function handleSave() {
     messageTone.value = 'error'
     message.value = localizeSettingsMessage(response.message, 'Ошибка обновления')
   } catch (requestError: unknown) {
-    console.error('[Settings] Update username failed:', requestError)
+    logger.error('[Settings] Update username failed:', requestError)
     messageTone.value = 'error'
     message.value = localizeSettingsMessage(
       requestError instanceof Error ? requestError.message : undefined,

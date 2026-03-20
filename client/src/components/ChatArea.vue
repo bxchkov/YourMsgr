@@ -1,6 +1,7 @@
 <template>
   <main class="chat">
-    <div class="chat__wrapper">
+    <div ref="chatWrapperRef" class="chat__wrapper">
+      <div v-if="replyHighlightStyle" class="chat__reply-highlight" :style="replyHighlightStyle" />
       <div
         ref="messagesContainer"
         class="chat__messages"
@@ -8,7 +9,6 @@
         aria-live="polite"
         aria-label="Сообщения чата"
       >
-        <div v-if="replyHighlightStyle" class="chat__reply-highlight" :style="replyHighlightStyle" />
         <MessageItem
           v-for="msg in visibleMessages"
           :key="msg.id"
@@ -127,6 +127,7 @@ import { privateChatsService } from '@/services/privateChats'
 import { emitSocketEvent } from '@/composables/useWebSocket'
 import { cryptoRevision, encryptMessageE2EE, getPrivateKey, getPublicKey } from '@/composables/useCrypto'
 import { getReplyPreviewText, normalizeMessageText } from '@/utils/messageContent'
+import { logger } from '@/utils/logger'
 import type { PublicKeyEntry } from '@/types/api'
 import type { SendMessageSocketPayload } from '@/types/socket'
 import MessageItem from './MessageItem.vue'
@@ -138,6 +139,7 @@ const uiStore = useUiStore()
 const messageText = ref('')
 const e2eeEnabled = ref(false)
 const composerNotice = ref('')
+const chatWrapperRef = ref<HTMLElement | null>(null)
 const messagesContainer = ref<HTMLElement | null>(null)
 const messageInputRef = ref<HTMLTextAreaElement | null>(null)
 const E2EE_ENABLED_TITLE = '\u0417\u0430\u0448\u0438\u0444\u0440\u043e\u0432\u0430\u0442\u044c \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435'
@@ -145,6 +147,7 @@ const E2EE_RELOGIN_NOTICE = '\u0414\u043b\u044f \u0437\u0430\u0449\u0438\u0449\u
 
 let highlightTimeout: number | null = null
 let removeHighlightTimeout: number | null = null
+let highlightAnimationFrame: number | null = null
 let privateMessagesRequestId = 0
 
 const visibleMessages = ref<Message[]>(chatStore.activeMessages)
@@ -152,8 +155,6 @@ const visibleChatId = ref(chatStore.currentChat.id)
 const normalizedComposerText = computed(() => normalizeMessageText(messageText.value))
 const replyHighlight = ref<{
   top: number
-  left: number
-  width: number
   height: number
   visible: boolean
 } | null>(null)
@@ -215,8 +216,6 @@ const replyHighlightStyle = computed(() => {
 
   return {
     top: `${replyHighlight.value.top}px`,
-    left: `${replyHighlight.value.left}px`,
-    width: `${replyHighlight.value.width}px`,
     height: `${replyHighlight.value.height}px`,
     opacity: replyHighlight.value.visible ? '1' : '0',
   }
@@ -438,6 +437,47 @@ function scrollToBottom() {
   }
 }
 
+function stopReplyHighlightTracking() {
+  if (highlightAnimationFrame !== null) {
+    window.cancelAnimationFrame(highlightAnimationFrame)
+    highlightAnimationFrame = null
+  }
+}
+
+function syncReplyHighlightPosition(targetElement: HTMLElement) {
+  const wrapper = chatWrapperRef.value
+  if (!wrapper) {
+    return false
+  }
+
+  const wrapperRect = wrapper.getBoundingClientRect()
+  const targetRect = targetElement.getBoundingClientRect()
+
+  replyHighlight.value = {
+    top: targetRect.top - wrapperRect.top,
+    height: targetRect.height,
+    visible: replyHighlight.value?.visible ?? false,
+  }
+
+  return true
+}
+
+function trackReplyHighlight(messageId: number) {
+  if (!replyHighlight.value) {
+    stopReplyHighlightTracking()
+    return
+  }
+
+  const targetElement = document.getElementById(`message-${messageId}`)
+  if (!targetElement) {
+    stopReplyHighlightTracking()
+    return
+  }
+
+  syncReplyHighlightPosition(targetElement)
+  highlightAnimationFrame = window.requestAnimationFrame(() => trackReplyHighlight(messageId))
+}
+
 async function loadPrivateChatMessages(chatId: number, requestId: number) {
   try {
     const response = await privateChatsService.getMessages(chatId)
@@ -462,7 +502,7 @@ async function loadPrivateChatMessages(chatId: number, requestId: number) {
       setVisibleMessages([], chatStore.currentChat.id)
     }
 
-    console.error('Failed to load private chat messages:', requestError)
+    logger.error('Failed to load private chat messages:', requestError)
   }
 }
 
@@ -516,7 +556,7 @@ async function sendMessage() {
       msgData.senderPublicKey = getPublicKey()
       msgData.isEncrypted = 1
     } catch (encryptionError) {
-      console.error('E2EE encryption failed:', encryptionError)
+      logger.error('E2EE encryption failed:', encryptionError)
       setComposerNotice(
         encryptionError instanceof Error && encryptionError.message === 'Private key not found'
           ? E2EE_RELOGIN_NOTICE
@@ -545,15 +585,9 @@ function handleContextMenu(event: { mouseEvent: MouseEvent; message: Message }) 
 
 function jumpToMessage(messageId: number) {
   const targetElement = document.getElementById(`message-${messageId}`)
-  if (!targetElement || !messagesContainer.value) {
+  if (!targetElement) {
     return
   }
-
-  const chatShell = document.querySelector('.main-content') as HTMLElement | null
-  const messagesRect = messagesContainer.value.getBoundingClientRect()
-  const chatShellRect = chatShell?.getBoundingClientRect()
-  const highlightLeft = chatShellRect ? chatShellRect.left - messagesRect.left : 0
-  const highlightWidth = chatShellRect?.width ?? messagesContainer.value.clientWidth
 
   targetElement.scrollIntoView({
     behavior: 'smooth',
@@ -570,11 +604,14 @@ function jumpToMessage(messageId: number) {
     removeHighlightTimeout = null
   }
 
+  stopReplyHighlightTracking()
+
+  if (!syncReplyHighlightPosition(targetElement)) {
+    return
+  }
+
   replyHighlight.value = {
-    top: targetElement.offsetTop,
-    left: highlightLeft,
-    width: highlightWidth,
-    height: targetElement.offsetHeight,
+    ...replyHighlight.value!,
     visible: false,
   }
 
@@ -584,6 +621,8 @@ function jumpToMessage(messageId: number) {
         ...replyHighlight.value,
         visible: true,
       }
+
+      trackReplyHighlight(messageId)
     }
   })
 
@@ -597,6 +636,7 @@ function jumpToMessage(messageId: number) {
   }, 1150)
 
   removeHighlightTimeout = window.setTimeout(() => {
+    stopReplyHighlightTracking()
     replyHighlight.value = null
   }, 1500)
 }
@@ -617,6 +657,7 @@ onUnmounted(() => {
     window.clearTimeout(removeHighlightTimeout)
   }
 
+  stopReplyHighlightTracking()
   replyHighlight.value = null
 })
 </script>

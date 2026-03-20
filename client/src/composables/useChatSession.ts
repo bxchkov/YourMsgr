@@ -6,6 +6,7 @@ import { authService } from '@/services/auth'
 import { initCrypto } from '@/composables/useCrypto'
 import { loadGroupMessagesIntoStore, loadPrivateChatsIntoStore, loadPublicKeysIntoStore } from '@/composables/useChatSync'
 import { disconnectSocket, initSocket, setupSocketHandlers } from '@/composables/useWebSocket'
+import { logger } from '@/utils/logger'
 
 export type ChatSessionBootstrapResult =
   | { ok: true }
@@ -51,7 +52,7 @@ export function useChatSession() {
           }
         }
 
-        console.error('Chat session bootstrap failed:', sessionRes.message || 'Unknown error')
+        logger.error('Chat session bootstrap failed:', sessionRes.message || 'Unknown error')
         resetChatSessionRuntime()
         return {
           ok: false,
@@ -75,7 +76,7 @@ export function useChatSession() {
 
       return { ok: true }
     } catch (error) {
-      console.error('Chat session bootstrap error:', error)
+      logger.error('Chat session bootstrap error:', error)
       resetChatSessionRuntime()
       return {
         ok: false,

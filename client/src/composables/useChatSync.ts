@@ -4,6 +4,7 @@ import { messagesService } from '@/services/messages'
 import { privateChatsService } from '@/services/privateChats'
 import { createGeneralCurrentChat, type PrivateChat, useChatStore } from '@/stores/chat'
 import type { PublicKeyEntry } from '@/types/api'
+import { logger } from '@/utils/logger'
 
 export async function loadPublicKeysIntoStore(chatStore = useChatStore()) {
     try {
@@ -22,7 +23,7 @@ export async function loadPublicKeysIntoStore(chatStore = useChatStore()) {
             ...keys,
         })
     } catch (error) {
-        console.error('Failed to load public keys:', error)
+        logger.error('Failed to load public keys:', error)
     }
 }
 
@@ -53,7 +54,7 @@ export async function loadPrivateChatsIntoStore(chatStore = useChatStore()) {
 
         return response.data.chats
     } catch (error) {
-        console.error('Failed to load private chats:', error)
+        logger.error('Failed to load private chats:', error)
         return []
     }
 }
@@ -67,7 +68,7 @@ export async function loadGroupMessagesIntoStore(chatStore = useChatStore()) {
 
         chatStore.setGroupMessages(response.data.messages)
     } catch (error) {
-        console.error('Failed to load group messages:', error)
+        logger.error('Failed to load group messages:', error)
     }
 }
 
@@ -84,7 +85,7 @@ export async function loadCurrentPrivateMessagesIntoStore(chatId: number, chatSt
 
         chatStore.setPrivateMessages(response.data.messages)
     } catch (error) {
-        console.error('Failed to refresh private chat messages:', error)
+        logger.error('Failed to refresh private chat messages:', error)
     }
 }
 

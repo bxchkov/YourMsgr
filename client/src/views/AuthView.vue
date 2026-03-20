@@ -74,6 +74,7 @@ import { useRouter } from 'vue-router'
 import { authService } from '@/services/auth'
 import { sanitizeUnexpectedMessage } from '@/services/http'
 import { AUTH_SESSION_HINT_STORAGE_KEY, useAuthStore } from '@/stores/auth'
+import { logger } from '@/utils/logger'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -221,7 +222,7 @@ async function handleLogin() {
         savePrivateKey(decryptedPrivateKey)
         savePublicKey(derivePublicKeyFromPrivateKey(decryptedPrivateKey))
       } catch (decryptError) {
-        console.error('[Login] Failed to decrypt private key:', decryptError)
+        logger.error('[Login] Failed to decrypt private key:', decryptError)
         const decryptMessage = decryptError instanceof Error
           ? decryptError.message
           : undefined
@@ -241,7 +242,7 @@ async function handleLogin() {
 
     error.value = 'Не удалось выполнить вход'
   } catch (requestError: unknown) {
-    console.error('[Login] Request failed:', requestError)
+    logger.error('[Login] Request failed:', requestError)
     error.value = localizeAuthError(
       requestError instanceof Error ? requestError.message : undefined,
       'Ошибка входа',
@@ -296,7 +297,7 @@ async function handleRegister() {
 
     error.value = 'Не удалось создать аккаунт'
   } catch (requestError: unknown) {
-    console.error('[Register] Request failed:', requestError)
+    logger.error('[Register] Request failed:', requestError)
     error.value = localizeAuthError(
       requestError instanceof Error ? requestError.message : undefined,
       'Ошибка регистрации',

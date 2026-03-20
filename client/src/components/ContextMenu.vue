@@ -48,6 +48,7 @@ import { useUiStore } from '@/stores/ui'
 import { emitSocketEvent } from '@/composables/useWebSocket'
 import { loadPrivateChatsIntoStore } from '@/composables/useChatSync'
 import { privateChatsService } from '@/services/privateChats'
+import { logger } from '@/utils/logger'
 
 const auth = useAuthStore()
 const chatStore = useChatStore()
@@ -152,7 +153,7 @@ async function handleSendMessage() {
       })
     }
   } catch (error) {
-    console.error('Failed to create private chat:', error)
+    logger.error('Failed to create private chat:', error)
   } finally {
     hide()
   }
