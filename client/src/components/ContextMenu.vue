@@ -41,6 +41,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { useUiStore } from '@/stores/ui'
@@ -50,6 +51,7 @@ import { privateChatsService } from '@/services/privateChats'
 const auth = useAuthStore()
 const chatStore = useChatStore()
 const uiStore = useUiStore()
+const router = useRouter()
 
 const menuRef = ref<HTMLElement | null>(null)
 
@@ -121,19 +123,22 @@ async function handleSendMessage() {
 
     if (response.success && response.data?.chat) {
       const chat = response.data.chat
+      const existingChat = chatStore.privateChats.find((privateChat) => privateChat.chatId === chat.id)
 
-      chatStore.addPrivateChat({
-        chatId: chat.id,
-        otherUser: {
-          id: userId,
-          username,
-          login: username,
-          publicKey: chatStore.publicKeys[userId] || null,
-        },
-        lastMessage: null,
-        lastMessageDate: chat.createdAt || new Date().toISOString(),
-        createdAt: chat.createdAt || new Date().toISOString(),
-      })
+      if (!existingChat) {
+        chatStore.addPrivateChat({
+          chatId: chat.id,
+          otherUser: {
+            id: userId,
+            username,
+            login: username,
+            publicKey: chatStore.publicKeys[userId] || null,
+          },
+          lastMessage: null,
+          lastMessageDate: chat.createdAt || new Date().toISOString(),
+          createdAt: chat.createdAt || new Date().toISOString(),
+        })
+      }
 
       chatStore.setCurrentChat({
         id: `private-${chat.id}`,
@@ -142,6 +147,13 @@ async function handleSendMessage() {
         recipientId: userId,
         name: username,
         otherUserId: userId,
+      })
+
+      await router.push({
+        name: 'chat-private',
+        params: {
+          chatId: String(chat.id),
+        },
       })
     }
   } catch (error) {

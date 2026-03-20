@@ -24,6 +24,7 @@
 
     &:hover:not(:disabled) {
       filter: brightness(var(--hover-filter-brightness, 1.1));
+      backdrop-filter: brightness(var(--hover-backdrop-brightness, 1.1));
     }
 
     &:disabled {

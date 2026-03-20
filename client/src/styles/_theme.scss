@@ -4,6 +4,7 @@
 @mixin render {
   :root {
     --hover-filter-brightness: 1.1;
+    --hover-backdrop-brightness: 1.1;
   }
 
   :root.theme-switching body,
@@ -183,6 +184,7 @@
 
   [data-theme='light'] {
     --hover-filter-brightness: 0.95;
+    --hover-backdrop-brightness: 0.95;
     color-scheme: light;
 
     body,

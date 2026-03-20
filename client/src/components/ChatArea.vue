@@ -202,15 +202,23 @@ function clearComposerNotice() {
   composerNotice.value = ''
 }
 
-function toggleE2ee() {
+function toggleE2ee(event?: MouseEvent) {
+  const toggleButton = event?.currentTarget instanceof HTMLButtonElement
+    ? event.currentTarget
+    : null
+
   if (!isE2eeAvailable.value) {
     e2eeEnabled.value = false
     setComposerNotice(E2EE_RELOGIN_NOTICE)
+    toggleButton?.blur()
+    nextTick(() => messageInputRef.value?.focus())
     return
   }
 
   clearComposerNotice()
   e2eeEnabled.value = !e2eeEnabled.value
+  toggleButton?.blur()
+  nextTick(() => messageInputRef.value?.focus())
 }
 
 function syncMessageInputHeight() {
