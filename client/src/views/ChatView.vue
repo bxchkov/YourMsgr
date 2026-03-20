@@ -51,7 +51,7 @@
               :ariaLabel="themeToggleLabel"
               :title="themeToggleLabel"
               class="sidebar__settings-button chat-header__theme-toggle"
-              @click="toggleTheme"
+              @click="handleThemeToggle"
             >
               <svg
                 v-if="isLightTheme"
@@ -119,6 +119,10 @@ const { bootstrapChatSession, logoutFromChatSession, stopChatSessionSync } = use
 const themeToggleLabel = computed(() => (
   isLightTheme.value ? 'Включить тёмную тему' : 'Включить светлую тему'
 ))
+
+function handleThemeToggle() {
+  toggleTheme()
+}
 
 function toggleMobileSidebar() {
   isSidebarOpen.value = !isSidebarOpen.value

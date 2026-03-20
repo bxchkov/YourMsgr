@@ -122,6 +122,14 @@ function normalizeTheme(nextTheme: ThemeMode | string | null): ThemeMode {
     return nextTheme === 'light' ? 'light' : 'dark'
 }
 
+function normalizeDurationMs(durationMs: unknown, fallbackMs: number) {
+    if (typeof durationMs !== 'number' || !Number.isFinite(durationMs)) {
+        return fallbackMs
+    }
+
+    return Math.max(0, durationMs)
+}
+
 function applyTheme(
     nextTheme: ThemeMode | string,
     options: { animate?: boolean; durationMs?: number } = {},
@@ -130,7 +138,7 @@ function applyTheme(
     theme.value = normalizedTheme
 
     if (options.animate !== false) {
-        const durationMs = options.durationMs ?? DEFAULT_TRANSITION_DURATION_MS
+        const durationMs = normalizeDurationMs(options.durationMs, DEFAULT_TRANSITION_DURATION_MS)
         if (durationMs <= 0) {
             if (transitionTimeout !== null) {
                 window.clearTimeout(transitionTimeout)
