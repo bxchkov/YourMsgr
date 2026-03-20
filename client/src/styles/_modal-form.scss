@@ -198,6 +198,7 @@
       border-radius: $radius-sm;
       font-size: $font-size-base;
       &::placeholder {
+        @include theme-ink-transition;
         color: $color-text-muted;
       }
 

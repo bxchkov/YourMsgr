@@ -162,6 +162,7 @@
       transform: translateX(-50%);
       width: 100vw;
       height: 100%;
+      @include theme-surface-transition;
       background-color: $color-bg-input-area;
       z-index: -1;
     }
@@ -251,6 +252,7 @@
       word-break: break-word;
 
       &::placeholder {
+        @include theme-ink-transition;
         color: $color-text-muted;
       }
     }

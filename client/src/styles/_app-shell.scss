@@ -23,43 +23,6 @@
   // Main Content Area & Header
   // ============================================
 
-  .main-content {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    overflow: hidden;
-    @include theme-surface-transition;
-  }
-
-  .chat-header {
-    @include flex-between;
-    @include theme-surface-transition;
-    height: $header-height;
-    padding: 0 $spacing-4;
-    background-color: $color-bg-header;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-
-    &__info {
-      display: flex;
-      align-items: center;
-      gap: $spacing-3;
-      min-height: 100%;
-    }
-
-    &__title {
-      @include theme-ink-transition;
-      font-size: $font-size-lg;
-      font-weight: $font-weight-semibold;
-      color: $color-text-primary;
-    }
-
-    &__status {
-      @include theme-ink-transition;
-      font-size: $font-size-xs;
-      color: $color-text-tertiary;
-    }
-  }
-
   // ============================================
   // LAYOUT (Р‘Р­Рњ)
   // ============================================
@@ -197,27 +160,5 @@
   // CHAT (Р‘Р­Рњ)
   // ============================================
 
-  .chat {
-    flex: 1;
-    overflow: hidden;
-
-    &__wrapper {
-      height: 100%;
-      background-color: $color-bg-chat;
-      padding: 0 $spacing-5;
-      @include flex-column;
-    }
-
-    &__messages {
-      @include flex-column;
-      flex-direction: column-reverse;
-      flex: 1;
-      padding: $spacing-4 0;
-      gap: $spacing-2;
-      overflow-y: auto;
-      overflow-x: hidden;
-      @include scrollbar-custom;
-    }
-  }
 }
 

@@ -4,9 +4,12 @@
 @mixin render {
   .sidebar {
     @include theme-surface-transition;
+    position: relative;
     display: flex;
     flex-direction: column;
-    width: 420px;
+    width: var(--sidebar-width, 420px);
+    min-width: var(--sidebar-width, 420px);
+    max-width: var(--sidebar-width, 420px);
     height: 100vh;
     background-color: $color-bg-body;
     border-right: 1px solid $color-border-dark;
@@ -14,6 +17,8 @@
 
     @include respond-to(md) {
       width: 320px;
+      min-width: 320px;
+      max-width: 320px;
     }
 
     @include respond-to(sm) {
@@ -82,7 +87,7 @@
       @include reset-button;
       @include flex-column;
       @include flex-center;
-      @include theme-ink-transition;
+      @include theme-interactive-transition;
       height: 70px;
       gap: $spacing-1;
       color: $color-text-tertiary;
@@ -208,12 +213,42 @@
       @include text-ellipsis;
     }
 
+    &__resize-handle {
+      position: absolute;
+      top: 0;
+      right: -6px;
+      width: 12px;
+      height: 100%;
+      cursor: ew-resize;
+      z-index: $z-sticky;
+
+      &::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 5px;
+        width: 2px;
+        height: 100%;
+        @include theme-accent-transition;
+        background-color: $color-primary-soft-strong-dark;
+        opacity: 0;
+      }
+
+      &:hover::before {
+        opacity: 1;
+      }
+    }
+
   }
 
   @include respond-to(sm) {
     .sidebar__footer {
       min-height: $footer-height;
       padding: $footer-shell-padding-y $footer-shell-padding-x;
+    }
+
+    .sidebar__resize-handle {
+      display: none;
     }
   }
 

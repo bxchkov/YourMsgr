@@ -98,35 +98,35 @@
 
 @mixin theme-surface-transition {
   transition:
-    background-color var(--theme-surface-transition-duration, 0ms) linear,
-    border-color var(--theme-surface-transition-duration, 0ms) linear,
-    box-shadow var(--theme-surface-transition-duration, 0ms) linear;
+    background-color var(--theme-surface-transition-duration, #{$transition-fast}) linear,
+    border-color var(--theme-surface-transition-duration, #{$transition-fast}) linear,
+    box-shadow var(--theme-surface-transition-duration, #{$transition-fast}) linear;
 }
 
 @mixin theme-ink-transition {
   transition:
-    color var(--theme-ink-transition-duration, 0ms) linear,
-    stroke var(--theme-ink-transition-duration, 0ms) linear,
-    fill var(--theme-ink-transition-duration, 0ms) linear,
-    opacity var(--theme-ink-transition-duration, 0ms) linear;
+    color var(--theme-ink-transition-duration, #{$transition-fast}) linear,
+    stroke var(--theme-ink-transition-duration, #{$transition-fast}) linear,
+    fill var(--theme-ink-transition-duration, #{$transition-fast}) linear,
+    opacity var(--theme-ink-transition-duration, #{$transition-fast}) linear;
 }
 
 @mixin theme-accent-transition {
   transition:
-    background-color var(--theme-surface-transition-duration, 0ms) linear,
-    border-color var(--theme-surface-transition-duration, 0ms) linear,
-    opacity var(--theme-ink-transition-duration, 0ms) linear;
+    background-color var(--theme-surface-transition-duration, #{$transition-fast}) linear,
+    border-color var(--theme-surface-transition-duration, #{$transition-fast}) linear,
+    opacity var(--theme-ink-transition-duration, #{$transition-fast}) linear;
 }
 
 @mixin theme-interactive-transition {
   transition:
-    background-color var(--theme-surface-transition-duration, 0ms) linear,
-    border-color var(--theme-surface-transition-duration, 0ms) linear,
-    box-shadow var(--theme-surface-transition-duration, 0ms) linear,
-    color var(--theme-ink-transition-duration, 0ms) linear,
-    stroke var(--theme-ink-transition-duration, 0ms) linear,
-    fill var(--theme-ink-transition-duration, 0ms) linear,
-    opacity var(--theme-ink-transition-duration, 0ms) linear,
+    background-color var(--theme-surface-transition-duration, #{$transition-fast}) linear,
+    border-color var(--theme-surface-transition-duration, #{$transition-fast}) linear,
+    box-shadow var(--theme-surface-transition-duration, #{$transition-fast}) linear,
+    color var(--theme-ink-transition-duration, #{$transition-fast}) linear,
+    stroke var(--theme-ink-transition-duration, #{$transition-fast}) linear,
+    fill var(--theme-ink-transition-duration, #{$transition-fast}) linear,
+    opacity var(--theme-ink-transition-duration, #{$transition-fast}) linear,
     filter $transition-base ease,
     backdrop-filter $transition-base ease;
 }

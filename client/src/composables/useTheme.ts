@@ -26,6 +26,7 @@ const theme = ref<ThemeMode>('dark')
 
 let initialized = false
 let transitionTimeout: number | null = null
+let transitionFrame: number | null = null
 
 function syncDocumentTheme(nextTheme: ThemeMode) {
     document.documentElement.dataset.theme = nextTheme
@@ -38,10 +39,19 @@ function clearThemeTransition() {
     root.style.removeProperty('--theme-transition-duration')
 }
 
+function cancelThemeFrame() {
+    if (transitionFrame !== null) {
+        window.cancelAnimationFrame(transitionFrame)
+        transitionFrame = null
+    }
+}
+
 function startThemeTransition(durationMs: number) {
     const root = document.documentElement
     root.style.setProperty('--theme-transition-duration', `${durationMs}ms`)
     root.classList.add(TRANSITION_CLASS)
+
+    cancelThemeFrame()
 
     if (transitionTimeout !== null) {
         window.clearTimeout(transitionTimeout)
@@ -50,7 +60,7 @@ function startThemeTransition(durationMs: number) {
     transitionTimeout = window.setTimeout(() => {
         clearThemeTransition()
         transitionTimeout = null
-    }, durationMs)
+    }, durationMs + 120)
 }
 
 function normalizeTheme(nextTheme: ThemeMode | string | null): ThemeMode {
@@ -65,15 +75,25 @@ function applyTheme(
     theme.value = normalizedTheme
 
     if (options.animate !== false) {
-        startThemeTransition(options.durationMs ?? DEFAULT_TRANSITION_DURATION_MS)
+        const durationMs = options.durationMs ?? DEFAULT_TRANSITION_DURATION_MS
+        startThemeTransition(durationMs)
         void document.documentElement.offsetWidth
-    } else if (transitionTimeout !== null) {
-        window.clearTimeout(transitionTimeout)
-        transitionTimeout = null
-        clearThemeTransition()
-    }
+        transitionFrame = window.requestAnimationFrame(() => {
+            transitionFrame = window.requestAnimationFrame(() => {
+                syncDocumentTheme(normalizedTheme)
+                transitionFrame = null
+            })
+        })
+    } else {
+        if (transitionTimeout !== null) {
+            window.clearTimeout(transitionTimeout)
+            transitionTimeout = null
+        }
 
-    syncDocumentTheme(normalizedTheme)
+        cancelThemeFrame()
+        clearThemeTransition()
+        syncDocumentTheme(normalizedTheme)
+    }
     localStorage.setItem(STORAGE_KEY, normalizedTheme)
     return normalizedTheme
 }

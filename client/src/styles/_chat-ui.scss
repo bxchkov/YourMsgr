@@ -13,19 +13,47 @@
   }
 
   .main-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
     min-width: 0;
     @include theme-surface-transition;
     background-color: $color-bg-body;
   }
 
   .chat-header {
+    @include flex-between;
     @include theme-surface-transition;
     padding: 0 $spacing-6;
+    height: $header-height;
     background-color: $color-primary;
     border-bottom: 1px solid $color-border-dark;
+
+    &__info {
+      display: flex;
+      align-items: center;
+      gap: $spacing-3;
+      min-height: 100%;
+    }
+
+    &__title {
+      @include theme-ink-transition;
+      font-size: $font-size-lg;
+      font-weight: $font-weight-semibold;
+      color: $color-text-primary;
+    }
+
+    &__status {
+      @include theme-ink-transition;
+      font-size: $font-size-xs;
+      color: $color-text-tertiary;
+    }
   }
 
   .chat {
+    flex: 1;
+    overflow: hidden;
     width: 100%;
 
     &__wrapper {
@@ -280,44 +308,6 @@
     }
   }
 
-  .sidebar {
-    position: relative;
-    width: var(--sidebar-width, 420px);
-    min-width: var(--sidebar-width, 420px);
-    max-width: var(--sidebar-width, 420px);
-    background-color: $color-bg-body;
-
-    &__header {
-      background-color: $color-primary;
-    }
-
-    &__resize-handle {
-      position: absolute;
-      top: 0;
-      right: -6px;
-      width: 12px;
-      height: 100%;
-      cursor: ew-resize;
-      z-index: $z-sticky;
-
-      &::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 5px;
-        width: 2px;
-        height: 100%;
-        background-color: $color-primary-soft-strong-dark;
-        opacity: 0;
-        @include theme-accent-transition;
-      }
-
-      &:hover::before {
-        opacity: 1;
-      }
-    }
-  }
-
   .chat-item {
     &__preview {
       align-items: baseline;
@@ -354,14 +344,5 @@
       padding: $footer-shell-padding-y $footer-shell-padding-x;
     }
 
-    .sidebar {
-      width: 320px;
-      min-width: 320px;
-      max-width: 320px;
-
-      &__resize-handle {
-        display: none;
-      }
-    }
   }
 }
