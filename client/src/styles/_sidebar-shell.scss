@@ -102,11 +102,11 @@
         width: 24px;
         height: 24px;
         stroke-width: 2;
-        @include theme-ink-transition;
+        stroke: currentColor;
+        fill: none;
       }
 
       span {
-        @include theme-ink-transition;
         text-align: center;
         line-height: 1.2;
       }
@@ -169,7 +169,8 @@
         width: 24px;
         height: 24px;
         stroke-width: 2;
-        @include theme-ink-transition;
+        stroke: currentColor;
+        fill: none;
       }
     }
 
@@ -194,6 +195,7 @@
         width: 18px;
         height: 18px;
         stroke: currentColor;
+        fill: none;
       }
     }
 
@@ -279,7 +281,8 @@
       svg {
         width: 24px;
         height: 24px;
-        @include theme-ink-transition;
+        stroke: currentColor;
+        fill: none;
       }
     }
 
