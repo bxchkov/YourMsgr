@@ -11,11 +11,10 @@
     border-radius: $radius-md;
     color: rgba(255, 255, 255, 0.84);
     transition:
-      color $transition-fast,
-      background-color $transition-fast,
-      border-color $transition-fast,
-      filter $transition-slow,
-      backdrop-filter $transition-slow;
+      color $transition-fast linear,
+      background-color $transition-fast linear,
+      border-color $transition-fast linear,
+      filter $transition-slow linear;
 
     svg {
       width: 20px;
@@ -25,7 +24,6 @@
 
     &:hover:not(:disabled) {
       filter: brightness(var(--hover-filter-brightness, 1.1));
-      backdrop-filter: brightness(var(--hover-backdrop-brightness, 1.1));
     }
 
     &:disabled {

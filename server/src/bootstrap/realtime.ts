@@ -28,7 +28,7 @@ export const createRealtimeServer = async ({
   realtimeChannel = REALTIME_EVENTS_CHANNEL,
 }: RealtimeServerOptions = {}) => {
   const resolvedDependencies = dependencies ?? createServerDependencies();
-  const app = createHttpApp({ dependencies: resolvedDependencies });
+  const app = createHttpApp({ dependencies: resolvedDependencies, realtimeChannel });
   const clients = new Map<string, ServerWebSocket<WebSocketData>>();
   const wsRateLimits = new Map<string, WsRateLimitState>();
 

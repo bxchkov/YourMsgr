@@ -50,8 +50,8 @@ export const useTestRuntime = ({ withRealtime = false }: SetupOptions = {}) => {
   beforeAll(async () => {
     const testDatabase = await createTestDatabase();
     const dependencies = createServerDependencies(testDatabase.db);
-    const app = createHttpApp({ dependencies });
     const realtimeChannel = `yourmsgr_events_${testDatabase.schemaName}`;
+    const app = createHttpApp({ dependencies, realtimeChannel });
     const runtime = withRealtime
       ? await createRealtimeServer({ port: 0, dependencies, realtimeChannel })
       : undefined;

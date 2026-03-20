@@ -190,7 +190,8 @@ draw_section() {
 }
 
 draw_banner() {
-  printf "%s|%s  %sYourMsgr Control Panel%s%s |\n" "$COLOR_ACCENT" "$COLOR_RESET" "$COLOR_TITLE" "$COLOR_RESET" "$(pad_visible "" 34)"
+  draw_section "YourMsgr Control Panel"
+  echo
 }
 
 clear_screen() {
@@ -509,10 +510,10 @@ print_system_overview() {
     "$(format_value "$COLOR_OK" "ARCH:") $(detect_arch)"
   print_two_column_row \
     "$(format_value "$COLOR_OK" "ISP:") $(detect_isp)" \
-    "$(format_value "$COLOR_OK" "CPU: ") $(detect_cpu_summary)"
+    "$(format_value "$COLOR_OK" "RAM: ") $(detect_ram_usage)"
   print_two_column_row \
     "$(format_value "$COLOR_OK" "IP: ") $(detect_ip)" \
-    "$(format_value "$COLOR_OK" "RAM: ") $(detect_ram_usage)"
+    ""
 }
 
 print_app_overview() {
@@ -532,13 +533,13 @@ print_app_overview() {
 
   print_two_column_row \
     "$(format_value "$COLOR_INFO" "Version:     ") $(current_version)" \
-    "$(format_value "$COLOR_INFO" "Docker: ") $(render_state "$docker_state")"
+    "$(format_value "$COLOR_INFO" "Docker:  ") $(render_state "$docker_state")"
   print_two_column_row \
     "$(format_value "$COLOR_INFO" "State:       ") $(render_state "$(application_state)")" \
-    "$(format_value "$COLOR_INFO" "Client: ") $(render_state "$client_state")"
+    "$(format_value "$COLOR_INFO" "Client:  ") $(render_state "$client_state")"
   print_two_column_row \
     "$(format_value "$COLOR_INFO" "Auto-start:  ") $(render_state "$(autostart_state)")" \
-    "$(format_value "$COLOR_INFO" "Server: ") $(render_state "$server_state")"
+    "$(format_value "$COLOR_INFO" "Server:  ") $(render_state "$server_state")"
   print_two_column_row \
     "$(format_value "$COLOR_INFO" "Auto-restart:") $(render_state "$(autorestart_state)")" \
     "$(format_value "$COLOR_INFO" "Postgres:") $(render_state "$postgres_state")"

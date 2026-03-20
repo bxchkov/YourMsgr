@@ -80,7 +80,55 @@ describe("WebSocket integration", () => {
     expect(secondReceived.recipientId).toBe(2);
   });
 
-  test("logs out an already connected socket after the session becomes invalid", async () => {
+  test("pushes private chat sync to both participants after HTTP chat creation", async () => {
+    const { app, origin } = getRuntime();
+    const aliceRegistration = await registerUser(app, {
+      login: "syncchat",
+      username: "Alice",
+    });
+    const bobRegistration = await registerUser(app, {
+      login: "syncbob1",
+      username: "Bob",
+    });
+
+    const aliceSession = await loginUser(origin, {
+      login: aliceRegistration.login,
+      password: aliceRegistration.password,
+    });
+    const bobSession = await loginUser(origin, {
+      login: bobRegistration.login,
+      password: bobRegistration.password,
+    });
+
+    const aliceSocket = await openSocket(origin, aliceSession.cookie);
+    const bobSocket = await openSocket(origin, bobSession.cookie);
+    activeSockets.push(aliceSocket, bobSocket);
+
+    expect((await waitForSocketMessage(aliceSocket)).type).toBe("load_messages");
+    expect((await waitForSocketMessage(bobSocket)).type).toBe("load_messages");
+
+    const aliceSyncPromise = waitForSocketMessage(aliceSocket);
+    const bobSyncPromise = waitForSocketMessage(bobSocket);
+
+    const createChatResult = await fetchJson<{ chat: { id: number } }>(origin, "/api/private-chats", {
+      method: "POST",
+      cookie: aliceSession.cookie,
+      headers: {
+        authorization: `Bearer ${aliceSession.accessToken}`,
+      },
+      body: {
+        otherUserId: 2,
+      },
+    });
+
+    expect(createChatResult.response.status).toBe(200);
+    expect(createChatResult.data.data?.chat.id).toBe(1);
+
+    expect((await aliceSyncPromise).type).toBe("sync_private_chats");
+    expect((await bobSyncPromise).type).toBe("sync_private_chats");
+  });
+
+  test("logs out an already connected socket immediately after HTTP logout", async () => {
     const { app, origin } = getRuntime();
     const aliceRegistration = await registerUser(app, {
       login: "logout1",
@@ -97,6 +145,8 @@ describe("WebSocket integration", () => {
     const initialLoad = await waitForSocketMessage(aliceSocket);
     expect(initialLoad.type).toBe("load_messages");
 
+    const logoutMessagePromise = waitForSocketMessage(aliceSocket);
+
     const logoutResult = await fetchJson(origin, "/auth/logout", {
       method: "POST",
       cookie: aliceSession.cookie,
@@ -107,14 +157,7 @@ describe("WebSocket integration", () => {
 
     expect(logoutResult.response.status).toBe(200);
 
-    aliceSocket.send(JSON.stringify({
-      type: "send_message",
-      accessToken: aliceSession.accessToken,
-      message: "Should fail",
-      isEncrypted: 0,
-    }));
-
-    const logoutMessage = await waitForSocketMessage(aliceSocket);
+    const logoutMessage = await logoutMessagePromise;
     expect(logoutMessage.type).toBe("client_logout");
   });
 });

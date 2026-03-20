@@ -4,6 +4,7 @@ import { AuthService } from "../services/auth.service";
 import { loginSchema, registrationSchema, usernameSchema } from "../utils/validation";
 import { sendSuccess, sendError } from "../utils/response";
 import { verifyAccessToken, verifyRefreshToken, generateTokens } from "../utils/jwt";
+import { publishRealtimeEvent, REALTIME_EVENTS_CHANNEL } from "../utils/realtimeEvents";
 
 type LoginCredentials = {
   login: string;
@@ -19,7 +20,10 @@ type RegistrationCredentials = LoginCredentials & {
 };
 
 export class AuthController {
-  constructor(private readonly authService: AuthService = new AuthService()) {}
+  constructor(
+    private readonly authService: AuthService = new AuthService(),
+    private readonly realtimeChannel: string = REALTIME_EVENTS_CHANNEL,
+  ) {}
 
   private getFirstValidationErrorMessage(result: { error?: { issues?: Array<{ message?: string }> } }, fallback: string) {
     return result.error?.issues?.[0]?.message || fallback;
@@ -152,17 +156,27 @@ export class AuthController {
   async logout(c: Context) {
     const accessToken = c.req.header("authorization")?.split(" ")[1];
     const refreshToken = getCookie(c, "refreshToken");
+    let logoutUserId: number | null = null;
 
     const accessPayload = accessToken ? verifyAccessToken(accessToken) : null;
     const refreshPayload = refreshToken ? verifyRefreshToken(refreshToken) : null;
 
     if (accessPayload?.userId) {
       await this.authService.clearRefreshToken(accessPayload.userId);
+      logoutUserId = accessPayload.userId;
     } else if (refreshPayload?.userId && refreshToken) {
       const user = await this.authService.getUserById(refreshPayload.userId);
       if (user?.refreshToken === refreshToken) {
         await this.authService.clearRefreshToken(refreshPayload.userId);
+        logoutUserId = refreshPayload.userId;
       }
+    }
+
+    if (logoutUserId) {
+      await publishRealtimeEvent({
+        type: "force_logout",
+        userId: logoutUserId,
+      }, undefined, this.realtimeChannel);
     }
 
     deleteCookie(c, "refreshToken", {

@@ -3,11 +3,13 @@ import { authMiddleware } from "../middleware/auth";
 import { PrivateChatService } from "../services/privateChat.service";
 import { logger } from "../utils/logger";
 import { sendSuccess, sendError } from "../utils/response";
+import { publishRealtimeEvent, REALTIME_EVENTS_CHANNEL } from "../utils/realtimeEvents";
 import type { AppEnv } from "../types/hono";
 
 export const createPrivateChatRoutes = (
   privateChatService: PrivateChatService = new PrivateChatService(),
   protectedAuthMiddleware = authMiddleware,
+  realtimeChannel: string = REALTIME_EVENTS_CHANNEL,
 ) => {
   const privateChatRoutes = new Hono<AppEnv>();
 
@@ -24,6 +26,10 @@ export const createPrivateChatRoutes = (
       }
 
       const chat = await privateChatService.getOrCreatePrivateChat(user.userId, otherUserId);
+      await publishRealtimeEvent({
+        type: "sync_private_chats",
+        userIds: [user.userId, otherUserId],
+      }, undefined, realtimeChannel);
 
       return sendSuccess(c, "Chat created", { chat });
     } catch (error: unknown) {

@@ -10,16 +10,21 @@ import { createPrivateChatRoutes } from "../routes/privateChat.routes";
 import type { AppEnv } from "../types/hono";
 import { logger } from "../utils/logger";
 import { sendError, sendSuccess } from "../utils/response";
+import { REALTIME_EVENTS_CHANNEL } from "../utils/realtimeEvents";
 import { createServerDependencies, type ServerDependencies } from "./dependencies";
 
 export interface AppFactoryOptions {
   dependencies?: ServerDependencies;
+  realtimeChannel?: string;
 }
 
-export const createHttpApp = ({ dependencies = createServerDependencies() }: AppFactoryOptions = {}) => {
+export const createHttpApp = ({
+  dependencies = createServerDependencies(),
+  realtimeChannel = REALTIME_EVENTS_CHANNEL,
+}: AppFactoryOptions = {}) => {
   const app = new Hono<AppEnv>();
   const authMiddleware = createAuthMiddleware(dependencies.authService);
-  const authController = new AuthController(dependencies.authService);
+  const authController = new AuthController(dependencies.authService, realtimeChannel);
 
   app.use("*", corsMiddleware);
   app.use(
@@ -32,7 +37,7 @@ export const createHttpApp = ({ dependencies = createServerDependencies() }: App
 
   app.route("/auth", createAuthRoutes(authController, authMiddleware));
   app.route("/api/messages", createMessageRoutes(dependencies.messageService, authMiddleware));
-  app.route("/api/private-chats", createPrivateChatRoutes(dependencies.privateChatService, authMiddleware));
+  app.route("/api/private-chats", createPrivateChatRoutes(dependencies.privateChatService, authMiddleware, realtimeChannel));
 
   app.get("/", (c) => c.text("Chat Server Running"));
   app.get("/healthz", async (c) => {

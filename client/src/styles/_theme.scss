@@ -4,7 +4,6 @@
 @mixin render {
   :root {
     --hover-filter-brightness: 1.1;
-    --hover-backdrop-brightness: 1.1;
   }
 
   :root.theme-switching body,
@@ -70,12 +69,12 @@
   :root.theme-switching .context-menu,
   :root.theme-switching .context-menu__item {
     transition:
-      background-color 0.28s linear,
-      border-color 0.28s linear,
-      color 0.28s linear,
-      fill 0.28s linear,
-      stroke 0.28s linear,
-      box-shadow 0.28s linear !important;
+      background-color 0.56s linear,
+      border-color 0.56s linear,
+      color 0.56s linear,
+      fill 0.56s linear,
+      stroke 0.56s linear,
+      box-shadow 0.56s linear !important;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -184,7 +183,6 @@
 
   [data-theme='light'] {
     --hover-filter-brightness: 0.95;
-    --hover-backdrop-brightness: 0.95;
     color-scheme: light;
 
     body,
