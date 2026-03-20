@@ -3,7 +3,7 @@
 
 @mixin render {
   .message {
-    @include theme-surface-ink-transition;
+    @include theme-surface-transition;
     position: relative;
     display: flex;
     flex-direction: column;
@@ -63,6 +63,7 @@
     }
 
     &__text {
+      @include theme-ink-transition;
       display: inline-block;
       overflow-wrap: anywhere;
       word-break: break-word;

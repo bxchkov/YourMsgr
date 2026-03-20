@@ -3,7 +3,13 @@
     <div class="modal-backdrop"></div>
 
     <div class="modal modal--auth" role="dialog" aria-labelledby="auth-title">
-      <Transition name="modal-swap" mode="out-in" appear>
+      <Transition
+        name="modal-swap"
+        mode="out-in"
+        appear
+        @after-enter="handleModeTransitionEnter"
+        @after-appear="handleModeTransitionEnter"
+      >
         <div :key="mode" class="modal__content">
           <h2 class="modal__header" id="auth-title">{{ headerTitle }}</h2>
 
@@ -157,9 +163,15 @@ function clearError() {
 
 function focusLoginInput() {
   void nextTick(() => {
-    loginInput.value?.focus()
-    loginInput.value?.select()
+    window.requestAnimationFrame(() => {
+      loginInput.value?.focus()
+      loginInput.value?.select()
+    })
   })
+}
+
+function handleModeTransitionEnter() {
+  focusLoginInput()
 }
 
 function toggleMode() {
@@ -177,7 +189,6 @@ async function handleSubmit() {
 
 watch(mode, () => {
   clearError()
-  focusLoginInput()
 })
 
 onMounted(async () => {

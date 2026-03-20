@@ -4,9 +4,11 @@
 @mixin render {
   .auth-screen {
     @include flex-center;
+    @include theme-surface-transition;
     height: 100vh;
     width: 100%;
     position: relative;
+    background-color: $color-bg-body;
   }
 
   .chat-screen {
