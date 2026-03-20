@@ -290,10 +290,17 @@
 
     &__link {
       @include reset-button;
+      @include theme-ink-transition;
       font-size: $font-size-base;
       font-weight: $font-weight-medium;
       color: $color-primary-dark;
-      @include hover-brightness;
+      transition:
+        color var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear,
+        filter $transition-base;
+
+      &:hover:not(:disabled) {
+        filter: brightness(var(--hover-filter-brightness, 1.1));
+      }
     }
   }
 }
