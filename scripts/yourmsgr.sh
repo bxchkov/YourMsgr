@@ -624,6 +624,24 @@ autostart_state() {
   echo "$unit_enabled"
 }
 
+legacy_autostart_state() {
+  local docker_enabled socket_enabled
+  docker_enabled="$(systemd_service_enabled docker.service)"
+  socket_enabled="$(systemd_service_enabled docker.socket)"
+
+  if [[ "$docker_enabled" == "enabled" || "$socket_enabled" == "enabled" ]]; then
+    echo "enabled"
+    return
+  fi
+
+  if [[ "$docker_enabled" == "unknown" && "$socket_enabled" == "unknown" ]]; then
+    echo "unknown"
+    return
+  fi
+
+  echo "disabled"
+}
+
 autorestart_state() {
   if ! is_configured; then
     echo "not_configured"
@@ -947,6 +965,8 @@ print_update_status() {
 
 update_stack() {
   local force="${1:-0}"
+  local current_autostart="unknown"
+  local legacy_autostart="unknown"
 
   require_root_for_helper_action || return 1
 
@@ -973,7 +993,13 @@ update_stack() {
   install -m 0755 "$INSTALL_DIR/scripts/yourmsgr.sh" "$HELPER_TARGET"
 
   if [[ -f "$INSTALL_DIR/.env" ]] && command -v systemctl >/dev/null 2>&1; then
+    current_autostart="$(autostart_state)"
+    legacy_autostart="$(legacy_autostart_state)"
     write_systemd_unit >/dev/null 2>&1 || true
+
+    if [[ "$current_autostart" == "enabled" || "$legacy_autostart" == "enabled" ]]; then
+      systemctl enable "$SYSTEMD_UNIT_NAME" >/dev/null 2>&1 || true
+    fi
   fi
 
   if is_configured; then
