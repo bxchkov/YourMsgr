@@ -115,7 +115,7 @@ sudo yourmsgr service start
 ## Удаление
 
 ```bash
-yourmsgr uninstall
+sudo yourmsgr uninstall
 ```
 
 Удаление остаётся полным:

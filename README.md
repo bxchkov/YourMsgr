@@ -107,7 +107,7 @@ sudo yourmsgr service autostart off
 sudo yourmsgr service autorestart on
 sudo yourmsgr service autorestart off
 yourmsgr admin stats
-yourmsgr uninstall
+sudo yourmsgr uninstall
 ```
 
 ## Обновления
@@ -185,7 +185,7 @@ docker compose up -d --build
 
 ## Текущая версия
 
-`2.0.19`
+`2.0.23`
 
 ## Лицензия
 

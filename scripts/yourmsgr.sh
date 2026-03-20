@@ -286,100 +286,6 @@ detect_isp() {
   echo "unknown"
 }
 
-detect_cpu_usage() {
-  top -bn1 2>/dev/null | awk -F'[, ]+' '/^%?Cpu/ {
-    for (i = 1; i <= NF; i++) {
-      if ($i == "id" && (i - 1) >= 1) {
-        printf "%.1f%%", 100 - $(i - 1)
-        exit
-      }
-    }
-  }'
-}
-
-detect_cpu_model() {
-  if command -v lscpu >/dev/null 2>&1; then
-    lscpu 2>/dev/null | awk -F: '/Model name/ {gsub(/^[ \t]+/, "", $2); print $2; exit}'
-    return
-  fi
-
-  awk -F: '/model name/ {gsub(/^[ \t]+/, "", $2); print $2; exit}' /proc/cpuinfo 2>/dev/null
-}
-
-shorten_cpu_model() {
-  local model="$1"
-
-  printf '%s' "$model" \
-    | sed -E \
-      -e 's/[[:space:]]+[0-9]+-Core Processor$//' \
-      -e 's/[[:space:]]+Processor$//' \
-      -e 's/[[:space:]]+CPU$//' \
-      -e 's/[[:space:]]+with Radeon Graphics$//' \
-      -e 's/[[:space:]]+@.*$//' \
-    | awk '{$1=$1; print}'
-}
-
-detect_cpu_cores() {
-  nproc 2>/dev/null || echo ""
-}
-
-detect_cpu_frequency() {
-  local mhz=""
-
-  if command -v lscpu >/dev/null 2>&1; then
-    mhz="$(lscpu 2>/dev/null | awk -F: '/CPU max MHz/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
-    if [[ -z "$mhz" ]]; then
-      mhz="$(lscpu 2>/dev/null | awk -F: '/CPU MHz/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
-    fi
-  fi
-
-  if [[ -z "$mhz" ]]; then
-    mhz="$(awk -F: '/cpu MHz/ {gsub(/^[ \t]+/, "", $2); print $2; exit}' /proc/cpuinfo 2>/dev/null)"
-  fi
-
-  if [[ -n "$mhz" ]]; then
-    awk -v mhz="$mhz" 'BEGIN { printf "%.2fGHz", mhz / 1000 }'
-  fi
-}
-
-detect_cpu_summary() {
-  local model usage cores frequency joined="" detail_part=""
-  local details=()
-
-  usage="$(detect_cpu_usage)"
-  model="$(shorten_cpu_model "$(detect_cpu_model)")"
-  cores="$(detect_cpu_cores)"
-  frequency="$(detect_cpu_frequency)"
-
-  if [[ -n "$model" ]]; then
-    details+=("$model")
-  fi
-
-  if [[ -n "$cores" ]]; then
-    details+=("$cores")
-  fi
-
-  if [[ -n "$frequency" ]]; then
-    if [[ -n "$cores" ]]; then
-      details[-1]="${details[-1]}@${frequency}"
-    else
-      details+=("@${frequency}")
-    fi
-  fi
-
-  if [[ ${#details[@]} -gt 0 ]]; then
-    joined="${details[0]}"
-    for detail_part in "${details[@]:1}"; do
-      joined+=" ${detail_part}"
-    done
-
-    printf "%s (%s)" "${usage:-unknown}" "$joined"
-    return
-  fi
-
-  printf '%s' "${usage:-unknown}"
-}
-
 detect_ram_summary() {
   free -m 2>/dev/null | awk '/Mem:/ {
     printf "%.1f%% (%sMB / %sMB)", ($3 / $2) * 100, $3, $2
@@ -1416,6 +1322,7 @@ show_menu() {
 }
 
 uninstall_stack() {
+  require_root_for_helper_action || return 1
   compose down -v --remove-orphans || true
   rm -rf "$INSTALL_DIR"
   rm -f "$HELPER_TARGET"

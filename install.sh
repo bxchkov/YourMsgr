@@ -723,7 +723,7 @@ print_configure_summary() {
   echo "  yourmsgr service autostart on"
   echo "  yourmsgr service autorestart on"
   echo "  yourmsgr admin stats"
-  echo "  yourmsgr uninstall"
+  echo "  sudo yourmsgr uninstall"
 }
 
 main() {
