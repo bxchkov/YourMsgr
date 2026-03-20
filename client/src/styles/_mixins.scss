@@ -165,16 +165,14 @@
 }
 
 @mixin hover-brightness {
-  @include theme-interactive-core-transition;
+  @include theme-interactive-transition;
 
   :root.theme-switching & {
-    @include theme-interactive-core-transition;
     filter: none !important;
     backdrop-filter: none !important;
   }
 
   &:hover:not(:disabled) {
-    @include theme-interactive-transition;
     filter: brightness(var(--hover-filter-brightness, 1.1));
     backdrop-filter: brightness(var(--hover-backdrop-brightness, 1.1));
   }
