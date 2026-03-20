@@ -73,7 +73,7 @@
             placeholder="Написать сообщение..."
             aria-label="Текст сообщения"
             rows="1"
-            maxlength="1000"
+            maxlength="2000"
             @input="handleMessageInput"
             @keydown="handleComposerKeydown"
           ></textarea>
@@ -304,7 +304,7 @@ async function resolveRecipientPublicKey(recipientId: number) {
     return currentPrivateChat.otherUser.publicKey
   }
 
-  const response = await authService.getPublicKeys()
+  const response = await authService.getPublicKeys([recipientId])
   if (response.success && response.data?.publicKeys) {
     const refreshedKeys = Object.fromEntries(
       response.data.publicKeys.map((user: PublicKeyEntry) => [user.userId, user.publicKey]),
@@ -519,7 +519,6 @@ async function sendMessage() {
   }
 
   const msgData: SendMessageSocketPayload = {
-    accessToken: auth.token,
     message: normalizedMessage,
     isEncrypted: 0,
     replyToMessageId: chatStore.replyTarget?.id ?? null,

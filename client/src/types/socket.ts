@@ -57,7 +57,6 @@ export type SocketIncomingEventType = keyof SocketIncomingEventMap
 export type SocketIncomingEvent = SocketIncomingEventMap[SocketIncomingEventType]
 
 export interface SendMessageSocketPayload {
-    accessToken: string
     message: string
     isEncrypted: number
     replyToMessageId: number | null
@@ -68,7 +67,6 @@ export interface SendMessageSocketPayload {
 }
 
 export interface DeleteMessageSocketPayload {
-    accessToken: string
     id: number
 }
 

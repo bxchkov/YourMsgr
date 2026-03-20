@@ -6,9 +6,9 @@ describe("rate limiter helpers", () => {
     expect(DEFAULT_RATE_LIMIT_MESSAGE).toBe("Слишком много запросов");
   });
 
-  test("skips session and health endpoints", () => {
-    expect(shouldSkipRateLimit("/auth/session")).toBe(true);
-    expect(shouldSkipRateLimit("/auth/refresh")).toBe(true);
+  test("skips only health endpoint", () => {
+    expect(shouldSkipRateLimit("/auth/session")).toBe(false);
+    expect(shouldSkipRateLimit("/auth/refresh")).toBe(false);
     expect(shouldSkipRateLimit("/healthz")).toBe(true);
     expect(shouldSkipRateLimit("/auth/login")).toBe(false);
   });

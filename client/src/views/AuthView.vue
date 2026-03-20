@@ -35,7 +35,7 @@
               class="form__input"
               :class="{ 'form__input--error': !!error }"
               type="password"
-              placeholder="8-16 символов"
+              placeholder="8-128 символов"
               :autocomplete="isLoginMode ? 'current-password' : 'new-password'"
               required
               @input="clearError"
@@ -141,7 +141,7 @@ const footerAction = computed(() => (
 
 const isFormValid = computed(() => {
   const loginOk = /^[a-zA-Z0-9_-]{6,16}$/.test(loginValue.value)
-  const passOk = password.value.length >= 8 && password.value.length <= 16
+  const passOk = password.value.length >= 8 && password.value.length <= 128
   return loginOk && passOk
 })
 

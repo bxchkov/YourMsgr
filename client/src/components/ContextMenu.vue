@@ -106,9 +106,8 @@ function handleReply() {
 }
 
 function handleDelete() {
-  if (!targetMessage.value || !auth.token) return
+  if (!targetMessage.value) return
   emitSocketEvent('delete_message', {
-    accessToken: auth.token,
     id: targetMessage.value.id,
   })
   hide()

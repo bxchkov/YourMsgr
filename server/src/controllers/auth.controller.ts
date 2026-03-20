@@ -279,7 +279,26 @@ export class AuthController {
   }
 
   async getPublicKeys(c: Context) {
-    const publicKeys = await this.authService.getAllPublicKeys();
+    const user = c.get("user");
+    const rawUserIds = c.req.query("userIds");
+    let targetUserIds: number[] | undefined;
+
+    if (rawUserIds) {
+      targetUserIds = rawUserIds
+        .split(",")
+        .map((value) => Number(value.trim()))
+        .filter((value) => Number.isInteger(value) && value > 0);
+
+      if (targetUserIds.length === 0) {
+        return sendError(c, 400, "Invalid userIds query");
+      }
+
+      if (targetUserIds.length > 50) {
+        return sendError(c, 400, "Too many requested userIds");
+      }
+    }
+
+    const publicKeys = await this.authService.getPublicKeysForUser(user.userId, targetUserIds);
     return sendSuccess(c, "Public keys retrieved", { publicKeys });
   }
 }

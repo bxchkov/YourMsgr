@@ -25,7 +25,7 @@ const usernameValueSchema = z
 
 export const loginSchema = z.object({
   login: loginValueSchema,
-  password: z.string().min(8).max(16),
+  password: z.string().min(8).max(128),
 });
 
 export const registrationSchema = loginSchema.extend({
@@ -46,8 +46,8 @@ export const usernameSchema = z.object({
 
 export const wsMessageSchema = z.object({
   type: z.literal("send_message"),
-  accessToken: z.string().min(1),
-  message: z.string().trim().min(1).max(10000),
+  accessToken: z.string().min(1).optional(),
+  message: z.string().trim().min(1).max(2000),
   chatId: z.number().optional(),
   recipientId: z.number().optional(),
   replyToMessageId: z.number().int().positive().optional().nullable(),
@@ -58,13 +58,13 @@ export const wsMessageSchema = z.object({
 
 export const wsDeleteMessageSchema = z.object({
   type: z.literal("delete_message"),
-  accessToken: z.string().min(1),
+  accessToken: z.string().min(1).optional(),
   id: z.number().int().positive(),
 });
 
 export const wsLoadMoreMessagesSchema = z.object({
   type: z.literal("load_more_messages"),
-  accessToken: z.string().min(1),
+  accessToken: z.string().min(1).optional(),
   chatId: z.number().optional().nullable(),
   chatType: z.enum(["group", "private"]).default("group"),
   lastMessageId: z.number().int().positive(),

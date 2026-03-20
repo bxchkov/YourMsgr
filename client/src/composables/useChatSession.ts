@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { authService } from '@/services/auth'
 import { initCrypto } from '@/composables/useCrypto'
-import { loadGroupMessagesIntoStore, loadPrivateChatsIntoStore, loadPublicKeysIntoStore } from '@/composables/useChatSync'
+import { loadGroupMessagesIntoStore, loadPrivateChatsIntoStore } from '@/composables/useChatSync'
 import { disconnectSocket, initSocket, setupSocketHandlers } from '@/composables/useWebSocket'
 import { logger } from '@/utils/logger'
 
@@ -66,7 +66,6 @@ export function useChatSession() {
       }
 
       await initCrypto()
-      await loadPublicKeysIntoStore(chatStore)
 
       setupSocketHandlers()
       initSocket()

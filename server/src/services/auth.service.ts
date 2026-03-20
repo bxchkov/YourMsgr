@@ -1,4 +1,4 @@
-import { and, eq, ne, or } from "drizzle-orm";
+import { and, eq, inArray, ne, or } from "drizzle-orm";
 import { db, type Database } from "../db";
 import { messages, privateChats, users } from "../db/schema";
 import { hashPassword, verifyPassword } from "../utils/password";
@@ -188,8 +188,38 @@ export class AuthService {
       affectedUserIds: [...affectedUserIds],
     };
   }
-  async getAllPublicKeys() {
-    const allUsers = await this.database.query.users.findMany({
+  async getPublicKeysForUser(userId: number, targetUserIds?: number[]) {
+    let allowedUserIds: number[] = [];
+
+    if (targetUserIds?.length) {
+      allowedUserIds = [...new Set(targetUserIds.filter((id) => Number.isInteger(id) && id > 0))];
+    } else {
+      const relatedPrivateChats = await this.database.query.privateChats.findMany({
+        where: or(
+          eq(privateChats.user1Id, userId),
+          eq(privateChats.user2Id, userId),
+        ),
+        columns: {
+          user1Id: true,
+          user2Id: true,
+        },
+      });
+
+      const relatedUserIds = new Set<number>([userId]);
+      for (const chat of relatedPrivateChats) {
+        relatedUserIds.add(chat.user1Id);
+        relatedUserIds.add(chat.user2Id);
+      }
+
+      allowedUserIds = [...relatedUserIds];
+    }
+
+    if (allowedUserIds.length === 0) {
+      return [];
+    }
+
+    const relatedUsers = await this.database.query.users.findMany({
+      where: inArray(users.id, allowedUserIds),
       columns: {
         id: true,
         username: true,
@@ -197,7 +227,7 @@ export class AuthService {
       },
     });
 
-    return allUsers.filter(user => user.publicKey).map(user => ({
+    return relatedUsers.filter(user => user.publicKey).map(user => ({
       userId: user.id,
       username: user.username,
       publicKey: user.publicKey,

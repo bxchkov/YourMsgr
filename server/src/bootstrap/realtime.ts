@@ -1,5 +1,5 @@
 import type { Server as BunServer, ServerWebSocket } from "bun";
-import { type TokenPayload, verifyAccessToken, verifyRefreshToken } from "../utils/jwt";
+import { verifyRefreshToken } from "../utils/jwt";
 import { logger } from "../utils/logger";
 import { listenToRealtimeEvents, REALTIME_EVENTS_CHANNEL } from "../utils/realtimeEvents";
 import { validateData, wsDeleteMessageSchema, wsLoadMoreMessagesSchema, wsMessageSchema } from "../utils/validation";
@@ -7,6 +7,8 @@ import { consumeWsRateLimit, getCookieValue, type WsRateLimitState, WS_ERROR_MES
 import type { MessageWithReply } from "../services/reply.service";
 import { createHttpApp, type AppFactoryOptions } from "./app";
 import { createServerDependencies } from "./dependencies";
+import type { InferSelectModel } from "drizzle-orm";
+import { users } from "../db/schema";
 
 export interface WebSocketData {
   userId: number;
@@ -21,6 +23,8 @@ export interface RealtimeServerOptions extends AppFactoryOptions {
 
 const WS_LIMIT = 5;
 const WS_WINDOW = 1000;
+const MAX_WS_CONNECTIONS_PER_USER = 5;
+type SessionUser = InferSelectModel<typeof users>;
 
 export const createRealtimeServer = async ({
   port = Number(process.env.PORT) || 3000,
@@ -95,24 +99,13 @@ export const createRealtimeServer = async ({
 
   const getValidSocketSession = async (
     ws: ServerWebSocket<WebSocketData>,
-    accessToken: string,
-  ): Promise<{ accessPayload: TokenPayload | null; shouldLogout: boolean }> => {
-    const accessPayload = verifyAccessToken(accessToken);
-
-    if (!accessPayload) {
-      return { accessPayload: null, shouldLogout: false };
-    }
-
-    if (accessPayload.userId !== ws.data.userId) {
-      return { accessPayload: null, shouldLogout: true };
-    }
-
-    const user = await resolvedDependencies.authService.getValidSessionUser(accessPayload.userId, ws.data.refreshToken);
+  ): Promise<{ user: SessionUser | null; shouldLogout: boolean }> => {
+    const user = await resolvedDependencies.authService.getValidSessionUser(ws.data.userId, ws.data.refreshToken);
     if (!user) {
-      return { accessPayload: null, shouldLogout: true };
+      return { user: null, shouldLogout: true };
     }
 
-    return { accessPayload, shouldLogout: false };
+    return { user, shouldLogout: false };
   };
 
   const realtimeListener = await listenToRealtimeEvents(async (event) => {
@@ -179,6 +172,14 @@ export const createRealtimeServer = async ({
           return;
         }
 
+        const activeConnections = [...clients.values()].filter((client) => client.data.userId === ws.data.userId).length;
+        if (activeConnections >= MAX_WS_CONNECTIONS_PER_USER) {
+          ws.send(JSON.stringify({ type: "error", message: "Too many active connections" }));
+          ws.close();
+          logger.warn(`Rejected extra WebSocket connection for '${ws.data.userName}'`);
+          return;
+        }
+
         const clientId = `${ws.data.userId}-${Date.now()}`;
         clients.set(clientId, ws);
         logger.info(`WebSocket client connected: ${ws.data.userName}`);
@@ -205,23 +206,18 @@ export const createRealtimeServer = async ({
               return;
             }
 
-            const { accessPayload: userPayload, shouldLogout } = await getValidSocketSession(ws, data.accessToken);
+            const { user: sessionUser, shouldLogout } = await getValidSocketSession(ws);
             if (shouldLogout) {
               logger.warn(`WebSocket send_message session is invalid for '${ws.data.userName}'`);
               logoutSocketClient(ws);
               return;
             }
 
-            if (!userPayload) {
-              ws.send(JSON.stringify({ type: "check_session" }));
-              return;
-            }
-
             if (data.chatId && data.recipientId) {
               const newMessage = await resolvedDependencies.privateChatService.sendPrivateMessage(
                 data.chatId,
-                userPayload.userId,
-                userPayload.userName,
+                sessionUser!.id,
+                sessionUser!.username,
                 data.message,
                 data.recipientId,
                 data.nonce,
@@ -232,7 +228,7 @@ export const createRealtimeServer = async ({
 
               const payload = JSON.stringify({ type: "send_message", ...newMessage });
               clients.forEach((client) => {
-                if (client.data.userId === userPayload.userId || client.data.userId === data.recipientId) {
+                if (client.data.userId === sessionUser!.id || client.data.userId === newMessage.recipientId) {
                   safeSendToClient(client, payload);
                 }
               });
@@ -240,8 +236,8 @@ export const createRealtimeServer = async ({
             }
 
             const newMessage = await resolvedDependencies.messageService.createMessage(
-              userPayload.userId,
-              userPayload.userName,
+              sessionUser!.id,
+              sessionUser!.username,
               data.message,
               data.nonce,
               data.senderPublicKey,
@@ -263,15 +259,10 @@ export const createRealtimeServer = async ({
               return;
             }
 
-            const { accessPayload: userPayload, shouldLogout } = await getValidSocketSession(ws, data.accessToken);
+            const { user: sessionUser, shouldLogout } = await getValidSocketSession(ws);
             if (shouldLogout) {
               logger.warn(`WebSocket delete_message session is invalid for '${ws.data.userName}'`);
               logoutSocketClient(ws);
-              return;
-            }
-
-            if (!userPayload) {
-              ws.send(JSON.stringify({ type: "check_session" }));
               return;
             }
 
@@ -281,7 +272,7 @@ export const createRealtimeServer = async ({
               return;
             }
 
-            if (msg.userId !== userPayload.userId && userPayload.userRole < 3) {
+            if (msg.userId !== sessionUser!.id && sessionUser!.role < 3) {
               ws.send(JSON.stringify({ type: "error", message: WS_ERROR_MESSAGES.insufficientDeletePermissions }));
               return;
             }
@@ -318,15 +309,10 @@ export const createRealtimeServer = async ({
               return;
             }
 
-            const { accessPayload: userPayload, shouldLogout } = await getValidSocketSession(ws, data.accessToken);
+            const { user: sessionUser, shouldLogout } = await getValidSocketSession(ws);
             if (shouldLogout) {
               logger.warn(`WebSocket load_more_messages session is invalid for '${ws.data.userName}'`);
               logoutSocketClient(ws);
-              return;
-            }
-
-            if (!userPayload) {
-              ws.send(JSON.stringify({ type: "check_session" }));
               return;
             }
 
@@ -334,7 +320,7 @@ export const createRealtimeServer = async ({
             if (data.chatType === "private" && data.chatId) {
               history = await resolvedDependencies.privateChatService.getPrivateChatMessages(
                 data.chatId,
-                userPayload.userId,
+                sessionUser!.id,
                 data.lastMessageId,
               );
             } else {

@@ -16,10 +16,12 @@ describe("WebSocket integration", () => {
     const aliceRegistration = await registerUser(app, {
       login: "wsalice",
       username: "Alice01",
+      publicKey: "alice-public-key",
     });
     const bobRegistration = await registerUser(app, {
       login: "wsbob01",
       username: "Bob0001",
+      publicKey: "bob-public-key",
     });
 
     const aliceSession = await loginUser(origin, {
@@ -58,13 +60,12 @@ describe("WebSocket integration", () => {
 
     aliceSocket.send(JSON.stringify({
       type: "send_message",
-      accessToken: aliceSession.accessToken,
       chatId,
       recipientId: 2,
       message: "Secret hello",
       isEncrypted: 1,
       nonce: "nonce-1",
-      senderPublicKey: "public-key-1",
+      senderPublicKey: "spoofed-public-key",
     }));
 
     const firstReceived = await waitForSocketMessage(aliceSocket);
@@ -78,6 +79,8 @@ describe("WebSocket integration", () => {
     expect(secondReceived.message).toBe("Secret hello");
     expect(firstReceived.recipientId).toBe(2);
     expect(secondReceived.recipientId).toBe(2);
+    expect(firstReceived.senderPublicKey).toBe("alice-public-key");
+    expect(secondReceived.senderPublicKey).toBe("alice-public-key");
   });
 
   test("pushes private chat sync only to the initiator after HTTP chat creation", async () => {

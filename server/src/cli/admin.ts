@@ -309,8 +309,8 @@ const prepareUserInput = async (
 
       try {
         login = login || await prompt.ask(`Login (6-16 chars) [${defaultLogin}]: `) || defaultLogin;
-        password = password || await prompt.ask(`Password (8-16 chars) [${defaultPassword}]: `) || defaultPassword;
-        username = username || await prompt.ask(`Username (2-16 chars) [${defaultUsername}]: `) || defaultUsername;
+        password = password || await prompt.ask(`Password (8-128 chars) [${defaultPassword}]: `) || defaultPassword;
+        username = username || await prompt.ask(`Username (6-16 chars) [${defaultUsername}]: `) || defaultUsername;
       } finally {
         prompt.close();
       }

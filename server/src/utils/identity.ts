@@ -8,6 +8,7 @@ const RESERVED_IDENTIFIERS = new Set([
   "moder",
   "mod",
   "moderator",
+  // Reserve a common misspelling too.
   "administator",
 ]);
 

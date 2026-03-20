@@ -9,8 +9,6 @@ type RateLimitState = {
 const store = new Map<string, RateLimitState>();
 
 export const RATE_LIMIT_SKIP_PATHS = new Set([
-  "/auth/session",
-  "/auth/refresh",
   "/healthz",
 ]);
 

@@ -111,7 +111,7 @@ export const authService = {
         }
 
         const response = await fetch(`${API_BASE}/auth/refresh`, {
-            method: 'GET',
+            method: 'POST',
             credentials: 'include',
             headers,
         })
@@ -146,11 +146,15 @@ export const authService = {
         })
     },
 
-    async getPublicKeys() {
+    async getPublicKeys(userIds?: number[]) {
         const auth = useAuthStore()
         if (!auth.token) return createLocalErrorResponse<PublicKeysData>('Session expired', 401)
 
-        return authenticatedRequest<PublicKeysData>('/auth/publicKeys', {
+        const query = userIds?.length
+            ? `?userIds=${encodeURIComponent(userIds.join(','))}`
+            : ''
+
+        return authenticatedRequest<PublicKeysData>(`/auth/publicKeys${query}`, {
             method: 'GET',
         })
     },

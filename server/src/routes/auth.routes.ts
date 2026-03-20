@@ -11,6 +11,7 @@ export const createAuthRoutes = (
   authRoutes.post("/registration", (c) => authController.register(c));
   authRoutes.post("/login", (c) => authController.login(c));
   authRoutes.get("/session", (c) => authController.session(c));
+  authRoutes.post("/refresh", (c) => authController.refresh(c));
   authRoutes.get("/refresh", (c) => authController.refresh(c));
   authRoutes.post("/logout", (c) => authController.logout(c));
   authRoutes.patch("/username", protectedAuthMiddleware, (c) => authController.updateUsername(c));

@@ -6,6 +6,19 @@ import { eq } from "drizzle-orm";
 const getRuntime = useTestRuntime();
 
 describe("HTTP integration: auth and private chats", () => {
+  test("accepts passwords longer than 16 characters during registration", async () => {
+    const { app } = getRuntime();
+    const longPassword = "AuditPassword_With_Length_32_Value";
+
+    const registeredUser = await registerUser(app, {
+      login: "longpass",
+      password: longPassword,
+      username: "LongPass",
+    });
+
+    expect(registeredUser.password).toBe(longPassword);
+  });
+
   test("restores session from refresh cookie and rotates tokens", async () => {
     const { app } = getRuntime();
     const registeredUser = await registerUser(app, {
@@ -22,6 +35,25 @@ describe("HTTP integration: auth and private chats", () => {
 
     const rotatedCookie = sessionResult.response.headers.get("set-cookie");
     expect(rotatedCookie).toContain("refreshToken=");
+  });
+
+  test("refreshes tokens through POST /auth/refresh", async () => {
+    const { app } = getRuntime();
+    const registeredUser = await registerUser(app, {
+      login: "refresh01",
+    });
+
+    const refreshResult = await requestJson<{ accessToken: string }>(app, "/auth/refresh", {
+      method: "POST",
+      cookie: registeredUser.cookie,
+      headers: {
+        authorization: `Bearer ${registeredUser.accessToken}`,
+      },
+    });
+
+    expect(refreshResult.response.status).toBe(200);
+    expect(refreshResult.data.success).toBe(true);
+    expect(refreshResult.data.data?.accessToken).toBeString();
   });
 
   test("stores refresh token hashed at rest", async () => {
@@ -189,5 +221,54 @@ describe("HTTP integration: auth and private chats", () => {
     });
 
     expect(storedMessage?.username).toBe("Rename02");
+  });
+
+  test("scopes public keys to the current user's reachable peers", async () => {
+    const { app } = getRuntime();
+    const alice = await registerUser(app, {
+      login: "keyscope1",
+      username: "KeyScope1",
+      publicKey: "alice-key",
+    });
+    await registerUser(app, {
+      login: "keyscope2",
+      username: "KeyScope2",
+      publicKey: "bob-key",
+    });
+    await registerUser(app, {
+      login: "keyscope3",
+      username: "KeyScope3",
+      publicKey: "charlie-key",
+    });
+
+    const createChatResult = await requestJson<{ chat: { id: number } }>(app, "/api/private-chats", {
+      method: "POST",
+      cookie: alice.cookie,
+      headers: {
+        authorization: `Bearer ${alice.accessToken}`,
+      },
+      body: {
+        otherUserId: 2,
+      },
+    });
+
+    expect(createChatResult.response.status).toBe(200);
+
+    const publicKeysResult = await requestJson<{
+      publicKeys: Array<{ userId: number; username: string; publicKey: string }>;
+    }>(app, "/auth/publicKeys", {
+      cookie: alice.cookie,
+      headers: {
+        authorization: `Bearer ${alice.accessToken}`,
+      },
+    });
+
+    expect(publicKeysResult.response.status).toBe(200);
+    expect(publicKeysResult.data.success).toBe(true);
+
+    const keySet = new Set(publicKeysResult.data.data?.publicKeys.map((entry) => entry.publicKey));
+    expect(keySet.has("alice-key")).toBe(true);
+    expect(keySet.has("bob-key")).toBe(true);
+    expect(keySet.has("charlie-key")).toBe(false);
   });
 });

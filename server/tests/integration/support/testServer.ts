@@ -41,6 +41,8 @@ const DEFAULT_PUBLIC_KEY = "test-public-key";
 const DEFAULT_PRIVATE_KEY = "test-encrypted-private-key";
 const DEFAULT_PRIVATE_KEY_IV = "test-iv";
 const DEFAULT_PRIVATE_KEY_SALT = "test-salt";
+const TEST_ACCESS_SECRET = "test-access-secret-that-is-long-enough";
+const TEST_REFRESH_SECRET = "test-refresh-secret-that-is-long-enough";
 
 export const useTestRuntime = ({ withRealtime = false }: SetupOptions = {}) => {
   let runtimeContext: TestRuntimeContext;
@@ -48,6 +50,9 @@ export const useTestRuntime = ({ withRealtime = false }: SetupOptions = {}) => {
   let resetDb: (() => Promise<void>) | undefined;
 
   beforeAll(async () => {
+    process.env.JWT_ACCESS_SECRET ||= TEST_ACCESS_SECRET;
+    process.env.JWT_REFRESH_SECRET ||= TEST_REFRESH_SECRET;
+
     const testDatabase = await createTestDatabase();
     const dependencies = createServerDependencies(testDatabase.db);
     const realtimeChannel = `yourmsgr_events_${testDatabase.schemaName}`;
@@ -166,17 +171,19 @@ export const registerUser = async (
     login: string;
     password?: string;
     username?: string;
+    publicKey?: string;
   },
 ) => {
   const password = input.password ?? "Audit1234";
   const username = input.username ?? input.login;
+  const publicKey = input.publicKey ?? DEFAULT_PUBLIC_KEY;
   const { response, data } = await requestJson<{ accessToken: string }>(app, "/auth/registration", {
     method: "POST",
     body: {
       login: input.login,
       password,
       username,
-      publicKey: DEFAULT_PUBLIC_KEY,
+      publicKey,
       encryptedPrivateKey: DEFAULT_PRIVATE_KEY,
       encryptedPrivateKeyIv: DEFAULT_PRIVATE_KEY_IV,
       encryptedPrivateKeySalt: DEFAULT_PRIVATE_KEY_SALT,

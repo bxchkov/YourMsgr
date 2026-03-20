@@ -6,6 +6,17 @@ import { attachReplyTarget, attachReplyTargets, validateReplyTarget } from "./re
 export class MessageService {
   constructor(private readonly database: Database = db) {}
 
+  private async resolveSenderPublicKey(userId: number) {
+    const sender = await this.database.query.users.findFirst({
+      where: (users, { eq }) => eq(users.id, userId),
+      columns: {
+        publicKey: true,
+      },
+    });
+
+    return sender?.publicKey ?? null;
+  }
+
   async getAllMessages() {
     const allMessages = await this.database.query.messages.findMany({
       orderBy: [desc(messages.date)],
@@ -40,6 +51,7 @@ export class MessageService {
     replyToMessageId?: number | null
   ) {
     const replyTarget = await validateReplyTarget(replyToMessageId, { chatType: "group" }, this.database);
+    const senderPublicKeyValue = await this.resolveSenderPublicKey(userId);
 
     const [newMessage] = await this.database
       .insert(messages)
@@ -48,7 +60,7 @@ export class MessageService {
         username,
         message,
         nonce: nonce || null,
-        senderPublicKey: senderPublicKey || null,
+        senderPublicKey: senderPublicKeyValue,
         isEncrypted: isEncrypted || 0,
         replyToMessageId: replyTarget?.id ?? null,
       })

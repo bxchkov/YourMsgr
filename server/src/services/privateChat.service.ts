@@ -6,6 +6,17 @@ import { attachReplyTarget, attachReplyTargets, validateReplyTarget } from "./re
 export class PrivateChatService {
   constructor(private readonly database: Database = db) {}
 
+  private async resolveSenderPublicKey(userId: number) {
+    const sender = await this.database.query.users.findFirst({
+      where: eq(users.id, userId),
+      columns: {
+        publicKey: true,
+      },
+    });
+
+    return sender?.publicKey ?? null;
+  }
+
   async getOrCreatePrivateChat(user1Id: number, user2Id: number) {
     const otherUser = await this.database.query.users.findFirst({
       where: eq(users.id, user2Id),
@@ -184,6 +195,7 @@ export class PrivateChatService {
       chatType: "private",
       chatId,
     }, this.database);
+    const senderPublicKeyValue = await this.resolveSenderPublicKey(userId);
 
     const [newMessage] = await this.database
       .insert(messages)
@@ -195,7 +207,7 @@ export class PrivateChatService {
         chatType: "private",
         recipientId,
         nonce: nonce || null,
-        senderPublicKey: senderPublicKey || null,
+        senderPublicKey: senderPublicKeyValue,
         isEncrypted: isEncrypted || 0,
         replyToMessageId: replyTarget?.id ?? null,
       })
