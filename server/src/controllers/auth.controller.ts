@@ -133,8 +133,8 @@ export class AuthController {
       return sendError(c, 403, "Invalid refresh token");
     }
 
-    const user = await this.authService.getUserById(refreshPayload.userId);
-    if (!user || user.refreshToken !== refreshToken) {
+    const user = await this.authService.getValidSessionUser(refreshPayload.userId, refreshToken);
+    if (!user) {
       return sendError(c, 403, "Token mismatch");
     }
 
@@ -165,8 +165,8 @@ export class AuthController {
       await this.authService.clearRefreshToken(accessPayload.userId);
       logoutUserId = accessPayload.userId;
     } else if (refreshPayload?.userId && refreshToken) {
-      const user = await this.authService.getUserById(refreshPayload.userId);
-      if (user?.refreshToken === refreshToken) {
+      const user = await this.authService.getValidSessionUser(refreshPayload.userId, refreshToken);
+      if (user) {
         await this.authService.clearRefreshToken(refreshPayload.userId);
         logoutUserId = refreshPayload.userId;
       }

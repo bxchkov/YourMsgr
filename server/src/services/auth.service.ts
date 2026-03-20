@@ -4,6 +4,7 @@ import { users } from "../db/schema";
 import { hashPassword, verifyPassword } from "../utils/password";
 import { generateTokens } from "../utils/jwt";
 import { isReservedIdentity } from "../utils/identity";
+import { hashRefreshToken, verifyRefreshTokenHash } from "../utils/refreshToken";
 
 export class AuthService {
   constructor(private readonly database: Database = db) {}
@@ -114,7 +115,7 @@ export class AuthService {
   async saveRefreshToken(userId: number, refreshToken: string) {
     await this.database
       .update(users)
-      .set({ refreshToken })
+      .set({ refreshToken: hashRefreshToken(refreshToken) })
       .where(eq(users.id, userId));
   }
 
@@ -134,7 +135,7 @@ export class AuthService {
   async getValidSessionUser(userId: number, refreshToken: string) {
     const user = await this.getUserById(userId);
 
-    if (!user || !user.refreshToken || user.refreshToken !== refreshToken) {
+    if (!user || !verifyRefreshTokenHash(refreshToken, user.refreshToken)) {
       return null;
     }
 

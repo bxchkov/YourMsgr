@@ -143,7 +143,7 @@ export class PrivateChatService {
 
     const chatMessages = await this.database.query.messages.findMany({
       where: and(...conditions),
-      orderBy: (messages, { desc }) => [desc(messages.date)],
+      orderBy: (messages, { desc }) => [desc(messages.id)],
       limit: limitMsgs,
     });
 

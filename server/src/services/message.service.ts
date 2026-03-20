@@ -23,7 +23,7 @@ export class MessageService {
 
     const groupMessages = await this.database.query.messages.findMany({
       where: and(...conditions),
-      orderBy: [desc(messages.date)],
+      orderBy: [desc(messages.id)],
       limit: limitMsgs,
     });
 

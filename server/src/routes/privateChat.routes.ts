@@ -18,7 +18,11 @@ export const createPrivateChatRoutes = (
   privateChatRoutes.post("/", async (c) => {
     try {
       const user = c.get("user");
-      const body = await c.req.json();
+      const body = await c.req.json().catch(() => null);
+      if (!body || typeof body !== "object") {
+        return sendError(c, 400, "Invalid request body");
+      }
+
       const otherUserId = Number(body?.otherUserId);
 
       if (!Number.isInteger(otherUserId) || otherUserId <= 0 || otherUserId === user.userId) {
