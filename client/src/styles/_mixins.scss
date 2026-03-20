@@ -111,6 +111,17 @@
     opacity var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear;
 }
 
+@mixin theme-surface-ink-transition {
+  transition:
+    background-color var(--theme-surface-transition-duration, #{$transition-fast-duration}) linear,
+    border-color var(--theme-surface-transition-duration, #{$transition-fast-duration}) linear,
+    box-shadow var(--theme-surface-transition-duration, #{$transition-fast-duration}) linear,
+    color var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear,
+    stroke var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear,
+    fill var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear,
+    opacity var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear;
+}
+
 @mixin theme-accent-transition {
   transition:
     background-color var(--theme-surface-transition-duration, #{$transition-fast-duration}) linear,
@@ -127,8 +138,8 @@
     stroke var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear,
     fill var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear,
     opacity var(--theme-ink-transition-duration, #{$transition-fast-duration}) linear,
-    filter $transition-base ease,
-    backdrop-filter $transition-base ease;
+    filter $transition-base,
+    backdrop-filter $transition-base;
 }
 
 @mixin hover-brightness {

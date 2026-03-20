@@ -3,8 +3,7 @@
 
 @mixin render {
   .message {
-    @include theme-surface-transition;
-    @include theme-ink-transition;
+    @include theme-surface-ink-transition;
     position: relative;
     display: flex;
     flex-direction: column;

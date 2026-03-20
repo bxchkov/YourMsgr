@@ -7,8 +7,7 @@
   // ============================================
 
   body {
-    @include theme-surface-transition;
-    @include theme-ink-transition;
+    @include theme-surface-ink-transition;
     background-color: $color-bg-body;
     color: $color-text-primary;
     font-family: $font-primary;

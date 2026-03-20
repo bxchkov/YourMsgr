@@ -76,8 +76,7 @@
     }
 
     &__header {
-      @include theme-surface-transition;
-      @include theme-ink-transition;
+      @include theme-surface-ink-transition;
       font-family: $font-display;
       font-size: $font-size-3xl;
       font-weight: $font-weight-semibold;
@@ -102,8 +101,7 @@
     &__footer {
       @include flex-between;
       gap: $spacing-2;
-      @include theme-surface-transition;
-      @include theme-ink-transition;
+      @include theme-surface-ink-transition;
       background-color: $color-bg-content;
       border: none;
       border-radius: $radius-md;
@@ -186,8 +184,7 @@
 
     &__input {
       @include reset-input;
-      @include theme-surface-transition;
-      @include theme-ink-transition;
+      @include theme-surface-ink-transition;
       width: 100%;
       height: 40px;
       padding: $spacing-3;
