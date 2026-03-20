@@ -31,6 +31,17 @@ export const createRealtimeServer = async ({
   const app = createHttpApp({ dependencies: resolvedDependencies, realtimeChannel });
   const clients = new Map<string, ServerWebSocket<WebSocketData>>();
   const wsRateLimits = new Map<string, WsRateLimitState>();
+  const wsRateLimitCleanupInterval = setInterval(() => {
+    const now = Date.now();
+
+    for (const [key, state] of wsRateLimits.entries()) {
+      if (state.resetTime < now) {
+        wsRateLimits.delete(key);
+      }
+    }
+  }, 60 * 1000);
+
+  wsRateLimitCleanupInterval.unref?.();
 
   const removeSocketClient = (ws: ServerWebSocket<WebSocketData>) => {
     for (const [clientId, client] of clients.entries()) {

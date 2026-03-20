@@ -54,6 +54,20 @@ export const publishRealtimeEvent = async (
   await client.notify(channel, JSON.stringify(event));
 };
 
+export const publishRealtimeEventSafe = async (
+  event: RealtimeEvent,
+  client: DatabaseClient = dbClient,
+  channel: string = REALTIME_EVENTS_CHANNEL,
+) => {
+  try {
+    await publishRealtimeEvent(event, client, channel);
+    return true;
+  } catch (error) {
+    logger.warn(`Realtime publish failed for '${event.type}'`, error);
+    return false;
+  }
+};
+
 export const listenToRealtimeEvents = async (
   onEvent: (event: RealtimeEvent) => void | Promise<void>,
   client: DatabaseClient = dbClient,
@@ -66,7 +80,11 @@ export const listenToRealtimeEvents = async (
       return;
     }
 
-    void onEvent(event);
+    void Promise
+      .resolve(onEvent(event))
+      .catch((error) => {
+        logger.error(`Realtime event handler failed for '${event.type}'`, error);
+      });
   });
 
   logger.info(`Realtime event listener subscribed to '${channel}'`);

@@ -5,6 +5,8 @@ set -euo pipefail
 INSTALL_DIR="${YOURMSGR_INSTALL_DIR:-/opt/yourmsgr}"
 PROJECT_NAME="yourmsgr"
 HELPER_TARGET="/usr/local/bin/yourmsgr"
+SYSTEMD_UNIT_NAME="yourmsgr.service"
+SYSTEMD_UNIT_PATH="/etc/systemd/system/${SYSTEMD_UNIT_NAME}"
 
 if [[ ! -d "$INSTALL_DIR" ]]; then
   echo "Install directory '$INSTALL_DIR' not found"
@@ -384,6 +386,45 @@ systemd_service_enabled() {
   fi
 }
 
+write_systemd_unit() {
+  local docker_bin
+
+  require_root_for_helper_action || return 1
+
+  if ! command -v systemctl >/dev/null 2>&1; then
+    echo "systemctl is not available"
+    return 1
+  fi
+
+  docker_bin="$(command -v docker)"
+  if [[ -z "$docker_bin" ]]; then
+    echo "Docker is not installed"
+    return 1
+  fi
+
+  cat > "$SYSTEMD_UNIT_PATH" <<EOF
+[Unit]
+Description=YourMsgr Docker Stack
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=$INSTALL_DIR
+ExecStart=$docker_bin compose --project-name $PROJECT_NAME --env-file $INSTALL_DIR/.env -f $INSTALL_DIR/docker-compose.yml up -d
+ExecStop=$docker_bin compose --project-name $PROJECT_NAME --env-file $INSTALL_DIR/.env -f $INSTALL_DIR/docker-compose.yml stop
+ExecReload=$docker_bin compose --project-name $PROJECT_NAME --env-file $INSTALL_DIR/.env -f $INSTALL_DIR/docker-compose.yml restart
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  systemctl daemon-reload
+}
+
 render_state() {
   local state="$1"
 
@@ -572,21 +613,15 @@ show_status() {
 }
 
 autostart_state() {
-  local docker_enabled socket_enabled
-  docker_enabled="$(systemd_service_enabled docker.service)"
-  socket_enabled="$(systemd_service_enabled docker.socket)"
+  local unit_enabled
+  unit_enabled="$(systemd_service_enabled "$SYSTEMD_UNIT_NAME")"
 
-  if [[ "$docker_enabled" == "enabled" || "$socket_enabled" == "enabled" ]]; then
-    echo "enabled"
-    return
-  fi
-
-  if [[ "$docker_enabled" == "unknown" && "$socket_enabled" == "unknown" ]]; then
+  if [[ "$unit_enabled" == "unknown" ]]; then
     echo "unknown"
     return
   fi
 
-  echo "disabled"
+  echo "$unit_enabled"
 }
 
 autorestart_state() {
@@ -683,19 +718,20 @@ service_set_autostart() {
     return 1
   fi
 
+  if ! is_configured; then
+    echo "Application is not configured yet"
+    return 1
+  fi
+
+  write_systemd_unit || return 1
+
   case "$mode" in
     on)
-      systemctl enable docker.service >/dev/null 2>&1 || true
-      if systemctl list-unit-files docker.socket >/dev/null 2>&1; then
-        systemctl enable docker.socket >/dev/null 2>&1 || true
-      fi
+      systemctl enable "$SYSTEMD_UNIT_NAME" >/dev/null 2>&1 || true
       echo "Auto-start enabled"
       ;;
     off)
-      systemctl disable docker.service >/dev/null 2>&1 || true
-      if systemctl list-unit-files docker.socket >/dev/null 2>&1; then
-        systemctl disable docker.socket >/dev/null 2>&1 || true
-      fi
+      systemctl disable "$SYSTEMD_UNIT_NAME" >/dev/null 2>&1 || true
       echo "Auto-start disabled"
       ;;
     *)
@@ -935,6 +971,10 @@ update_stack() {
   fi
   git -C "$INSTALL_DIR" pull --ff-only origin "$UPDATE_BRANCH"
   install -m 0755 "$INSTALL_DIR/scripts/yourmsgr.sh" "$HELPER_TARGET"
+
+  if [[ -f "$INSTALL_DIR/.env" ]] && command -v systemctl >/dev/null 2>&1; then
+    write_systemd_unit >/dev/null 2>&1 || true
+  fi
 
   if is_configured; then
     compose up -d --build
@@ -1323,6 +1363,11 @@ show_menu() {
 
 uninstall_stack() {
   require_root_for_helper_action || return 1
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl disable --now "$SYSTEMD_UNIT_NAME" >/dev/null 2>&1 || true
+    rm -f "$SYSTEMD_UNIT_PATH"
+    systemctl daemon-reload >/dev/null 2>&1 || true
+  fi
   compose down -v --remove-orphans || true
   rm -rf "$INSTALL_DIR"
   rm -f "$HELPER_TARGET"

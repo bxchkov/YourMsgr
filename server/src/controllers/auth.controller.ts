@@ -4,7 +4,7 @@ import { AuthService } from "../services/auth.service";
 import { loginSchema, registrationSchema, usernameSchema } from "../utils/validation";
 import { sendSuccess, sendError } from "../utils/response";
 import { verifyAccessToken, verifyRefreshToken, generateTokens } from "../utils/jwt";
-import { publishRealtimeEvent, REALTIME_EVENTS_CHANNEL } from "../utils/realtimeEvents";
+import { publishRealtimeEventSafe, REALTIME_EVENTS_CHANNEL } from "../utils/realtimeEvents";
 
 type LoginCredentials = {
   login: string;
@@ -173,7 +173,7 @@ export class AuthController {
     }
 
     if (logoutUserId) {
-      await publishRealtimeEvent({
+      await publishRealtimeEventSafe({
         type: "force_logout",
         userId: logoutUserId,
       }, undefined, this.realtimeChannel);

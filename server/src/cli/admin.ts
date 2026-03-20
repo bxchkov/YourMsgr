@@ -8,7 +8,7 @@ import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { db } from "../db";
 import { messages, privateChats, users } from "../db/schema";
 import { AuthService } from "../services/auth.service";
-import { publishRealtimeEvent } from "../utils/realtimeEvents";
+import { publishRealtimeEventSafe } from "../utils/realtimeEvents";
 import { hashPassword } from "../utils/password";
 import { loginSchema, usernameSchema } from "../utils/validation";
 import { assertIdentityIsAllowed } from "../utils/identity";
@@ -418,7 +418,7 @@ const logoutUser = async (login: string) => {
   }
 
   await authService.clearRefreshToken(user.id);
-  await publishRealtimeEvent({
+  await publishRealtimeEventSafe({
     type: "force_logout",
     userId: user.id,
   });
@@ -478,19 +478,19 @@ const deleteUser = async (login: string, skipConfirmation = false) => {
     ),
   );
 
-  await publishRealtimeEvent({
+  await publishRealtimeEventSafe({
     type: "force_logout",
     userId: user.id,
   });
 
   if (Number(groupMessagesCount) > 0) {
-    await publishRealtimeEvent({
+    await publishRealtimeEventSafe({
       type: "sync_group_messages",
     });
   }
 
   if (affectedUserIds.length > 0) {
-    await publishRealtimeEvent({
+    await publishRealtimeEventSafe({
       type: "sync_private_chats",
       userIds: affectedUserIds,
     });
@@ -534,7 +534,7 @@ const purgeGroupMessages = async (login: string, skipConfirmation = false) => {
     .returning({ id: messages.id });
 
   if (result.length > 0) {
-    await publishRealtimeEvent({
+    await publishRealtimeEventSafe({
       type: "sync_group_messages",
     });
   }
@@ -586,7 +586,7 @@ const postAdminAnnouncement = async (login: string, rawMessageParts: string[]) =
     },
   ]);
 
-  await publishRealtimeEvent({
+  await publishRealtimeEventSafe({
     type: "group_message_created",
     messageId: createdMessage.id,
   });

@@ -1,14 +1,12 @@
 import { Context, Next } from "hono";
 import { sendError } from "../utils/response";
 
-interface RateLimitStore {
-  [ip: string]: {
-    count: number;
-    resetTime: number;
-  };
-}
+type RateLimitState = {
+  count: number;
+  resetTime: number;
+};
 
-const store: RateLimitStore = {};
+const store = new Map<string, RateLimitState>();
 
 export const RATE_LIMIT_SKIP_PATHS = new Set([
   "/auth/session",
@@ -38,14 +36,19 @@ export const rateLimiter = (options: {
     const key = `${ip}:${c.req.method}:${c.req.path}`;
     const now = Date.now();
 
-    if (!store[key]) {
-      store[key] = { count: 1, resetTime: now + windowMs };
-    } else if (now > store[key].resetTime) {
-      store[key] = { count: 1, resetTime: now + windowMs };
-    } else {
-      store[key].count += 1;
+    const current = store.get(key);
 
-      if (store[key].count > max) {
+    if (!current || now > current.resetTime) {
+      store.set(key, { count: 1, resetTime: now + windowMs });
+    } else {
+      const nextState = {
+        count: current.count + 1,
+        resetTime: current.resetTime,
+      };
+
+      store.set(key, nextState);
+
+      if (nextState.count > max) {
         return sendError(c, 429, message);
       }
     }
@@ -54,12 +57,13 @@ export const rateLimiter = (options: {
   };
 };
 
-// Clean up old entries every 10 minutes.
-setInterval(() => {
+const cleanupInterval = setInterval(() => {
   const now = Date.now();
-  for (const ip in store) {
-    if (store[ip].resetTime < now) {
-      delete store[ip];
+  for (const [key, state] of store.entries()) {
+    if (state.resetTime < now) {
+      store.delete(key);
     }
   }
 }, 10 * 60 * 1000);
+
+cleanupInterval.unref?.();

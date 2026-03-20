@@ -1,9 +1,16 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-const REFRESH_TOKEN_HASH_SECRET = process.env.JWT_REFRESH_SECRET ?? "yourmsgr-refresh-token";
+const getRefreshTokenHashSecret = () => {
+  const secret = process.env.JWT_REFRESH_SECRET;
+  if (!secret) {
+    throw new Error("JWT_REFRESH_SECRET is required");
+  }
+
+  return secret;
+};
 
 export const hashRefreshToken = (refreshToken: string) => {
-  return createHmac("sha256", REFRESH_TOKEN_HASH_SECRET)
+  return createHmac("sha256", getRefreshTokenHashSecret())
     .update(refreshToken)
     .digest("hex");
 };
@@ -11,10 +18,6 @@ export const hashRefreshToken = (refreshToken: string) => {
 export const verifyRefreshTokenHash = (refreshToken: string, storedHash: string | null) => {
   if (!storedHash) {
     return false;
-  }
-
-  if (storedHash === refreshToken) {
-    return true;
   }
 
   const incomingHash = hashRefreshToken(refreshToken);

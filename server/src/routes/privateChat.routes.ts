@@ -3,7 +3,7 @@ import { authMiddleware } from "../middleware/auth";
 import { PrivateChatService } from "../services/privateChat.service";
 import { logger } from "../utils/logger";
 import { sendSuccess, sendError } from "../utils/response";
-import { publishRealtimeEvent, REALTIME_EVENTS_CHANNEL } from "../utils/realtimeEvents";
+import { publishRealtimeEventSafe, REALTIME_EVENTS_CHANNEL } from "../utils/realtimeEvents";
 import type { AppEnv } from "../types/hono";
 
 export const createPrivateChatRoutes = (
@@ -30,7 +30,7 @@ export const createPrivateChatRoutes = (
       }
 
       const chat = await privateChatService.getOrCreatePrivateChat(user.userId, otherUserId);
-      await publishRealtimeEvent({
+      await publishRealtimeEventSafe({
         type: "sync_private_chats",
         userIds: [user.userId, otherUserId],
       }, undefined, realtimeChannel);
@@ -63,7 +63,7 @@ export const createPrivateChatRoutes = (
       const chatId = Number(c.req.param("chatId"));
       const lastMessageId = c.req.query("lastMessageId") ? Number(c.req.query("lastMessageId")) : undefined;
 
-      if (!chatId) {
+      if (!Number.isInteger(chatId) || chatId <= 0) {
         return sendError(c, 400, "Invalid chat ID");
       }
 
