@@ -15,8 +15,21 @@
     --theme-ink-transition-duration: var(--theme-transition-duration);
   }
 
+  :root.theme-view-switching {
+    --theme-surface-transition-duration: 0ms;
+    --theme-ink-transition-duration: 0ms;
+  }
+
+  :root.theme-view-switching::view-transition-old(root),
+  :root.theme-view-switching::view-transition-new(root) {
+    animation-duration: var(--theme-transition-duration);
+    animation-timing-function: linear;
+    mix-blend-mode: normal;
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    :root.theme-switching {
+    :root.theme-switching,
+    :root.theme-view-switching {
       --theme-surface-transition-duration: 0ms !important;
       --theme-ink-transition-duration: 0ms !important;
     }

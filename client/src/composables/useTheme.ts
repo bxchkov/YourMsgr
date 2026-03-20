@@ -20,13 +20,22 @@ declare global {
 
 const STORAGE_KEY = 'yourmsgr-theme'
 const TRANSITION_CLASS = 'theme-switching'
-const DEFAULT_TRANSITION_DURATION_MS = 1440
-const DEBUG_TRANSITION_DURATION_MS = 3600
+const VIEW_TRANSITION_CLASS = 'theme-view-switching'
+const DEFAULT_TRANSITION_DURATION_MS = 2400
+const DEBUG_TRANSITION_DURATION_MS = 4800
 const theme = ref<ThemeMode>('dark')
 
 let initialized = false
 let transitionTimeout: number | null = null
 let transitionFrame: number | null = null
+
+type ThemeViewTransition = {
+    finished: Promise<unknown>
+}
+
+type DocumentWithViewTransition = Document & {
+    startViewTransition?: (callback: () => void | Promise<void>) => ThemeViewTransition
+}
 
 function syncDocumentTheme(nextTheme: ThemeMode) {
     document.documentElement.dataset.theme = nextTheme
@@ -36,6 +45,7 @@ function syncDocumentTheme(nextTheme: ThemeMode) {
 function clearThemeTransition() {
     const root = document.documentElement
     root.classList.remove(TRANSITION_CLASS)
+    root.classList.remove(VIEW_TRANSITION_CLASS)
     root.style.removeProperty('--theme-transition-duration')
 }
 
@@ -48,6 +58,8 @@ function cancelThemeFrame() {
 
 function startThemeTransition(durationMs: number) {
     const root = document.documentElement
+    clearThemeTransition()
+    void root.offsetWidth
     root.style.setProperty('--theme-transition-duration', `${durationMs}ms`)
     root.classList.add(TRANSITION_CLASS)
 
@@ -63,6 +75,49 @@ function startThemeTransition(durationMs: number) {
     }, durationMs + 120)
 }
 
+function prefersReducedMotion() {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function supportsViewThemeTransition() {
+    return typeof (document as DocumentWithViewTransition).startViewTransition === 'function'
+        && !prefersReducedMotion()
+}
+
+function startViewThemeTransition(nextTheme: ThemeMode, durationMs: number) {
+    const root = document.documentElement
+    const doc = document as DocumentWithViewTransition
+
+    clearThemeTransition()
+    void root.offsetWidth
+    root.style.setProperty('--theme-transition-duration', `${durationMs}ms`)
+    root.classList.add(VIEW_TRANSITION_CLASS)
+
+    cancelThemeFrame()
+
+    if (transitionTimeout !== null) {
+        window.clearTimeout(transitionTimeout)
+    }
+
+    const viewTransition = doc.startViewTransition?.(() => {
+        syncDocumentTheme(nextTheme)
+    })
+
+    transitionTimeout = window.setTimeout(() => {
+        clearThemeTransition()
+        transitionTimeout = null
+    }, durationMs + 160)
+
+    void viewTransition?.finished.finally(() => {
+        if (transitionTimeout !== null) {
+            window.clearTimeout(transitionTimeout)
+            transitionTimeout = null
+        }
+
+        clearThemeTransition()
+    })
+}
+
 function normalizeTheme(nextTheme: ThemeMode | string | null): ThemeMode {
     return nextTheme === 'light' ? 'light' : 'dark'
 }
@@ -76,14 +131,27 @@ function applyTheme(
 
     if (options.animate !== false) {
         const durationMs = options.durationMs ?? DEFAULT_TRANSITION_DURATION_MS
-        startThemeTransition(durationMs)
-        void document.documentElement.offsetWidth
-        transitionFrame = window.requestAnimationFrame(() => {
+        if (durationMs <= 0) {
+            if (transitionTimeout !== null) {
+                window.clearTimeout(transitionTimeout)
+                transitionTimeout = null
+            }
+
+            cancelThemeFrame()
+            clearThemeTransition()
+            syncDocumentTheme(normalizedTheme)
+        } else if (supportsViewThemeTransition()) {
+            startViewThemeTransition(normalizedTheme, durationMs)
+        } else {
+            startThemeTransition(durationMs)
+            void document.documentElement.offsetWidth
             transitionFrame = window.requestAnimationFrame(() => {
-                syncDocumentTheme(normalizedTheme)
-                transitionFrame = null
+                transitionFrame = window.requestAnimationFrame(() => {
+                    syncDocumentTheme(normalizedTheme)
+                    transitionFrame = null
+                })
             })
-        })
+        }
     } else {
         if (transitionTimeout !== null) {
             window.clearTimeout(transitionTimeout)
