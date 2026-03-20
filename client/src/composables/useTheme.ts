@@ -20,7 +20,7 @@ declare global {
 
 const STORAGE_KEY = 'yourmsgr-theme'
 const TRANSITION_CLASS = 'theme-switching'
-const DEFAULT_TRANSITION_DURATION_MS = 1000
+const DEFAULT_TRANSITION_DURATION_MS = 600
 const DEBUG_TRANSITION_DURATION_MS = 3000
 const theme = ref<ThemeMode>('dark')
 
@@ -57,12 +57,15 @@ function startThemeTransition(durationMs: number) {
 
     if (transitionTimeout !== null) {
         window.clearTimeout(transitionTimeout)
+        transitionTimeout = null
     }
+}
 
+function scheduleThemeTransitionCleanup(durationMs: number) {
     transitionTimeout = window.setTimeout(() => {
         clearThemeTransition()
         transitionTimeout = null
-    }, durationMs + 120)
+    }, durationMs + 180)
 }
 
 function normalizeTheme(nextTheme: ThemeMode | string | null): ThemeMode {
@@ -101,6 +104,7 @@ function applyTheme(
             transitionFrame = window.requestAnimationFrame(() => {
                 transitionFrame = window.requestAnimationFrame(() => {
                     syncDocumentTheme(normalizedTheme)
+                    scheduleThemeTransitionCleanup(durationMs)
                     transitionFrame = null
                 })
             })

@@ -10,6 +10,7 @@
           <form class="modal__form form" @submit.prevent="handleSubmit">
             <label class="form__label" :for="`${mode}-login`">Логин</label>
             <input
+              ref="loginInput"
               :id="`${mode}-login`"
               v-model="loginValue"
               class="form__input"
@@ -69,7 +70,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { authService } from '@/services/auth'
 import { sanitizeUnexpectedMessage } from '@/services/http'
@@ -84,6 +85,7 @@ const loginValue = ref('')
 const password = ref('')
 const error = ref('')
 const loading = ref(false)
+const loginInput = ref<HTMLInputElement | null>(null)
 
 const AUTH_ERROR_MESSAGES: Record<string, string> = {
   'Invalid credentials': 'Неверный логин или пароль',
@@ -153,6 +155,13 @@ function clearError() {
   error.value = ''
 }
 
+function focusLoginInput() {
+  void nextTick(() => {
+    loginInput.value?.focus()
+    loginInput.value?.select()
+  })
+}
+
 function toggleMode() {
   mode.value = isLoginMode.value ? 'register' : 'login'
 }
@@ -168,9 +177,11 @@ async function handleSubmit() {
 
 watch(mode, () => {
   clearError()
+  focusLoginInput()
 })
 
 onMounted(async () => {
+  focusLoginInput()
   if (localStorage.getItem(AUTH_SESSION_HINT_STORAGE_KEY) !== '1') {
     return
   }
