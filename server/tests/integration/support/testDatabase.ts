@@ -5,7 +5,7 @@ const TEST_TABLES_SQL = `
 CREATE TABLE users (
   id serial PRIMARY KEY,
   login text NOT NULL UNIQUE,
-  username text NOT NULL UNIQUE,
+  username text NOT NULL,
   password text NOT NULL,
   role integer NOT NULL DEFAULT 1,
   refresh_token text,
@@ -14,6 +14,7 @@ CREATE TABLE users (
   encrypted_private_key_iv text,
   encrypted_private_key_salt text,
   created_at timestamp NOT NULL DEFAULT now(),
+  CONSTRAINT users_username_unique UNIQUE (username),
   CONSTRAINT users_role_check CHECK (role in (1, 3))
 );
 
@@ -23,7 +24,7 @@ CREATE TABLE private_chats (
   user2_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at timestamp NOT NULL DEFAULT now(),
   CONSTRAINT private_chats_user1_id_user2_id_unique UNIQUE (user1_id, user2_id),
-  CONSTRAINT private_chats_user_order_check CHECK (user1_id < user2_id)
+  CONSTRAINT private_chats_distinct_users_check CHECK (user1_id <> user2_id)
 );
 
 CREATE TABLE messages (
@@ -31,7 +32,7 @@ CREATE TABLE messages (
   user_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   username text NOT NULL,
   message text NOT NULL,
-  chat_id integer REFERENCES private_chats(id) ON DELETE CASCADE,
+  chat_id integer,
   chat_type text NOT NULL DEFAULT 'group',
   nonce text,
   sender_public_key text,
@@ -40,29 +41,15 @@ CREATE TABLE messages (
   is_encrypted integer NOT NULL DEFAULT 0,
   date timestamp NOT NULL DEFAULT now(),
   CONSTRAINT messages_chat_type_check CHECK (chat_type in ('group', 'private')),
-  CONSTRAINT messages_is_encrypted_check CHECK (is_encrypted in (0, 1)),
-  CONSTRAINT messages_chat_consistency_check CHECK (
-    (
-      chat_type = 'group'
-      AND chat_id IS NULL
-      AND recipient_id IS NULL
-    )
-    OR
-    (
-      chat_type = 'private'
-      AND chat_id IS NOT NULL
-      AND recipient_id IS NOT NULL
-    )
-  )
+  CONSTRAINT messages_is_encrypted_check CHECK (is_encrypted in (0, 1))
 );
 
 CREATE INDEX private_chats_user1_id_idx ON private_chats (user1_id);
 CREATE INDEX private_chats_user2_id_idx ON private_chats (user2_id);
 CREATE INDEX messages_user_id_idx ON messages (user_id);
 CREATE INDEX messages_reply_to_message_id_idx ON messages (reply_to_message_id);
-CREATE INDEX messages_chat_type_id_idx ON messages (chat_type, id DESC);
-CREATE INDEX messages_chat_id_id_idx ON messages (chat_id, id DESC);
-CREATE INDEX messages_chat_id_date_id_idx ON messages (chat_id, date DESC, id DESC);
+CREATE INDEX messages_chat_type_id_idx ON messages (chat_type, id);
+CREATE INDEX messages_chat_id_id_idx ON messages (chat_id, id);
 `;
 
 export interface TestDatabaseContext {

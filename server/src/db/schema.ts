@@ -31,7 +31,7 @@ export const privateChats = pgTable("private_chats", {
   uniqueChat: unique("private_chats_user1_id_user2_id_unique").on(table.user1Id, table.user2Id),
   user1Idx: index("private_chats_user1_id_idx").on(table.user1Id),
   user2Idx: index("private_chats_user2_id_idx").on(table.user2Id),
-  userOrderCheck: check("private_chats_user_order_check", sql`${table.user1Id} < ${table.user2Id}`),
+  distinctUsersCheck: check("private_chats_distinct_users_check", sql`${table.user1Id} <> ${table.user2Id}`),
 }));
 
 export const messages = pgTable("messages", {
@@ -41,7 +41,7 @@ export const messages = pgTable("messages", {
     .references(() => users.id, { onDelete: "cascade" }),
   username: text("username").notNull(),
   message: text("message").notNull(), // encrypted message blob or plain text
-  chatId: integer("chat_id").references(() => privateChats.id, { onDelete: "cascade" }), // null = general chat, otherwise private_chats.id
+  chatId: integer("chat_id"), // null = general chat, otherwise private_chats.id
   chatType: text("chat_type").notNull().default("group"), // "group" or "private"
   nonce: text("nonce"), // encryption nonce for E2EE
   senderPublicKey: text("sender_public_key"), // sender's public key for decryption
@@ -54,15 +54,6 @@ export const messages = pgTable("messages", {
   replyTargetIdx: index("messages_reply_to_message_id_idx").on(table.replyToMessageId),
   groupHistoryIdx: index("messages_chat_type_id_idx").on(table.chatType, table.id),
   privateHistoryIdx: index("messages_chat_id_id_idx").on(table.chatId, table.id),
-  privatePreviewIdx: index("messages_chat_id_date_id_idx").on(table.chatId, table.date, table.id),
   chatTypeCheck: check("messages_chat_type_check", sql`${table.chatType} in ('group', 'private')`),
   encryptionFlagCheck: check("messages_is_encrypted_check", sql`${table.isEncrypted} in (0, 1)`),
-  chatConsistencyCheck: check(
-    "messages_chat_consistency_check",
-    sql`(
-      (${table.chatType} = 'group' and ${table.chatId} is null and ${table.recipientId} is null)
-      or
-      (${table.chatType} = 'private' and ${table.chatId} is not null and ${table.recipientId} is not null)
-    )`,
-  ),
 }));

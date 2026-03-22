@@ -29,6 +29,13 @@
       "when": 1774267200000,
       "tag": "0003_harden_schema_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1774353600000,
+      "tag": "0004_realign_schema_guards",
+      "breakpoints": true
     }
   ]
 }

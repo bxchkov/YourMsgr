@@ -26,6 +26,7 @@ export interface RegisteredUser extends TestSession {
 export interface TestRuntimeContext {
   db: Database;
   client: DatabaseClient;
+  schemaName: string;
   dependencies: ServerDependencies;
   app: ReturnType<typeof createHttpApp>;
   runtime?: Awaited<ReturnType<typeof createRealtimeServer>>;
@@ -65,6 +66,7 @@ export const useTestRuntime = ({ withRealtime = false }: SetupOptions = {}) => {
     runtimeContext = {
       db: testDatabase.db,
       client: testDatabase.client,
+      schemaName: testDatabase.schemaName,
       dependencies,
       app,
       runtime,
