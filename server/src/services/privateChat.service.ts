@@ -81,7 +81,7 @@ export class PrivateChatService {
         },
       }),
       this.database
-        .select({
+        .selectDistinctOn([messages.chatId], {
           id: messages.id,
           chatId: messages.chatId,
           message: messages.message,

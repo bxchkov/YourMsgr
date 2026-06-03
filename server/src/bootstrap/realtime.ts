@@ -89,7 +89,11 @@ export const createRealtimeServer = async ({
     ws.close();
   };
 
+  const sessionCache = new Map<number, { user: SessionUser; expiresAt: number }>();
+  const SESSION_CACHE_TTL_MS = 15000;
+
   const logoutUserSockets = (userId: number) => {
+    sessionCache.delete(userId);
     for (const client of clients.values()) {
       if (client.data.userId === userId) {
         logoutSocketClient(client);
@@ -100,10 +104,23 @@ export const createRealtimeServer = async ({
   const getValidSocketSession = async (
     ws: ServerWebSocket<WebSocketData>,
   ): Promise<{ user: SessionUser | null; shouldLogout: boolean }> => {
+    const cached = sessionCache.get(ws.data.userId);
+    const now = Date.now();
+
+    if (cached && cached.expiresAt > now) {
+      return { user: cached.user, shouldLogout: false };
+    }
+
     const user = await resolvedDependencies.authService.getValidSessionUser(ws.data.userId, ws.data.refreshToken);
     if (!user) {
+      sessionCache.delete(ws.data.userId);
       return { user: null, shouldLogout: true };
     }
+
+    sessionCache.set(ws.data.userId, {
+      user,
+      expiresAt: now + SESSION_CACHE_TTL_MS,
+    });
 
     return { user, shouldLogout: false };
   };
