@@ -66,15 +66,15 @@ func main() {
 
 	// Auth routes
 	authCtrl := controllers.NewAuthController()
-	auth := api.Group("/auth")
-	auth.Post("/register", authCtrl.Register)
+	auth := app.Group("/auth")
+	auth.Post("/registration", authCtrl.Register)
 	auth.Post("/login", authCtrl.Login)
 	auth.Post("/refresh", authCtrl.Refresh)
 	auth.Post("/logout", authCtrl.Logout)
 	auth.Get("/session", authCtrl.Session)
 
 	// Protected routes
-	auth.Post("/username", controllers.JWTAuthMiddleware(), authCtrl.UpdateUsername)
+	auth.Patch("/username", controllers.JWTAuthMiddleware(), authCtrl.UpdateUsername)
 	auth.Get("/publicKeys", controllers.JWTAuthMiddleware(), authCtrl.GetPublicKeys)
 
 	// Chats and Messages routes

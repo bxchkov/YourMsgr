@@ -507,12 +507,25 @@ func (s *ChatService) SendPrivateMessage(
 	var retNonce, retPubKey sql.NullString
 	var retReplyId, retRecipientId, retChatId sql.NullInt64
 
+	var nonceVal string
+	if nonce != nil {
+		nonceVal = *nonce
+	}
+	var pubKeyVal string
+	if pubKey != nil {
+		pubKeyVal = *pubKey
+	}
+	var replyToIdVal int64
+	if replyToId != nil {
+		replyToIdVal = int64(*replyToId)
+	}
+
 	err = db.Pool.QueryRow(ctx, insertQuery,
 		userId, username, message, chatId, recipientId,
-		sql.NullString{String: *nonce, Valid: nonce != nil},
-		sql.NullString{String: *pubKey, Valid: pubKey != nil},
+		sql.NullString{String: nonceVal, Valid: nonce != nil},
+		sql.NullString{String: pubKeyVal, Valid: pubKey != nil},
 		isEncrypted,
-		sql.NullInt64{Int64: int64(*replyToId), Valid: replyToId != nil},
+		sql.NullInt64{Int64: replyToIdVal, Valid: replyToId != nil},
 	).Scan(
 		&inserted.ID, &inserted.UserID, &inserted.Username, &inserted.Message, &retChatId, &inserted.ChatType,
 		&retNonce, &retPubKey, &retReplyId, &retRecipientId, &inserted.IsEncrypted, &inserted.Date,
@@ -577,12 +590,25 @@ func (s *ChatService) SendGroupMessage(
 	var retNonce, retPubKey sql.NullString
 	var retReplyId, retRecipientId, retChatId sql.NullInt64
 
+	var nonceVal string
+	if nonce != nil {
+		nonceVal = *nonce
+	}
+	var pubKeyVal string
+	if pubKey != nil {
+		pubKeyVal = *pubKey
+	}
+	var replyToIdVal int64
+	if replyToId != nil {
+		replyToIdVal = int64(*replyToId)
+	}
+
 	err = db.Pool.QueryRow(ctx, insertQuery,
 		userId, username, message,
-		sql.NullString{String: *nonce, Valid: nonce != nil},
-		sql.NullString{String: *pubKey, Valid: pubKey != nil},
+		sql.NullString{String: nonceVal, Valid: nonce != nil},
+		sql.NullString{String: pubKeyVal, Valid: pubKey != nil},
 		isEncrypted,
-		sql.NullInt64{Int64: int64(*replyToId), Valid: replyToId != nil},
+		sql.NullInt64{Int64: replyToIdVal, Valid: replyToId != nil},
 	).Scan(
 		&inserted.ID, &inserted.UserID, &inserted.Username, &inserted.Message, &retChatId, &inserted.ChatType,
 		&retNonce, &retPubKey, &retReplyId, &retRecipientId, &inserted.IsEncrypted, &inserted.Date,
