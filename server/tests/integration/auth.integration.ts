@@ -271,4 +271,60 @@ describe("HTTP integration: auth and private chats", () => {
     expect(keySet.has("bob-key")).toBe(true);
     expect(keySet.has("charlie-key")).toBe(false);
   });
+
+  test("scopes public keys to reachable peers even if userIds query parameter is provided", async () => {
+    const { app, db } = getRuntime();
+    const alice = await registerUser(app, {
+      login: "keyscope_q1",
+      username: "KeyScopeQ1",
+      publicKey: "alice-q-key",
+    });
+    const bob = await registerUser(app, {
+      login: "keyscope_q2",
+      username: "KeyScopeQ2",
+      publicKey: "bob-q-key",
+    });
+    const charlie = await registerUser(app, {
+      login: "keyscope_q3",
+      username: "KeyScopeQ3",
+      publicKey: "charlie-q-key",
+    });
+
+    const bobUser = await db.query.users.findFirst({ where: eq(users.login, "keyscope_q2") });
+    const charlieUser = await db.query.users.findFirst({ where: eq(users.login, "keyscope_q3") });
+
+    expect(bobUser).toBeDefined();
+    expect(charlieUser).toBeDefined();
+
+    // Create private chat between Alice and Bob
+    const createChatResult = await requestJson<{ chat: { id: number } }>(app, "/api/private-chats", {
+      method: "POST",
+      cookie: alice.cookie,
+      headers: {
+        authorization: `Bearer ${alice.accessToken}`,
+      },
+      body: {
+        otherUserId: bobUser!.id,
+      },
+    });
+
+    expect(createChatResult.response.status).toBe(200);
+
+    // Request public keys for both Bob and Charlie via query parameter
+    const publicKeysResult = await requestJson<{
+      publicKeys: Array<{ userId: number; username: string; publicKey: string }>;
+    }>(app, `/auth/publicKeys?userIds=${bobUser!.id},${charlieUser!.id}`, {
+      cookie: alice.cookie,
+      headers: {
+        authorization: `Bearer ${alice.accessToken}`,
+      },
+    });
+
+    expect(publicKeysResult.response.status).toBe(200);
+    expect(publicKeysResult.data.success).toBe(true);
+
+    const keySet = new Set(publicKeysResult.data.data?.publicKeys.map((entry) => entry.publicKey));
+    expect(keySet.has("bob-q-key")).toBe(true);
+    expect(keySet.has("charlie-q-key")).toBe(false); // Charlie must be filtered out because no private chat exists
+  });
 });

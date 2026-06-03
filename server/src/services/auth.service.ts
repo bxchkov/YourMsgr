@@ -189,28 +189,29 @@ export class AuthService {
     };
   }
   async getPublicKeysForUser(userId: number, targetUserIds?: number[]) {
+    const relatedPrivateChats = await this.database.query.privateChats.findMany({
+      where: or(
+        eq(privateChats.user1Id, userId),
+        eq(privateChats.user2Id, userId),
+      ),
+      columns: {
+        user1Id: true,
+        user2Id: true,
+      },
+    });
+
+    const relatedUserIds = new Set<number>([userId]);
+    for (const chat of relatedPrivateChats) {
+      relatedUserIds.add(chat.user1Id);
+      relatedUserIds.add(chat.user2Id);
+    }
+
     let allowedUserIds: number[] = [];
 
     if (targetUserIds?.length) {
-      allowedUserIds = [...new Set(targetUserIds.filter((id) => Number.isInteger(id) && id > 0))];
+      const filteredTargets = targetUserIds.filter((id) => Number.isInteger(id) && id > 0);
+      allowedUserIds = [...new Set(filteredTargets.filter((id) => relatedUserIds.has(id)))];
     } else {
-      const relatedPrivateChats = await this.database.query.privateChats.findMany({
-        where: or(
-          eq(privateChats.user1Id, userId),
-          eq(privateChats.user2Id, userId),
-        ),
-        columns: {
-          user1Id: true,
-          user2Id: true,
-        },
-      });
-
-      const relatedUserIds = new Set<number>([userId]);
-      for (const chat of relatedPrivateChats) {
-        relatedUserIds.add(chat.user1Id);
-        relatedUserIds.add(chat.user2Id);
-      }
-
       allowedUserIds = [...relatedUserIds];
     }
 
