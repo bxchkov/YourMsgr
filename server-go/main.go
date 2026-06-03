@@ -9,6 +9,7 @@ import (
 	"yourmsgr/config"
 	"yourmsgr/controllers"
 	"yourmsgr/db"
+	"yourmsgr/realtime"
 	"yourmsgr/utils"
 
 	"github.com/gofiber/fiber/v2"
@@ -44,6 +45,9 @@ func main() {
 	db.ConnectDB()
 	defer db.CloseDB()
 
+	// Initialize real-time WebSockets Hub (Phase 5)
+	realtime.InitHub()
+
 	app := fiber.New()
 
 	// Base API group
@@ -56,6 +60,9 @@ func main() {
 			"service": "yourmsgr-go",
 		})
 	})
+
+	// Real-time WebSocket endpoint (Phase 5)
+	app.Get("/ws", realtime.WebSocketUpgradeMiddleware(), realtime.CreateWebSocketHandler())
 
 	// Auth routes
 	authCtrl := controllers.NewAuthController()
