@@ -45,6 +45,9 @@ func main() {
 	db.ConnectDB()
 	defer db.CloseDB()
 
+	// Run migrations (Goose)
+	db.RunMigrations()
+
 	// Initialize real-time WebSockets Hub (Phase 5)
 	realtime.InitHub()
 
