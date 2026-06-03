@@ -8,6 +8,7 @@ RUN apk add --no-cache git build-base
 
 # Copy module manifest and download dependencies
 COPY go.mod go.sum ./
+ENV GOPROXY=https://goproxy.io,direct
 RUN go mod download -x
 
 # Copy source code and build statically linked binary
