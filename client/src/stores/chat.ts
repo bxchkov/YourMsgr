@@ -288,7 +288,25 @@ export const useChatStore = defineStore('chat', () => {
         replyTarget.value = null
     }
 
+    const compromisedKeys = ref<Record<number, boolean>>({})
+
     function setPublicKeys(keys: Record<number, string>) {
+        if (typeof window !== 'undefined') {
+            for (const [userIdStr, key] of Object.entries(keys)) {
+                const userId = Number(userIdStr)
+                if (isNaN(userId)) continue
+
+                const tofuKey = `tofu_pubkey_${userId}`
+                const storedKey = window.localStorage.getItem(tofuKey)
+
+                if (!storedKey) {
+                    window.localStorage.setItem(tofuKey, key)
+                } else if (storedKey !== key) {
+                    compromisedKeys.value[userId] = true
+                    console.error(`TOFU Warning: Public key for user ${userId} has changed! Potential MITM attack.`)
+                }
+            }
+        }
         publicKeys.value = keys
     }
 
@@ -298,6 +316,7 @@ export const useChatStore = defineStore('chat', () => {
         privateMessagesLoadedByChatId.value = {}
         privateChats.value = []
         publicKeys.value = {}
+        compromisedKeys.value = {}
         replyTarget.value = null
         currentChat.value = createGeneralCurrentChat()
     }
@@ -308,6 +327,7 @@ export const useChatStore = defineStore('chat', () => {
         privateMessagesLoadedByChatId,
         privateChats,
         publicKeys,
+        compromisedKeys,
         replyTarget,
         currentChat,
         activeMessages,

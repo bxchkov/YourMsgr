@@ -327,6 +327,19 @@ watch(messageText, async () => {
 })
 
 watch(
+  [() => chatStore.currentChat.recipientId, () => chatStore.compromisedKeys],
+  () => {
+    const recipientId = chatStore.currentChat.recipientId
+    if (recipientId && chatStore.compromisedKeys[recipientId]) {
+      setComposerNotice('Внимание: публичный ключ собеседника изменился! Возможна атака типа "Man-in-the-Middle".')
+    } else if (composerNotice.value.startsWith('Внимание: публичный ключ собеседника')) {
+      clearComposerNotice()
+    }
+  },
+  { deep: true, immediate: true }
+)
+
+watch(
   () => chatStore.currentChat.id,
   async () => {
     const requestId = ++privateMessagesRequestId

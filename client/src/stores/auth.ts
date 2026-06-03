@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { clearCryptoKeys } from '../composables/useCrypto'
 
 export const AUTH_STORAGE_KEY = 'accessToken'
 export const AUTH_SYNC_STORAGE_KEY = 'yourmsgr-auth-sync'
@@ -175,10 +176,7 @@ export const useAuthStore = defineStore('auth', () => {
         publicKey.value = null
         clearStoredAccessToken()
         setSessionHint(false)
-        getSessionStorage()?.removeItem('e2ee_private_key')
-        getSessionStorage()?.removeItem('e2ee_public_key')
-        getLocalStorage()?.removeItem('e2ee_private_key')
-        getLocalStorage()?.removeItem('e2ee_public_key')
+        clearCryptoKeys()
 
         if (options.sync !== false) {
             broadcastAuthSync({

@@ -248,7 +248,15 @@ function getPreviewMessage(chat: PrivateChat): string {
 
   if (chat.lastMessageIsEncrypted === 1 && chat.lastMessageNonce && chat.lastMessageSenderPublicKey) {
     try {
-      const decryptionKey = chat.otherUser?.publicKey || chat.lastMessageSenderPublicKey
+      const isOwnMessage = chat.lastMessageSenderPublicKey === auth.publicKey
+      const decryptionKey = isOwnMessage
+        ? chat.otherUser?.publicKey
+        : (chat.otherUser?.publicKey || chat.lastMessageSenderPublicKey)
+
+      if (!decryptionKey) {
+        return 'Защищённое сообщение'
+      }
+
       const decrypted = decryptMessageE2EE(
         chat.lastMessage,
         chat.lastMessageNonce,
