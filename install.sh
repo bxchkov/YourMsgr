@@ -290,7 +290,8 @@ validate_public_host() {
   fi
 
   if [[ -n "$detected_ip" ]] && ! grep -qx "$detected_ip" <<<"$resolved_ips"; then
-    fail "Domain '$public_host' resolves to [$resolved_ips], but this server public IP is '$detected_ip'"
+    warn "Domain '$public_host' resolves to [$resolved_ips], but this server public IP is '$detected_ip'."
+    warn "This is expected if you are using Cloudflare, CDN, or deploying behind NAT."
   fi
 }
 
