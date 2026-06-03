@@ -1,94 +1,106 @@
 # YourMsgr
 
-Защищённый мессенджер с Docker-first развёртыванием, общим чатом, личными чатами и E2EE для приватной переписки.
+A secure messenger with Docker-first deployment, public chat, private chats, and E2EE for private conversations.
 
-## Быстрая установка на Linux
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/bxchkov/YourMsgr/main/install.sh | sudo bash
-```
-
-Эта команда теперь делает только bootstrap:
-
-1. устанавливает Docker при необходимости;
-2. клонирует или обновляет проект в `/opt/yourmsgr`;
-3. ставит helper-команду `yourmsgr`;
-4. ничего не поднимает автоматически.
-
-После bootstrap приложение ещё не настроено и не запущено.
-
-## Что означает команда установки
+## Quick Install on Linux
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bxchkov/YourMsgr/main/install.sh | sudo bash
+
 ```
 
-- `curl` скачивает installer-скрипт;
-- `-f` завершает команду с ошибкой, если GitHub вернул HTTP-ошибку;
-- `-s` убирает лишний шум;
-- `-S` показывает текст ошибки, если она есть;
-- `-L` следует за redirect;
-- `| sudo bash` передаёт скачанный скрипт в `bash` с root-правами.
+This command now handles **bootstrap only**:
 
-Важно: у `curl | bash` stdin занят самим скриптом, поэтому интерактивный wizard на этом этапе неудобен. Именно поэтому домен и HTTPS теперь настраиваются не во время bootstrap, а при первом старте через `yourmsgr`.
+1. Installs Docker if necessary;
+2. Clones or updates the project repository into `/opt/yourmsgr`;
+3. Installs the `yourmsgr` helper CLI utility;
+4. Does not spin up any containers automatically.
 
-## Первый запуск после установки
+Once the bootstrap phase is complete, the application remains unconfigured and stopped.
 
-Вариант через меню:
+## Breakdown of the Installation Command
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bxchkov/YourMsgr/main/install.sh | sudo bash
+
+```
+
+* `curl` fetches the installer script;
+* `-f` forces the command to fail silently on server errors (non-200 HTTP responses);
+* `-s` runs in silent mode, hiding progress meters and unnecessary output;
+* `-S` ensures error messages are still displayed if the request fails;
+* `-L` follows any HTTP redirects automatically;
+* `| sudo bash` pipes the downloaded script directly into `bash` with root privileges.
+
+> **Note:** When using `curl | bash`, the `stdin` stream is consumed by the script itself, making an interactive wizard problematic at this stage. Because of this, domain and HTTPS setup are handled during the first launch via the `yourmsgr` utility rather than during the initial bootstrap.
+
+---
+
+## First Launch After Installation
+
+**Option A: Using the TUI Menu**
 
 ```bash
 sudo yourmsgr
+
 ```
 
-Дальше:
+Then follow these steps:
 
-1. открыть `Service management`;
-2. выбрать `Start application`;
-3. пройти wizard домена и HTTPS;
-4. дождаться выпуска сертификата и старта контейнеров.
+1. Open `Service management`;
+2. Select `Start application`;
+3. Complete the domain and HTTPS setup wizard;
+4. Wait for the ACME SSL certificate issuance and container startup.
 
-Прямой вариант без захода в меню:
+**Option B: Direct Command Line**
 
 ```bash
 sudo yourmsgr service start
+
 ```
 
-Если конфигурации ещё нет, helper сам запустит wizard первого старта.
+If no configuration file is detected, the helper tool automatically initiates the first-time setup wizard.
 
-## Как теперь устроен lifecycle
+---
+
+## Application Lifecycle Architecture
 
 ### 1. Bootstrap
 
-- проект скачан;
-- helper установлен;
-- сервисы не запущены;
-- домен ещё не выбран.
+* Project repository is cloned.
+* CLI helper tool is installed globally.
+* Services remain stopped.
+* Domain name is not yet configured.
 
-### 2. First start
+### 2. First Start
 
-- запрашивается домен;
-- проверяется DNS-резолв домена на этот сервер;
-- проверяется доступность `80/tcp`;
-- поднимается Caddy с trusted HTTPS через ACME;
-- создаётся первый admin.
+* Prompt for the target domain name.
+* DNS resolution validation to ensure the domain points to the current host.
+* Port `80/tcp` availability check.
+* Automatic Caddy reverse-proxy initialization with trusted HTTPS via ACME.
+* First administrator account creation.
 
 ### 3. Reconfigure
 
-Если позже домен нужно поменять, полная переустановка не нужна:
+If you need to update the domain name later, a full reinstallation is unnecessary:
 
 ```bash
 sudo yourmsgr reconfigure
+
 ```
 
-или
+*or*
 
 ```bash
 sudo yourmsgr setup
+
 ```
 
-Wizard перепишет конфигурацию и перезапустит стек.
+The wizard overwrites the existing configuration and safely restarts the environment stack.
 
-## Основные команды helper
+---
+
+## Core Helper Commands
 
 ```bash
 yourmsgr
@@ -108,32 +120,38 @@ sudo yourmsgr service autorestart on
 sudo yourmsgr service autorestart off
 yourmsgr admin stats
 sudo yourmsgr uninstall
+
 ```
 
-## Обновления
+---
 
-Рекомендуемый сценарий:
+## Updates
+
+The recommended update flow is as follows:
 
 ```bash
 yourmsgr check-update
 sudo yourmsgr update
+
 ```
 
-Поведение:
+**Under the Hood:**
 
-- `check-update` сравнивает локальную и удалённую версии по файлу `VERSION`;
-- `update` обновляет helper и код проекта;
-- если приложение уже настроено, после обновления автоматически пересобирается и перезапускается стек;
-- если bootstrap уже выполнен, но конфигурации ещё нет, update просто обновит код без автозапуска.
+* `check-update` compares the local `VERSION` file with the upstream release on GitHub.
+* `update` pulls the latest codebase changes and refreshes the CLI helper utility.
+* If the application has already been configured, the update process automatically rebuilds and restarts the container stack.
+* If the bootstrap phase was executed but the application has not yet been configured, `update` simply updates the source code without starting any services.
 
-## Админка
+---
 
-Отдельной web-admin панели в проекте нет. Админская поверхность сейчас состоит из:
+## Administration
 
-1. серверного CLI;
-2. роли `admin` в основном клиенте.
+The project does not feature a dedicated web administration panel. Administrative tasks are managed via:
 
-Быстрый вход в админский CLI:
+1. The server-side CLI tool.
+2. The `admin` privilege level within the standard client application interface.
+
+### Admin CLI Quick Reference
 
 ```bash
 yourmsgr admin stats
@@ -146,47 +164,57 @@ yourmsgr admin users:logout <login>
 yourmsgr admin users:delete <login>
 yourmsgr admin messages:admin-post <admin-login> <message>
 yourmsgr admin messages:purge-group <login>
+
 ```
 
-## Ручной запуск через Docker Compose
+---
+
+## Manual Execution via Docker Compose
+
+For development or custom orchestration environments:
 
 ```bash
 cp .env.example .env
 cp server/.env.example server/.env
 docker compose up -d --build
+
 ```
 
-Для production-сценария рекомендован именно installer/helper flow.
+> **Recommendation:** The automated installer/helper routine remains highly recommended for production deployments.
 
-## Технологии
+---
+
+## Technology Stack
 
 ### Backend
 
-- Bun
-- Hono
-- PostgreSQL
-- Drizzle ORM
-- Bun WebSocket
-- JWT + Argon2
+* **Runtime:** Bun
+* **Framework:** Hono
+* **Database:** PostgreSQL
+* **ORM:** Drizzle ORM
+* **Real-time Networking:** Bun WebSockets
+* **Authentication & Security:** JWT + Argon2
 
 ### Frontend
 
-- Vue 3
-- Pinia
-- Vue Router
-- Vite
-- SCSS
-- Web Crypto API + tweetnacl
+* **Framework:** Vue 3
+* **State Management:** Pinia
+* **Routing:** Vue Router
+* **Build Tool:** Vite
+* **Styling:** SCSS
+* **Cryptography:** Web Crypto API + tweetnacl
 
 ### Infrastructure
 
-- Docker Compose
-- Caddy
+* **Containerization:** Docker Compose
+* **Reverse Proxy / Web Server:** Caddy
 
-## Текущая версия
+---
+
+## Current Version
 
 `2.2.0`
 
-## Лицензия
+## License
 
 MIT
