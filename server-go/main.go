@@ -1,8 +1,11 @@
 package main
 
 import (
+	"flag"
 	"log"
+	"os"
 
+	"yourmsgr/cli"
 	"yourmsgr/config"
 	"yourmsgr/controllers"
 	"yourmsgr/db"
@@ -12,8 +15,22 @@ import (
 )
 
 func main() {
+	// Parse CLI flag if present
+	cliFlag := flag.Bool("cli", false, "Run admin CLI command")
+	flag.Parse()
+
 	// Load configuration
 	config.LoadConfig()
+
+	// If running CLI command, we connect to DB, run it, and exit
+	if *cliFlag {
+		db.ConnectDB()
+		defer db.CloseDB()
+
+		// Run admin command passing remaining command line arguments
+		cli.RunCommand(flag.Args())
+		os.Exit(0)
+	}
 
 	// Validate JWT secrets strength and placeholders (Wave 1 security requirement)
 	if err := utils.AssertJwtSecret(config.AppConfig.JWTAccessSecret, "JWT_ACCESS_SECRET"); err != nil {
@@ -52,6 +69,19 @@ func main() {
 	// Protected routes
 	auth.Post("/username", controllers.JWTAuthMiddleware(), authCtrl.UpdateUsername)
 	auth.Get("/publicKeys", controllers.JWTAuthMiddleware(), authCtrl.GetPublicKeys)
+
+	// Chats and Messages routes
+	chatCtrl := controllers.NewChatController()
+
+	// Private Chats
+	privateChats := api.Group("/private-chats", controllers.JWTAuthMiddleware())
+	privateChats.Post("/", chatCtrl.CreatePrivateChat)
+	privateChats.Get("/", chatCtrl.GetPrivateChats)
+	privateChats.Get("/:chatId/messages", chatCtrl.GetPrivateChatMessages)
+
+	// Messages (Group/General)
+	messagesGroup := api.Group("/messages", controllers.JWTAuthMiddleware())
+	messagesGroup.Get("/group", chatCtrl.GetGroupMessages)
 
 	log.Printf("Starting Go server on port %s...", config.AppConfig.Port)
 	if err := app.Listen(":" + config.AppConfig.Port); err != nil {

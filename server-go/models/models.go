@@ -31,12 +31,32 @@ type Message struct {
 	UserID           int        `json:"userId"`
 	Username         string     `json:"username"`
 	Message          string     `json:"message"`
-	ChatID           *int       `json:"chatId,omitempty"`
+	ChatID           *int       `json:"chatId"`
 	ChatType         string     `json:"chatType"` // "group" or "private"
-	Nonce            *string    `json:"nonce,omitempty"`
-	SenderPublicKey  *string    `json:"senderPublicKey,omitempty"`
-	ReplyToMessageID *int       `json:"replyToMessageId,omitempty"`
-	RecipientID      *int       `json:"recipientId,omitempty"`
+	Nonce            *string    `json:"nonce"`
+	SenderPublicKey  *string    `json:"senderPublicKey"`
+	ReplyToMessageID *int       `json:"replyToMessageId"`
+	RecipientID      *int       `json:"recipientId"`
 	IsEncrypted      int        `json:"isEncrypted"` // 0 = plain, 1 = E2EE
 	Date             time.Time  `json:"date"`
+}
+
+// ReplyPreview represents the preview metadata of a referenced reply message
+type ReplyPreview struct {
+	ID              int     `json:"id"`
+	UserID          int     `json:"userId"`
+	Username        string  `json:"username"`
+	Message         string  `json:"message"`
+	IsEncrypted     int     `json:"isEncrypted"`
+	Nonce           *string `json:"nonce"`
+	SenderPublicKey *string `json:"senderPublicKey"`
+	RecipientID     *int    `json:"recipientId"`
+	MediaType       *string `json:"mediaType"`
+	MediaName       *string `json:"mediaName"`
+}
+
+// MessageWithReply embeds a Message and adds its ReplyPreview reference
+type MessageWithReply struct {
+	Message
+	ReplyTo *ReplyPreview `json:"replyTo"`
 }
