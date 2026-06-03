@@ -58,6 +58,30 @@ services:
           memory: 256M
     restart: ${RESTART_POLICY:-unless-stopped}
 
+  server-go:
+    build:
+      context: ./server-go
+      dockerfile: Dockerfile.dev
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-chat_user}:${POSTGRES_PASSWORD:-chat_password}@postgres:5432/${POSTGRES_DB:-chat}
+      PORT: 3001
+    env_file:
+      - ./server/.env
+    volumes:
+      - ./server-go:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3001:3001"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+    restart: ${RESTART_POLICY:-unless-stopped}
+
   client:
     build:
       context: ./client
