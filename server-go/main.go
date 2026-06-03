@@ -3,10 +3,20 @@ package main
 import (
 	"log"
 
+	"yourmsgr/config"
+	"yourmsgr/db"
+
 	"github.com/gofiber/fiber/v2"
 )
 
 func main() {
+	// Load configuration
+	config.LoadConfig()
+
+	// Connect to database
+	db.ConnectDB()
+	defer db.CloseDB()
+
 	app := fiber.New()
 
 	// Base API group
@@ -20,8 +30,8 @@ func main() {
 		})
 	})
 
-	log.Println("Starting Go server on port 3001...")
-	if err := app.Listen(":3001"); err != nil {
+	log.Printf("Starting Go server on port %s...", config.AppConfig.Port)
+	if err := app.Listen(":" + config.AppConfig.Port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }
