@@ -222,6 +222,11 @@ async function main() {
 
     const aliceLogin = await loginUser(alice.login, alice.password)
     const bobLogin = await loginUser(bob.login, bob.password)
+
+    const decodeToken = (token) => JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString())
+    const aliceUserId = decodeToken(aliceLogin.accessToken).userId
+    const bobUserId = decodeToken(bobLogin.accessToken).userId
+
     const alicePrivateKey = await decryptPrivateKey(
         {
             encrypted: aliceLogin.encryptedPrivateKey,
@@ -239,6 +244,24 @@ async function main() {
         bob.password,
     )
 
+    // 1. Create private chat FIRST
+    const chatResult = await api('/api/private-chats', {
+        method: 'POST',
+        headers: {
+            'content-type': 'application/json',
+            Authorization: `Bearer ${aliceLogin.accessToken}`,
+            Cookie: aliceLogin.cookie,
+        },
+        body: JSON.stringify({ otherUserId: bobUserId }),
+    })
+
+    if (!chatResult.response.ok) {
+        throw new Error(`Private chat creation failed: ${chatResult.response.status} ${JSON.stringify(chatResult.data)}`)
+    }
+
+    const chatId = chatResult.data.data.chat.id
+
+    // 2. Query public keys AFTER the chat has been established
     const publicKeysResult = await api('/auth/publicKeys', {
         headers: {
             Authorization: `Bearer ${aliceLogin.accessToken}`,
@@ -250,26 +273,11 @@ async function main() {
         throw new Error(`Public keys fetch failed: ${publicKeysResult.response.status} ${JSON.stringify(publicKeysResult.data)}`)
     }
 
-    const bobPublicKey = publicKeysResult.data.data.publicKeys.find((entry) => entry.username === bob.username)
+    const bobPublicKey = publicKeysResult.data.data.publicKeys.find((entry) => entry.userId === bobUserId)
     if (!bobPublicKey) {
         throw new Error('Recipient public key not found')
     }
 
-    const chatResult = await api('/api/private-chats', {
-        method: 'POST',
-        headers: {
-            'content-type': 'application/json',
-            Authorization: `Bearer ${aliceLogin.accessToken}`,
-            Cookie: aliceLogin.cookie,
-        },
-        body: JSON.stringify({ otherUserId: bobPublicKey.userId }),
-    })
-
-    if (!chatResult.response.ok) {
-        throw new Error(`Private chat creation failed: ${chatResult.response.status} ${JSON.stringify(chatResult.data)}`)
-    }
-
-    const chatId = chatResult.data.data.chat.id
     const aliceSocket = await connectWs(aliceLogin.cookie)
     const bobSocket = await connectWs(bobLogin.cookie)
 
