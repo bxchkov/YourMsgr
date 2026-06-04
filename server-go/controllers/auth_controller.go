@@ -227,9 +227,9 @@ func (ctrl *AuthController) Refresh(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to generate tokens")
 	}
 
-	// Save new hashed refresh token
+	// Save new hashed refresh token (rotate old session token)
 	hashedRefresh := utils.HashRefreshToken(newRefreshToken, config.AppConfig.JWTRefreshSecret)
-	if err := ctrl.authService.SaveRefreshToken(ctx, user.ID, hashedRefresh); err != nil {
+	if err := ctrl.authService.RotateRefreshToken(ctx, user.ID, refreshToken, hashedRefresh, config.AppConfig.JWTRefreshSecret); err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to save session")
 	}
 
@@ -274,11 +274,15 @@ func (ctrl *AuthController) Logout(c *fiber.Ctx) error {
 
 	// 3. Clear token in DB
 	if logoutUserId > 0 {
-		ctrl.authService.ClearRefreshToken(ctx, logoutUserId)
-		realtime.PublishRealtimeEvent(ctx, realtime.RealtimeEvent{
-			Type:   "force_logout",
-			UserID: logoutUserId,
-		})
+		if refreshToken != "" {
+			ctrl.authService.RemoveRefreshToken(ctx, logoutUserId, refreshToken, config.AppConfig.JWTRefreshSecret)
+		} else {
+			ctrl.authService.ClearAllRefreshTokens(ctx, logoutUserId)
+			realtime.PublishRealtimeEvent(ctx, realtime.RealtimeEvent{
+				Type:   "force_logout",
+				UserID: logoutUserId,
+			})
+		}
 	}
 
 	// 4. Delete refresh token cookie
@@ -381,6 +385,9 @@ func (ctrl *AuthController) UpdateUsername(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to generate tokens")
 	}
 
+	// Invalidate all active sessions because username has changed (embedded in JWT payload)
+	ctrl.authService.ClearAllRefreshTokens(ctx, updatedUser.ID)
+
 	hashedRefresh := utils.HashRefreshToken(refreshToken, config.AppConfig.JWTRefreshSecret)
 	if err := ctrl.authService.SaveRefreshToken(ctx, updatedUser.ID, hashedRefresh); err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to save session")
@@ -390,9 +397,13 @@ func (ctrl *AuthController) UpdateUsername(c *fiber.Ctx) error {
 	cookie.Value = refreshToken
 	c.Cookie(cookie)
 
-	// Publish realtime sync events for scaling
+	// Publish realtime sync and force_logout events for scaling
 	realtime.PublishRealtimeEvent(ctx, realtime.RealtimeEvent{
 		Type: "sync_group_messages",
+	})
+	realtime.PublishRealtimeEvent(ctx, realtime.RealtimeEvent{
+		Type:   "force_logout",
+		UserID: updatedUser.ID,
 	})
 	if len(affectedUserIds) > 0 {
 		realtime.PublishRealtimeEvent(ctx, realtime.RealtimeEvent{

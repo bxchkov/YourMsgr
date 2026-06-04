@@ -2,7 +2,9 @@ package services
 
 import (
 	"context"
+	"crypto/subtle"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 
@@ -153,14 +155,122 @@ func (s *AuthService) Login(ctx context.Context, login, password string) (*model
 	return user, nil
 }
 
-// SaveRefreshToken updates the user's refresh token hash in DB
+func parseRefreshTokens(rawToken string) []string {
+	if rawToken == "" {
+		return []string{}
+	}
+	rawToken = strings.TrimSpace(rawToken)
+	if strings.HasPrefix(rawToken, "[") {
+		var tokens []string
+		if err := json.Unmarshal([]byte(rawToken), &tokens); err == nil {
+			return tokens
+		}
+	}
+	return []string{rawToken}
+}
+
+func serializeRefreshTokens(tokens []string) string {
+	bytes, err := json.Marshal(tokens)
+	if err != nil {
+		return "[]"
+	}
+	return string(bytes)
+}
+
+// SaveRefreshToken appends a new refresh token hash to the user's session list
 func (s *AuthService) SaveRefreshToken(ctx context.Context, userId int, tokenHash string) error {
-	_, err := db.Pool.Exec(ctx, "UPDATE users SET refresh_token = $1 WHERE id = $2", tokenHash, userId)
+	var currentRaw sql.NullString
+	err := db.Pool.QueryRow(ctx, "SELECT refresh_token FROM users WHERE id = $1", userId).Scan(&currentRaw)
+	if err != nil {
+		return err
+	}
+
+	var currentTokens []string
+	if currentRaw.Valid {
+		currentTokens = parseRefreshTokens(currentRaw.String)
+	}
+
+	newTokens := []string{tokenHash}
+	count := 1
+	for _, t := range currentTokens {
+		if t != tokenHash && count < 10 {
+			newTokens = append(newTokens, t)
+			count++
+		}
+	}
+
+	serialized := serializeRefreshTokens(newTokens)
+	_, err = db.Pool.Exec(ctx, "UPDATE users SET refresh_token = $1 WHERE id = $2", serialized, userId)
 	return err
 }
 
-// ClearRefreshToken removes the user's refresh token hash
+// ClearRefreshToken removes all refresh token hashes (backwards compatibility)
 func (s *AuthService) ClearRefreshToken(ctx context.Context, userId int) error {
+	return s.ClearAllRefreshTokens(ctx, userId)
+}
+
+// RemoveRefreshToken removes a specific refresh token hash from the session list
+func (s *AuthService) RemoveRefreshToken(ctx context.Context, userId int, token string, refreshSecret string) error {
+	var currentRaw sql.NullString
+	err := db.Pool.QueryRow(ctx, "SELECT refresh_token FROM users WHERE id = $1", userId).Scan(&currentRaw)
+	if err != nil {
+		return err
+	}
+
+	if !currentRaw.Valid || currentRaw.String == "" {
+		return nil
+	}
+
+	currentTokens := parseRefreshTokens(currentRaw.String)
+	targetHash := utils.HashRefreshToken(token, refreshSecret)
+
+	newTokens := []string{}
+	for _, t := range currentTokens {
+		if t != targetHash {
+			newTokens = append(newTokens, t)
+		}
+	}
+
+	if len(newTokens) == 0 {
+		_, err = db.Pool.Exec(ctx, "UPDATE users SET refresh_token = NULL WHERE id = $1", userId)
+	} else {
+		serialized := serializeRefreshTokens(newTokens)
+		_, err = db.Pool.Exec(ctx, "UPDATE users SET refresh_token = $1 WHERE id = $2", serialized, userId)
+	}
+	return err
+}
+
+// RotateRefreshToken replaces an old refresh token hash with a new one in the session list
+func (s *AuthService) RotateRefreshToken(ctx context.Context, userId int, oldToken string, newTokenHash string, refreshSecret string) error {
+	var currentRaw sql.NullString
+	err := db.Pool.QueryRow(ctx, "SELECT refresh_token FROM users WHERE id = $1", userId).Scan(&currentRaw)
+	if err != nil {
+		return err
+	}
+
+	var currentTokens []string
+	if currentRaw.Valid {
+		currentTokens = parseRefreshTokens(currentRaw.String)
+	}
+
+	oldTokenHash := utils.HashRefreshToken(oldToken, refreshSecret)
+
+	newTokens := []string{newTokenHash}
+	count := 1
+	for _, t := range currentTokens {
+		if t != oldTokenHash && t != newTokenHash && count < 10 {
+			newTokens = append(newTokens, t)
+			count++
+		}
+	}
+
+	serialized := serializeRefreshTokens(newTokens)
+	_, err = db.Pool.Exec(ctx, "UPDATE users SET refresh_token = $1 WHERE id = $2", serialized, userId)
+	return err
+}
+
+// ClearAllRefreshTokens removes all refresh token hashes for a user
+func (s *AuthService) ClearAllRefreshTokens(ctx context.Context, userId int) error {
 	_, err := db.Pool.Exec(ctx, "UPDATE users SET refresh_token = NULL WHERE id = $1", userId)
 	return err
 }
@@ -213,7 +323,22 @@ func (s *AuthService) GetValidSessionUser(ctx context.Context, userId int, refre
 		return nil, err
 	}
 
-	if !utils.VerifyRefreshTokenHash(refreshToken, user.RefreshToken, refreshSecret) {
+	if user.RefreshToken == nil {
+		return nil, nil
+	}
+
+	tokens := parseRefreshTokens(*user.RefreshToken)
+	incomingHash := utils.HashRefreshToken(refreshToken, refreshSecret)
+
+	matched := false
+	for _, t := range tokens {
+		if subtle.ConstantTimeCompare([]byte(incomingHash), []byte(t)) == 1 {
+			matched = true
+			break
+		}
+	}
+
+	if !matched {
 		return nil, nil
 	}
 

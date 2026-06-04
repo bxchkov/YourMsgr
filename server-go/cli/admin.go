@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"yourmsgr/db"
+	"yourmsgr/realtime"
 	"yourmsgr/utils"
 
 	"github.com/jackc/pgx/v5"
@@ -518,19 +519,24 @@ func changeUserRole(ctx context.Context, login, roleValue string) {
 		log.Fatal("Error: Role must be 'user' or 'admin'")
 	}
 
-	var exists bool
-	err := db.Pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE login = $1)", normalizedLogin).Scan(&exists)
-	if err != nil {
-		log.Fatalf("Failed to check user: %v", err)
-	}
-	if !exists {
+	var id int
+	err := db.Pool.QueryRow(ctx, "SELECT id FROM users WHERE login = $1", normalizedLogin).Scan(&id)
+	if err == pgx.ErrNoRows {
 		log.Fatalf("Error: User '%s' not found", normalizedLogin)
+	} else if err != nil {
+		log.Fatalf("Failed to query user: %v", err)
 	}
 
-	_, err = db.Pool.Exec(ctx, "UPDATE users SET role = $1 WHERE login = $2", role, normalizedLogin)
+	_, err = db.Pool.Exec(ctx, "UPDATE users SET role = $1, refresh_token = NULL WHERE id = $2", role, id)
 	if err != nil {
 		log.Fatalf("Failed to update user role: %v", err)
 	}
+
+	// Publish force_logout to disconnect active user sockets and enforce new role
+	realtime.PublishRealtimeEvent(ctx, realtime.RealtimeEvent{
+		Type:   "force_logout",
+		UserID: id,
+	})
 
 	fmt.Printf("Changed role for '%s' to %s\n", normalizedLogin, normalizedRole)
 }
@@ -553,6 +559,12 @@ func logoutUser(ctx context.Context, login string) {
 	if err != nil {
 		log.Fatalf("Failed to logout user: %v", err)
 	}
+
+	// Publish force_logout event to disconnect user sessions on all running nodes
+	realtime.PublishRealtimeEvent(ctx, realtime.RealtimeEvent{
+		Type:   "force_logout",
+		UserID: id,
+	})
 
 	fmt.Printf("Logged out '%s' from all sessions\n", normalized)
 }
@@ -587,6 +599,12 @@ func deleteUser(ctx context.Context, login string, skipConfirmation bool) {
 	if err != nil {
 		log.Fatalf("Failed to delete user: %v", err)
 	}
+
+	// Publish force_logout to disconnect active user sockets
+	realtime.PublishRealtimeEvent(ctx, realtime.RealtimeEvent{
+		Type:   "force_logout",
+		UserID: id,
+	})
 
 	fmt.Printf("Deleted user '%s'\n", normalized)
 }
