@@ -50,18 +50,18 @@ func JWTAuthMiddleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		authHeader := c.Get("Authorization")
 		if authHeader == "" {
-			return utils.SendError(c, fiber.StatusUnauthorized, "Unauthorized: missing token")
+			return utils.SendError(c, fiber.StatusUnauthorized, "Unauthorized")
 		}
 
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-			return utils.SendError(c, fiber.StatusUnauthorized, "Unauthorized: invalid authorization format")
+			return utils.SendError(c, fiber.StatusUnauthorized, "Unauthorized")
 		}
 
 		tokenString := parts[1]
 		claims, err := utils.VerifyToken(tokenString, config.AppConfig.JWTAccessSecret)
 		if err != nil {
-			return utils.SendError(c, fiber.StatusUnauthorized, "Unauthorized: invalid or expired token")
+			return utils.SendError(c, fiber.StatusUnauthorized, "Invalid or expired token")
 		}
 
 		// Store user info in Fiber context locals

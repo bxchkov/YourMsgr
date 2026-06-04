@@ -534,7 +534,7 @@ EOF
 }
 
 write_server_env() {
-  local env_path="$INSTALL_DIR/server/.env"
+  local env_path="$INSTALL_DIR/server-go/.env"
   local existing_access_secret existing_refresh_secret
   local rate_limit_max rate_limit_window
 
@@ -614,7 +614,7 @@ wait_for_stack() {
   server_port="$(get_env_value SERVER_PORT 3000)"
   client_https_port="$(get_env_value CLIENT_HTTPS_PORT 443)"
 
-  wait_for_http_url "http://127.0.0.1:${server_port}/healthz" "Server" 60
+  wait_for_http_url "http://127.0.0.1:${server_port}/api/health" "Server" 60
   wait_for_https_url "$public_host" "$client_https_port" "/healthz" "Trusted HTTPS health endpoint" 90
   wait_for_https_url "$public_host" "$client_https_port" "/auth" "Trusted HTTPS endpoint" 90
 }
@@ -649,7 +649,7 @@ bootstrap_admin() {
   prepare_bootstrap_admin_credentials
 
   local bootstrap_output
-  bootstrap_output="$(compose exec -T server bun src/cli/admin.ts users:bootstrap-admin \
+  bootstrap_output="$(compose exec -T server /app/yourmsgr -cli users:bootstrap-admin \
     "$BOOTSTRAPPED_ADMIN_LOGIN" \
     "$BOOTSTRAPPED_ADMIN_PASSWORD" \
     "$BOOTSTRAPPED_ADMIN_USERNAME" 2>&1 || true)"

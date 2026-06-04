@@ -30,7 +30,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-chat_user}:${POSTGRES_PASSWORD:-chat_password}@postgres:5432/${POSTGRES_DB:-chat}
       PORT: 3000
     env_file:
-      - ./server/.env
+      - ./server-go/.env
     depends_on:
       postgres:
         condition: service_healthy

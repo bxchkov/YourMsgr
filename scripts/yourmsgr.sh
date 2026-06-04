@@ -127,7 +127,7 @@ compose() {
 
 server_health_url() {
   load_env
-  echo "http://127.0.0.1:${SERVER_PORT:-3000}/healthz"
+  echo "http://127.0.0.1:${SERVER_PORT:-3000}/api/health"
 }
 
 client_https_health_url() {
@@ -862,10 +862,10 @@ run_admin_cli() {
 
   set +e
   if [[ -t 0 && -t 1 ]]; then
-    compose exec server bun src/cli/admin.ts "$@"
+    compose exec server /app/yourmsgr -cli "$@"
     exit_code=$?
   else
-    compose exec -T server bun src/cli/admin.ts "$@" < /dev/null
+    compose exec -T server /app/yourmsgr -cli "$@" < /dev/null
     exit_code=$?
   fi
   set -e
@@ -1577,9 +1577,9 @@ case "$command_name" in
       exit 1
     fi
     if [[ -t 0 && -t 1 ]]; then
-      compose exec server bun src/cli/admin.ts "$@"
+      compose exec server /app/yourmsgr -cli "$@"
     else
-      compose exec -T server bun src/cli/admin.ts "$@" < /dev/null
+      compose exec -T server /app/yourmsgr -cli "$@" < /dev/null
     fi
     ;;
 
