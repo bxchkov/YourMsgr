@@ -187,27 +187,32 @@ docker compose up -d --build
 ## Technology Stack
 
 ### Backend
-
-* **Runtime:** Bun
-* **Framework:** Hono
-* **Database:** PostgreSQL
-* **ORM:** Drizzle ORM
-* **Real-time Networking:** Bun WebSockets
-* **Authentication & Security:** JWT + Argon2
+* **Language:** Go (Golang 1.22+)
+* **Framework & Router:** Fiber v2 (ultra-fast, Express/Hono-like router)
+* **Database Connection:** pgx/v5 (high-performance PostgreSQL connection pool)
+* **Real-time Networking:** gorilla/websocket (robust state-management hub)
+* **Pub/Sub Cluster:** PostgreSQL LISTEN/NOTIFY for real-time event synchronization across nodes
+* **Security & Auth:** JWT + Bcrypt, CSRF Protection, and HTTP Rate Limiting
 
 ### Frontend
-
 * **Framework:** Vue 3
 * **State Management:** Pinia
 * **Routing:** Vue Router
 * **Build Tool:** Vite
 * **Styling:** SCSS
-* **Cryptography:** Web Crypto API + tweetnacl
+* **Cryptography:** Web Crypto API + tweetnacl (client-side encryption)
 
 ### Infrastructure
-
 * **Containerization:** Docker Compose
-* **Reverse Proxy / Web Server:** Caddy
+* **Reverse Proxy / TLS:** Caddy (automated HTTPS with Let's Encrypt / ZeroSSL)
+
+---
+
+## 🔒 Security Posture & Cryptography (E2EE)
+YourMsgr enforces strict **End-to-End Encryption (E2EE)** for private conversations:
+1. **Zero-Knowledge Backend:** The server never sees the plaintext messages or private keys. Encryption and decryption occur strictly on the client side using the **Web Crypto API** (AES-GCM for payload encryption) and **X25519** for key exchange.
+2. **Double Submit CSRF Protection:** Mutating REST requests require a custom `X-CSRF-Token` header validated against browser-scoped Lax cookies.
+3. **Session Hardening:** Multi-device active sessions (refresh token lists) with rotation and automatic invalidation on sensitive changes (e.g., username updates, role modifications).
 
 ---
 
@@ -217,4 +222,4 @@ docker compose up -d --build
 
 ## License
 
-MIT
+MIT - see [LICENSE](file:///D:/urfu/YourMsgr/LICENSE) for details.
