@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"yourmsgr/config"
+	"yourmsgr/realtime"
 	"yourmsgr/services"
 	"yourmsgr/utils"
 
@@ -274,7 +275,10 @@ func (ctrl *AuthController) Logout(c *fiber.Ctx) error {
 	// 3. Clear token in DB
 	if logoutUserId > 0 {
 		ctrl.authService.ClearRefreshToken(ctx, logoutUserId)
-		// Note: Wave 5 will implement Realtime events broker pub/sub for force_logout
+		realtime.PublishRealtimeEvent(ctx, realtime.RealtimeEvent{
+			Type:   "force_logout",
+			UserID: logoutUserId,
+		})
 	}
 
 	// 4. Delete refresh token cookie
@@ -365,7 +369,7 @@ func (ctrl *AuthController) UpdateUsername(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusConflict, "Username unchanged")
 	}
 
-	updatedUser, _, err := ctrl.authService.UpdateUsername(ctx, userId, req.Username)
+	updatedUser, affectedUserIds, err := ctrl.authService.UpdateUsername(ctx, userId, req.Username)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusConflict, err.Error())
 	}
@@ -386,7 +390,16 @@ func (ctrl *AuthController) UpdateUsername(c *fiber.Ctx) error {
 	cookie.Value = refreshToken
 	c.Cookie(cookie)
 
-	// Note: Wave 5 will implement real-time events broadcast (sync_group_messages, sync_private_chats)
+	// Publish realtime sync events for scaling
+	realtime.PublishRealtimeEvent(ctx, realtime.RealtimeEvent{
+		Type: "sync_group_messages",
+	})
+	if len(affectedUserIds) > 0 {
+		realtime.PublishRealtimeEvent(ctx, realtime.RealtimeEvent{
+			Type:    "sync_private_chats",
+			UserIDs: affectedUserIds,
+		})
+	}
 
 	return utils.SendSuccess(c, "Username updated successfully", fiber.Map{
 		"accessToken": accessToken,

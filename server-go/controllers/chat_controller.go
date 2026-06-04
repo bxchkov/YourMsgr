@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 
+	"yourmsgr/realtime"
 	"yourmsgr/services"
 	"yourmsgr/utils"
 
@@ -46,7 +47,11 @@ func (ctrl *ChatController) CreatePrivateChat(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to create chat")
 	}
 
-	// Note: Wave 5 will implement real-time events broadcast (sync_private_chats)
+	// Publish sync_private_chats event for both participants
+	realtime.PublishRealtimeEvent(ctx, realtime.RealtimeEvent{
+		Type:    "sync_private_chats",
+		UserIDs: []int{userId, req.OtherUserID},
+	})
 
 	return utils.SendSuccess(c, "Chat created", fiber.Map{
 		"chat": chat,

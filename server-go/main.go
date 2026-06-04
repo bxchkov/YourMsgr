@@ -54,6 +54,9 @@ func main() {
 	// Initialize real-time WebSockets Hub (Phase 5)
 	realtime.InitHub()
 
+	// Start horizontal scaling listener via PG LISTEN/NOTIFY
+	realtime.StartRealtimeListener()
+
 	app := fiber.New()
 
 	// Rate Limiter middleware (Wave 1 / Audit recommendation)
