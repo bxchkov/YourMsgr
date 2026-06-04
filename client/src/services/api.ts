@@ -8,6 +8,13 @@ import router from '@/router'
 
 const API_BASE = window.location.origin
 
+function getCookie(name: string): string | null {
+    const value = `; ${document.cookie}`
+    const parts = value.split(`; ${name}=`)
+    if (parts.length === 2) return parts.pop()?.split(';').shift() || null
+    return null
+}
+
 export async function apiFetch<T = unknown>(
     endpoint: string,
     options: RequestInit = {},
@@ -22,6 +29,15 @@ export async function apiFetch<T = unknown>(
     // Add auth token if available and not already set
     if (auth.token && !headers.authorization && !headers.Authorization) {
         headers.Authorization = `Bearer ${auth.token}`
+    }
+
+    // Add CSRF token for mutating requests
+    const method = (options.method || 'GET').toUpperCase()
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+        const csrfToken = getCookie('csrf_token')
+        if (csrfToken) {
+            headers['X-CSRF-Token'] = csrfToken
+        }
     }
 
     const response = await fetch(`${API_BASE}${endpoint}`, {

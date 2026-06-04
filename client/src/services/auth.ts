@@ -9,6 +9,14 @@ import type {
 } from '@/types/api'
 
 const API_BASE = window.location.origin
+
+function getCookie(name: string): string | null {
+    const value = `; ${document.cookie}`
+    const parts = value.split(`; ${name}=`)
+    if (parts.length === 2) return parts.pop()?.split(';').shift() || null
+    return null
+}
+
 async function authenticatedRequest<T>(
     endpoint: string,
     init: RequestInit,
@@ -21,6 +29,15 @@ async function authenticatedRequest<T>(
 
     if (auth.token && !headers.authorization && !headers.Authorization) {
         headers.Authorization = `Bearer ${auth.token}`
+    }
+
+    // Add CSRF token for mutating requests
+    const method = (init.method || 'GET').toUpperCase()
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+        const csrfToken = getCookie('csrf_token')
+        if (csrfToken) {
+            headers['X-CSRF-Token'] = csrfToken
+        }
     }
 
     const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -57,12 +74,18 @@ export const authService = {
         encryptedPrivateKeyIv: string,
         encryptedPrivateKeySalt: string,
     ) {
+        const headers: Record<string, string> = {
+            'content-type': 'application/json',
+        }
+        const csrfToken = getCookie('csrf_token')
+        if (csrfToken) {
+            headers['X-CSRF-Token'] = csrfToken
+        }
+
         const response = await fetch(`${API_BASE}/auth/registration`, {
             method: 'POST',
             credentials: 'include',
-            headers: {
-                'content-type': 'application/json',
-            },
+            headers,
             body: JSON.stringify({
                 login,
                 password,
@@ -77,12 +100,18 @@ export const authService = {
     },
 
     async login(login: string, password: string) {
+        const headers: Record<string, string> = {
+            'content-type': 'application/json',
+        }
+        const csrfToken = getCookie('csrf_token')
+        if (csrfToken) {
+            headers['X-CSRF-Token'] = csrfToken
+        }
+
         const response = await fetch(`${API_BASE}/auth/login`, {
             method: 'POST',
             credentials: 'include',
-            headers: {
-                'content-type': 'application/json',
-            },
+            headers,
             body: JSON.stringify({ login, password }),
         })
         return parseApiResponse<AuthLoginData>(response)
@@ -109,6 +138,10 @@ export const authService = {
         if (auth.token) {
             headers.authorization = `Bearer ${auth.token}`
         }
+        const csrfToken = getCookie('csrf_token')
+        if (csrfToken) {
+            headers['X-CSRF-Token'] = csrfToken
+        }
 
         const response = await fetch(`${API_BASE}/auth/refresh`, {
             method: 'POST',
@@ -124,6 +157,10 @@ export const authService = {
 
         if (auth.token) {
             headers.authorization = `Bearer ${auth.token}`
+        }
+        const csrfToken = getCookie('csrf_token')
+        if (csrfToken) {
+            headers['X-CSRF-Token'] = csrfToken
         }
 
         await fetch(`${API_BASE}/auth/logout`, {

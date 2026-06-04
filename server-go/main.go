@@ -15,6 +15,7 @@ import (
 	"yourmsgr/utils"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/csrf"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 )
 
@@ -82,6 +83,27 @@ func main() {
 		Next: func(c *fiber.Ctx) bool {
 			// Skip rate limiting for health check endpoint
 			return c.Path() == "/api/health"
+		},
+	}))
+
+	// CSRF Protection middleware (Wave 1 security requirement / Audit recommendation)
+	app.Use(csrf.New(csrf.Config{
+		KeyLookup:      "header:X-CSRF-Token",
+		CookieName:     "csrf_token",
+		CookieSameSite: "Lax",
+		CookieSecure:   false,
+		CookieHTTPOnly: false,
+		Expiration:     24 * time.Hour,
+		Next: func(c *fiber.Ctx) bool {
+			// Skip CSRF for health check
+			if c.Path() == "/api/health" {
+				return true
+			}
+			// Skip CSRF check for login and registration
+			if c.Path() == "/auth/login" || c.Path() == "/auth/registration" {
+				return true
+			}
+			return false
 		},
 	}))
 
