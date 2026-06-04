@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"log"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"yourmsgr/config"
 	"yourmsgr/db"
@@ -242,6 +244,15 @@ func handleSendMessage(ctx context.Context, chatService *services.ChatService, a
 		GlobalHub.ForceLogoutUser(client.UserID)
 		return
 	}
+
+	// Validate message length (Wave 1 security requirement / Zod alignment)
+	msgText := strings.TrimSpace(payload.Message)
+	runeCount := utf8.RuneCountInString(msgText)
+	if runeCount < 1 || runeCount > 2000 {
+		client.Conn.WriteJSON(fiber.Map{"type": "error", "message": "Message length must be between 1 and 2000 characters"})
+		return
+	}
+	payload.Message = msgText
 
 	isEnc := 0
 	if payload.IsEncrypted != nil {
