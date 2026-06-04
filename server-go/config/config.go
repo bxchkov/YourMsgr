@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 )
 
 type Config struct {
@@ -10,6 +11,8 @@ type Config struct {
 	Port             string
 	JWTAccessSecret  string
 	JWTRefreshSecret string
+	RateLimitWindow  int
+	RateLimitMax     int
 }
 
 var AppConfig *Config
@@ -34,10 +37,28 @@ func LoadConfig() {
 		log.Println("WARNING: JWT_ACCESS_SECRET or JWT_REFRESH_SECRET is not set. Auth might fail.")
 	}
 
+	rateLimitWindowStr := os.Getenv("RATE_LIMIT_WINDOW")
+	rateLimitWindow := 15
+	if rateLimitWindowStr != "" {
+		if val, err := strconv.Atoi(rateLimitWindowStr); err == nil {
+			rateLimitWindow = val
+		}
+	}
+
+	rateLimitMaxStr := os.Getenv("RATE_LIMIT_MAX")
+	rateLimitMax := 100
+	if rateLimitMaxStr != "" {
+		if val, err := strconv.Atoi(rateLimitMaxStr); err == nil {
+			rateLimitMax = val
+		}
+	}
+
 	AppConfig = &Config{
 		DatabaseURL:      dbURL,
 		Port:             port,
 		JWTAccessSecret:  jwtAccess,
 		JWTRefreshSecret: jwtRefresh,
+		RateLimitWindow:  rateLimitWindow,
+		RateLimitMax:     rateLimitMax,
 	}
 }

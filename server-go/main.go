@@ -4,6 +4,8 @@ import (
 	"flag"
 	"log"
 	"os"
+	"strings"
+	"time"
 
 	"yourmsgr/cli"
 	"yourmsgr/config"
@@ -13,6 +15,7 @@ import (
 	"yourmsgr/utils"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 )
 
 func main() {
@@ -52,6 +55,32 @@ func main() {
 	realtime.InitHub()
 
 	app := fiber.New()
+
+	// Rate Limiter middleware (Wave 1 / Audit recommendation)
+	app.Use(limiter.New(limiter.Config{
+		Max:        config.AppConfig.RateLimitMax,
+		Expiration: time.Duration(config.AppConfig.RateLimitWindow) * time.Minute,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			// Extract IP considering reverse proxy headers
+			forwarded := c.Get("X-Forwarded-For")
+			if forwarded != "" {
+				parts := strings.Split(forwarded, ",")
+				return strings.TrimSpace(parts[0])
+			}
+			realIP := c.Get("X-Real-IP")
+			if realIP != "" {
+				return realIP
+			}
+			return c.IP()
+		},
+		LimitReached: func(c *fiber.Ctx) error {
+			return utils.SendError(c, fiber.StatusTooManyRequests, "Слишком много запросов")
+		},
+		Next: func(c *fiber.Ctx) bool {
+			// Skip rate limiting for health check endpoint
+			return c.Path() == "/api/health"
+		},
+	}))
 
 	// Base API group
 	api := app.Group("/api")
