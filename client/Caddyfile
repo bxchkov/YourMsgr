@@ -22,6 +22,15 @@ http:// {
 	@health path /healthz
 	respond @health "ok" 200
 
+	# Global security headers
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Content-Type-Options "nosniff"
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Frame-Options "DENY"
+	}
+
 	@backend path /api* /auth/* /ws
 	handle @backend {
 		reverse_proxy server:3000
@@ -42,13 +51,6 @@ http:// {
 		header {
 			# Default cache-control for other static files
 			Cache-Control "public, max-age=3600"
-
-			# Security headers
-			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; frame-ancestors 'none'; form-action 'self'"
-			Referrer-Policy "strict-origin-when-cross-origin"
-			X-Content-Type-Options "nosniff"
-			Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-			X-Frame-Options "DENY"
 		}
 		file_server
 	}
