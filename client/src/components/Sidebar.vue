@@ -176,7 +176,7 @@
 import { computed, onUnmounted, ref } from 'vue'
 import { useChatStore, type CurrentChat, type Message, type PrivateChat } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
-import { decryptMessageE2EE } from '@/composables/useCrypto'
+import { decryptMessageE2EE, getPublicKey } from '@/composables/useCrypto'
 import { getReplyPreviewText } from '@/utils/messageContent'
 import IconButton from '@/components/IconButton.vue'
 
@@ -248,7 +248,8 @@ function getPreviewMessage(chat: PrivateChat): string {
 
   if (chat.lastMessageIsEncrypted === 1 && chat.lastMessageNonce && chat.lastMessageSenderPublicKey) {
     try {
-      const isOwnMessage = chat.lastMessageSenderPublicKey === auth.publicKey
+      const currentPublicKey = getPublicKey()
+      const isOwnMessage = chat.lastMessageSenderPublicKey === currentPublicKey
       const decryptionKey = isOwnMessage
         ? chat.otherUser?.publicKey
         : (chat.otherUser?.publicKey || chat.lastMessageSenderPublicKey)
