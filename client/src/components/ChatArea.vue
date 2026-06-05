@@ -35,7 +35,15 @@
           :class="{ 'message-input__notice--active': !!composerNotice }"
           role="alert"
         >
-          {{ composerNotice }}
+          <span>{{ composerNotice }}</span>
+          <button
+            v-if="isCurrentChatCompromised"
+            type="button"
+            class="message-input__notice-action"
+            @click="acceptNewKey"
+          >
+            Доверять новому ключу
+          </button>
         </div>
       </div>
 
@@ -339,6 +347,18 @@ watch(
   { deep: true, immediate: true }
 )
 
+const isCurrentChatCompromised = computed(() => {
+  const recipientId = chatStore.currentChat.recipientId
+  return !!(recipientId && chatStore.compromisedKeys[recipientId])
+})
+
+function acceptNewKey() {
+  const recipientId = chatStore.currentChat.recipientId
+  if (recipientId) {
+    chatStore.acceptNewPublicKey(recipientId)
+  }
+}
+
 watch(
   () => chatStore.currentChat.id,
   async () => {
@@ -552,6 +572,11 @@ async function sendMessage() {
     const recipientId = chatStore.currentChat.recipientId
     if (!recipientId) {
       setComposerNotice('Шифрование доступно только в личных чатах')
+      return
+    }
+
+    if (chatStore.compromisedKeys[recipientId]) {
+      setComposerNotice('Критическая ошибка: Публичный ключ собеседника изменился! Отправка E2EE заблокирована для безопасности.')
       return
     }
 

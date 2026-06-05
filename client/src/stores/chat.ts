@@ -310,6 +310,15 @@ export const useChatStore = defineStore('chat', () => {
         publicKeys.value = keys
     }
 
+    function acceptNewPublicKey(userId: number) {
+        const key = publicKeys.value[userId]
+        if (key && typeof window !== 'undefined') {
+            const tofuKey = `tofu_pubkey_${userId}`
+            window.localStorage.setItem(tofuKey, key)
+            compromisedKeys.value[userId] = false
+        }
+    }
+
     function cleanup() {
         groupMessages.value = []
         privateMessagesByChatId.value = {}
@@ -345,6 +354,7 @@ export const useChatStore = defineStore('chat', () => {
         setReplyTarget,
         clearReplyTarget,
         setPublicKeys,
+        acceptNewPublicKey,
         cleanup,
     }
 })

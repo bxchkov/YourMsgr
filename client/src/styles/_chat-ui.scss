@@ -221,10 +221,28 @@
       font-size: $font-size-sm;
       line-height: 1.35;
       transition: opacity $transition-slow, transform $transition-slow;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: $spacing-2;
 
       &--active {
         opacity: 1;
         transform: translateY(0);
+      }
+    }
+
+    &__notice-action {
+      @include reset-button;
+      color: $color-primary;
+      font-weight: 600;
+      font-size: $font-size-xs;
+      cursor: pointer;
+      text-decoration: underline;
+      white-space: nowrap;
+
+      &:hover {
+        color: $color-primary-hover;
       }
     }
 
