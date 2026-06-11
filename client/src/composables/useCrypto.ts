@@ -5,6 +5,9 @@ let initialized = false
 let cryptoSyncChannel: BroadcastChannel | null = null
 let cryptoSyncInitialized = false
 
+// Private key is intentionally kept only in memory — never written to sessionStorage
+let privateKeyInMemory: string | null = null
+
 export const PRIVATE_KEY_STORAGE_KEY = 'e2ee_private_key'
 export const PUBLIC_KEY_STORAGE_KEY = 'e2ee_public_key'
 export const SECURE_PASSWORD_ENCRYPTION_ERROR = 'Secure password encryption requires HTTPS'
@@ -89,26 +92,21 @@ export function setupCryptoSync() {
             return
         }
 
+        // Sync private key into memory (never into storage)
+        if (!privateKeyInMemory && event.privateKey) {
+            privateKeyInMemory = event.privateKey
+        }
+
+        // Public key is not sensitive — keep in sessionStorage for cross-tab persistence
         const storage = getCryptoStorage()
-        if (!storage) {
-            return
-        }
-
-        const hasPrivateKey = Boolean(storage.getItem(PRIVATE_KEY_STORAGE_KEY))
-        const hasPublicKey = Boolean(storage.getItem(PUBLIC_KEY_STORAGE_KEY))
-
-        if (!hasPrivateKey && event.privateKey) {
-            storage.setItem(PRIVATE_KEY_STORAGE_KEY, event.privateKey)
-        }
-
-        if (!hasPublicKey && event.publicKey) {
+        if (storage && !storage.getItem(PUBLIC_KEY_STORAGE_KEY) && event.publicKey) {
             storage.setItem(PUBLIC_KEY_STORAGE_KEY, event.publicKey)
         }
 
         bumpCryptoRevision()
     }
 
-    if (!getPrivateKey() || !getPublicKey()) {
+    if (!privateKeyInMemory || !getPublicKey()) {
         channel.postMessage({
             type: 'request',
             timestamp: Date.now(),
@@ -268,18 +266,14 @@ export function derivePublicKeyFromPrivateKey(privateKeyBase64: string): string 
 }
 
 export function savePrivateKey(key: string): void {
-    const storage = getCryptoStorage()
-    if (!storage) {
-        return
-    }
-
-    storage.setItem(PRIVATE_KEY_STORAGE_KEY, key)
+    // Store only in memory — never persisted to sessionStorage or localStorage
+    privateKeyInMemory = key
     bumpCryptoRevision()
     broadcastStoredKeys()
 }
 
 export function getPrivateKey(): string | null {
-    return getCryptoStorage()?.getItem(PRIVATE_KEY_STORAGE_KEY) ?? null
+    return privateKeyInMemory
 }
 
 export function savePublicKey(key: string): void {
@@ -298,13 +292,19 @@ export function getPublicKey(): string | null {
 }
 
 export function clearCryptoKeys(): void {
+    // Clear in-memory private key
+    privateKeyInMemory = null
+
     if (typeof window === 'undefined') {
         return
     }
 
+    // Clean up any legacy private key entries that may exist from older versions
     window.sessionStorage.removeItem(PRIVATE_KEY_STORAGE_KEY)
-    window.sessionStorage.removeItem(PUBLIC_KEY_STORAGE_KEY)
     window.localStorage.removeItem(PRIVATE_KEY_STORAGE_KEY)
+
+    // Clear public key from sessionStorage
+    window.sessionStorage.removeItem(PUBLIC_KEY_STORAGE_KEY)
     window.localStorage.removeItem(PUBLIC_KEY_STORAGE_KEY)
     bumpCryptoRevision()
 }
