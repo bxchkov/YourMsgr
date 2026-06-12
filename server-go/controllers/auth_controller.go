@@ -246,7 +246,7 @@ func (ctrl *AuthController) Refresh(c *fiber.Ctx) error {
 func (ctrl *AuthController) Logout(c *fiber.Ctx) error {
 	authHeader := c.Get("Authorization")
 	refreshToken := c.Cookies("refreshToken")
-	var logoutUserId int
+	var logoutUserId int64
 
 	ctx := context.Background()
 
@@ -351,7 +351,7 @@ type UpdateUsernameRequest struct {
 }
 
 func (ctrl *AuthController) UpdateUsername(c *fiber.Ctx) error {
-	userId := c.Locals("userId").(int)
+	userId := c.Locals("userId").(int64)
 
 	var req UpdateUsernameRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -419,14 +419,14 @@ func (ctrl *AuthController) UpdateUsername(c *fiber.Ctx) error {
 }
 
 func (ctrl *AuthController) GetPublicKeys(c *fiber.Ctx) error {
-	userId := c.Locals("userId").(int)
+	userId := c.Locals("userId").(int64)
 	rawUserIds := c.Query("userIds")
-	var targetUserIds []int
+	var targetUserIds []int64
 
 	if rawUserIds != "" {
 		parts := strings.Split(rawUserIds, ",")
 		for _, part := range parts {
-			val, err := strconv.Atoi(strings.TrimSpace(part))
+			val, err := strconv.ParseInt(strings.TrimSpace(part), 10, 64)
 			if err == nil && val > 0 {
 				targetUserIds = append(targetUserIds, val)
 			}

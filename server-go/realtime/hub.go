@@ -9,7 +9,7 @@ import (
 
 type Client struct {
 	Conn         *websocket.Conn
-	UserID       int
+	UserID       int64
 	Username     string
 	RefreshToken string
 }
@@ -69,11 +69,11 @@ func (h *Hub) BroadcastToAll(payload []byte) {
 }
 
 // BroadcastToUsers sends a JSON payload to specific user IDs
-func (h *Hub) BroadcastToUsers(userIds []int, payload []byte) {
+func (h *Hub) BroadcastToUsers(userIds []int64, payload []byte) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	targets := make(map[int]bool)
+	targets := make(map[int64]bool)
 	for _, id := range userIds {
 		targets[id] = true
 	}
@@ -90,7 +90,7 @@ func (h *Hub) BroadcastToUsers(userIds []int, payload []byte) {
 }
 
 // CountUserConnections counts how many active sockets a user has
-func (h *Hub) CountUserConnections(userId int) int {
+func (h *Hub) CountUserConnections(userId int64) int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -104,7 +104,7 @@ func (h *Hub) CountUserConnections(userId int) int {
 }
 
 // ForceLogoutUser disconnects all sockets of a user and notifies them
-func (h *Hub) ForceLogoutUser(userId int) {
+func (h *Hub) ForceLogoutUser(userId int64) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 

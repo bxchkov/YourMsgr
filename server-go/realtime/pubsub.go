@@ -13,9 +13,9 @@ const RealtimeChannel = "yourmsgr_events"
 
 // RealtimeEvent is the shared event envelope used by all adapters
 type RealtimeEvent struct {
-	Type    string `json:"type"`
-	UserID  int    `json:"userId,omitempty"`
-	UserIDs []int  `json:"userIds,omitempty"`
+	Type    string  `json:"type"`
+	UserID  int64   `json:"userId,omitempty"`
+	UserIDs []int64 `json:"userIds,omitempty"`
 }
 
 // postgresPubSub implements PubSubAdapter via PostgreSQL LISTEN/NOTIFY

@@ -22,7 +22,7 @@ func NewAuthService() *AuthService {
 }
 
 // FindUsernameConflict checks if a username or login is already taken
-func (s *AuthService) FindUsernameConflict(ctx context.Context, userId int, username string) (bool, error) {
+func (s *AuthService) FindUsernameConflict(ctx context.Context, userId int64, username string) (bool, error) {
 	normalized := utils.NormalizeIdentity(username)
 
 	var query string
@@ -178,7 +178,7 @@ func serializeRefreshTokens(tokens []string) string {
 }
 
 // SaveRefreshToken appends a new refresh token hash to the user's session list
-func (s *AuthService) SaveRefreshToken(ctx context.Context, userId int, tokenHash string) error {
+func (s *AuthService) SaveRefreshToken(ctx context.Context, userId int64, tokenHash string) error {
 	var currentRaw sql.NullString
 	err := db.Pool.QueryRow(ctx, "SELECT refresh_token FROM users WHERE id = $1", userId).Scan(&currentRaw)
 	if err != nil {
@@ -205,12 +205,12 @@ func (s *AuthService) SaveRefreshToken(ctx context.Context, userId int, tokenHas
 }
 
 // ClearRefreshToken removes all refresh token hashes (backwards compatibility)
-func (s *AuthService) ClearRefreshToken(ctx context.Context, userId int) error {
+func (s *AuthService) ClearRefreshToken(ctx context.Context, userId int64) error {
 	return s.ClearAllRefreshTokens(ctx, userId)
 }
 
 // RemoveRefreshToken removes a specific refresh token hash from the session list
-func (s *AuthService) RemoveRefreshToken(ctx context.Context, userId int, token string, refreshSecret string) error {
+func (s *AuthService) RemoveRefreshToken(ctx context.Context, userId int64, token string, refreshSecret string) error {
 	var currentRaw sql.NullString
 	err := db.Pool.QueryRow(ctx, "SELECT refresh_token FROM users WHERE id = $1", userId).Scan(&currentRaw)
 	if err != nil {
@@ -241,7 +241,7 @@ func (s *AuthService) RemoveRefreshToken(ctx context.Context, userId int, token 
 }
 
 // RotateRefreshToken replaces an old refresh token hash with a new one in the session list
-func (s *AuthService) RotateRefreshToken(ctx context.Context, userId int, oldToken string, newTokenHash string, refreshSecret string) error {
+func (s *AuthService) RotateRefreshToken(ctx context.Context, userId int64, oldToken string, newTokenHash string, refreshSecret string) error {
 	var currentRaw sql.NullString
 	err := db.Pool.QueryRow(ctx, "SELECT refresh_token FROM users WHERE id = $1", userId).Scan(&currentRaw)
 	if err != nil {
@@ -270,13 +270,13 @@ func (s *AuthService) RotateRefreshToken(ctx context.Context, userId int, oldTok
 }
 
 // ClearAllRefreshTokens removes all refresh token hashes for a user
-func (s *AuthService) ClearAllRefreshTokens(ctx context.Context, userId int) error {
+func (s *AuthService) ClearAllRefreshTokens(ctx context.Context, userId int64) error {
 	_, err := db.Pool.Exec(ctx, "UPDATE users SET refresh_token = NULL WHERE id = $1", userId)
 	return err
 }
 
 // GetUserById retrieves a user by their ID
-func (s *AuthService) GetUserById(ctx context.Context, userId int) (*models.User, error) {
+func (s *AuthService) GetUserById(ctx context.Context, userId int64) (*models.User, error) {
 	query := `
 		SELECT id, login, username, role, refresh_token, 
 		       public_key, encrypted_private_key, encrypted_private_key_iv, encrypted_private_key_salt, created_at
@@ -317,7 +317,7 @@ func (s *AuthService) GetUserById(ctx context.Context, userId int) (*models.User
 }
 
 // GetValidSessionUser retrieves user and verifies refresh token hash match
-func (s *AuthService) GetValidSessionUser(ctx context.Context, userId int, refreshToken, refreshSecret string) (*models.User, error) {
+func (s *AuthService) GetValidSessionUser(ctx context.Context, userId int64, refreshToken, refreshSecret string) (*models.User, error) {
 	user, err := s.GetUserById(ctx, userId)
 	if err != nil || user == nil {
 		return nil, err
@@ -346,7 +346,7 @@ func (s *AuthService) GetValidSessionUser(ctx context.Context, userId int, refre
 }
 
 // UpdateUsername updates the user's username across users and messages
-func (s *AuthService) UpdateUsername(ctx context.Context, userId int, newUsername string) (*models.User, []int, error) {
+func (s *AuthService) UpdateUsername(ctx context.Context, userId int64, newUsername string) (*models.User, []int64, error) {
 	normalized := strings.TrimSpace(newUsername)
 
 	if utils.IsReservedIdentity(normalized) {
@@ -389,9 +389,9 @@ func (s *AuthService) UpdateUsername(ctx context.Context, userId int, newUsernam
 	}
 	defer rows.Close()
 
-	affectedSet := map[int]bool{userId: true}
+	affectedSet := map[int64]bool{userId: true}
 	for rows.Next() {
-		var u1, u2 int
+		var u1, u2 int64
 		if err := rows.Scan(&u1, &u2); err != nil {
 			return nil, nil, err
 		}
@@ -399,7 +399,7 @@ func (s *AuthService) UpdateUsername(ctx context.Context, userId int, newUsernam
 		affectedSet[u2] = true
 	}
 
-	affectedUserIds := make([]int, 0, len(affectedSet))
+	affectedUserIds := make([]int64, 0, len(affectedSet))
 	for id := range affectedSet {
 		affectedUserIds = append(affectedUserIds, id)
 	}
@@ -412,7 +412,7 @@ func (s *AuthService) UpdateUsername(ctx context.Context, userId int, newUsernam
 }
 
 // GetPublicKeysForUser returns public keys of users sharing private chats with the requester
-func (s *AuthService) GetPublicKeysForUser(ctx context.Context, userId int, targetUserIds []int) ([]map[string]interface{}, error) {
+func (s *AuthService) GetPublicKeysForUser(ctx context.Context, userId int64, targetUserIds []int64) ([]map[string]interface{}, error) {
 	// Find all private chats of this user
 	rows, err := db.Pool.Query(ctx, "SELECT user1_id, user2_id FROM private_chats WHERE user1_id = $1 OR user2_id = $1", userId)
 	if err != nil {
@@ -420,9 +420,9 @@ func (s *AuthService) GetPublicKeysForUser(ctx context.Context, userId int, targ
 	}
 	defer rows.Close()
 
-	relatedSet := map[int]bool{userId: true}
+	relatedSet := map[int64]bool{userId: true}
 	for rows.Next() {
-		var u1, u2 int
+		var u1, u2 int64
 		if err := rows.Scan(&u1, &u2); err != nil {
 			return nil, err
 		}
@@ -430,10 +430,10 @@ func (s *AuthService) GetPublicKeysForUser(ctx context.Context, userId int, targ
 		relatedSet[u2] = true
 	}
 
-	var allowedUserIds []int
+	var allowedUserIds []int64
 	if len(targetUserIds) > 0 {
 		// Filter targetUserIds to only those that share a chat (are in relatedSet)
-		seen := map[int]bool{}
+		seen := map[int64]bool{}
 		for _, tid := range targetUserIds {
 			if relatedSet[tid] && !seen[tid] {
 				allowedUserIds = append(allowedUserIds, tid)
@@ -461,7 +461,7 @@ func (s *AuthService) GetPublicKeysForUser(ctx context.Context, userId int, targ
 
 	var result []map[string]interface{}
 	for uRows.Next() {
-		var id int
+		var id int64
 		var username, pubKey string
 		if err := uRows.Scan(&id, &username, &pubKey); err != nil {
 			return nil, err

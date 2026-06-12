@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:alpine AS builder
+FROM golang:1.25.7-alpine AS builder
 
 WORKDIR /app
 
@@ -23,6 +23,7 @@ RUN apk --no-cache add ca-certificates tzdata
 WORKDIR /app
 
 COPY --from=builder /app/yourmsgr /app/yourmsgr
+COPY --from=builder /app/db/migrations /app/db/migrations
 
 EXPOSE 3000
 

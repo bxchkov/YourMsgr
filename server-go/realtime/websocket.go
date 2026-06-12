@@ -24,7 +24,7 @@ import (
 const (
 	MaxWsConnectionsPerUser = 5
 	WsLimit                 = 5
-	WsWindowMs              = 1000 // 1 second
+	WsWindowMs              = 1000  // 1 second
 	SessionCacheTtlMs       = 15000 // 15 seconds
 )
 
@@ -39,30 +39,30 @@ type rateLimitState struct {
 }
 
 var (
-	sessionCache   = make(map[int]cachedSession)
+	sessionCache   = make(map[int64]cachedSession)
 	sessionCacheMu sync.Mutex
 
-	rateLimits   = make(map[int]rateLimitState)
+	rateLimits   = make(map[int64]rateLimitState)
 	rateLimitsMu sync.Mutex
 )
 
 // WsMessagePayload defines the incoming WS messages structure
 type WsMessagePayload struct {
 	Type             string  `json:"type"`
-	ChatID           *int    `json:"chatId"`
+	ChatID           *int64  `json:"chatId"`
 	ChatType         string  `json:"chatType"`
-	RecipientID      *int    `json:"recipientId"`
+	RecipientID      *int64  `json:"recipientId"`
 	Message          string  `json:"message"`
 	Nonce            *string `json:"nonce"`
 	SenderPublicKey  *string `json:"senderPublicKey"`
 	IsEncrypted      *int    `json:"isEncrypted"`
-	ReplyToMessageID *int    `json:"replyToMessageId"`
-	ID               *int    `json:"id"`            // For delete_message
-	LastMessageID    *int    `json:"lastMessageId"` // For load_more_messages
+	ReplyToMessageID *int64  `json:"replyToMessageId"`
+	ID               *int64  `json:"id"`            // For delete_message
+	LastMessageID    *int64  `json:"lastMessageId"` // For load_more_messages
 }
 
 // getValidSession retrieves the user and checks token match, using short cache
-func getValidSession(ctx context.Context, authService *services.AuthService, userId int, token string) (*models.User, bool) {
+func getValidSession(ctx context.Context, authService *services.AuthService, userId int64, token string) (*models.User, bool) {
 	now := time.Now().UnixNano() / int64(time.Millisecond)
 
 	sessionCacheMu.Lock()
@@ -93,7 +93,7 @@ func getValidSession(ctx context.Context, authService *services.AuthService, use
 }
 
 // consumeRateLimit returns true if the user exceeded the WebSocket rate limit
-func consumeRateLimit(userId int) bool {
+func consumeRateLimit(userId int64) bool {
 	now := time.Now().UnixNano() / int64(time.Millisecond)
 
 	rateLimitsMu.Lock()
@@ -150,7 +150,7 @@ func CreateWebSocketHandler() fiber.Handler {
 	chatService := services.NewChatService()
 
 	return websocket.New(func(conn *websocket.Conn) {
-		userId := conn.Locals("userId").(int)
+		userId := conn.Locals("userId").(int64)
 		username := conn.Locals("username").(string)
 		refreshToken := conn.Locals("refreshToken").(string)
 
@@ -285,7 +285,7 @@ func handleSendMessage(ctx context.Context, chatService *services.ChatService, a
 		})
 
 		// Send only to sender and recipient
-		GlobalHub.BroadcastToUsers([]int{user.ID, *newMsg.RecipientID}, respBytes)
+		GlobalHub.BroadcastToUsers([]int64{user.ID, *newMsg.RecipientID}, respBytes)
 		return
 	}
 
@@ -330,7 +330,7 @@ func handleDeleteMessage(ctx context.Context, chatService *services.ChatService,
 	}
 
 	// Fetch message to verify permissions
-	var msgOwnerId, role, recipientIdVal int
+	var msgOwnerId int64
 	var chatType string
 	var recipientId sql.NullInt64
 
@@ -345,13 +345,8 @@ func handleDeleteMessage(ctx context.Context, chatService *services.ChatService,
 		return
 	}
 
-	if recipientId.Valid {
-		recipientIdVal = int(recipientId.Int64)
-	}
-
 	// Permission check (only author or admin role >= 3)
-	role = user.Role
-	if msgOwnerId != user.ID && role < 3 {
+	if msgOwnerId != user.ID && user.Role < 3 {
 		client.Conn.WriteJSON(fiber.Map{"type": "error", "message": "Insufficient permissions to delete"})
 		return
 	}
@@ -368,11 +363,12 @@ func handleDeleteMessage(ctx context.Context, chatService *services.ChatService,
 		"id":   *payload.ID,
 	})
 
-	if chatType == "private" && recipientIdVal > 0 {
-		GlobalHub.BroadcastToUsers([]int{msgOwnerId, recipientIdVal}, respBytes)
+	if chatType == "private" && recipientId.Valid {
+		recipientIdVal := recipientId.Int64
+		GlobalHub.BroadcastToUsers([]int64{msgOwnerId, recipientIdVal}, respBytes)
 		// Trigger sync chat lists for recipients
 		syncBytes, _ := json.Marshal(fiber.Map{"type": "sync_private_chats"})
-		GlobalHub.BroadcastToUsers([]int{msgOwnerId, recipientIdVal}, syncBytes)
+		GlobalHub.BroadcastToUsers([]int64{msgOwnerId, recipientIdVal}, syncBytes)
 		return
 	}
 

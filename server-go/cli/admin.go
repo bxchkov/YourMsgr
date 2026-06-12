@@ -519,7 +519,7 @@ func changeUserRole(ctx context.Context, login, roleValue string) {
 		log.Fatal("Error: Role must be 'user' or 'admin'")
 	}
 
-	var id int
+	var id int64
 	err := db.Pool.QueryRow(ctx, "SELECT id FROM users WHERE login = $1", normalizedLogin).Scan(&id)
 	if err == pgx.ErrNoRows {
 		log.Fatalf("Error: User '%s' not found", normalizedLogin)
@@ -547,7 +547,7 @@ func logoutUser(ctx context.Context, login string) {
 	}
 	normalized := utils.NormalizeIdentity(login)
 
-	var id int
+	var id int64
 	err := db.Pool.QueryRow(ctx, "SELECT id FROM users WHERE login = $1", normalized).Scan(&id)
 	if err == pgx.ErrNoRows {
 		log.Fatalf("Error: User '%s' not found", normalized)
@@ -575,7 +575,7 @@ func deleteUser(ctx context.Context, login string, skipConfirmation bool) {
 	}
 	normalized := utils.NormalizeIdentity(login)
 
-	var id int
+	var id int64
 	err := db.Pool.QueryRow(ctx, "SELECT id FROM users WHERE login = $1", normalized).Scan(&id)
 	if err == pgx.ErrNoRows {
 		log.Fatalf("Error: User '%s' not found", normalized)
@@ -615,7 +615,7 @@ func purgeGroupMessages(ctx context.Context, login string, skipConfirmation bool
 	}
 	normalized := utils.NormalizeIdentity(login)
 
-	var id int
+	var id int64
 	err := db.Pool.QueryRow(ctx, "SELECT id FROM users WHERE login = $1", normalized).Scan(&id)
 	if err == pgx.ErrNoRows {
 		log.Fatalf("Error: User '%s' not found", normalized)

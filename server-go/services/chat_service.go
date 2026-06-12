@@ -19,7 +19,7 @@ func NewChatService() *ChatService {
 }
 
 // resolveSenderPublicKey retrieves public key of the message sender
-func (s *ChatService) resolveSenderPublicKey(ctx context.Context, userId int) (*string, error) {
+func (s *ChatService) resolveSenderPublicKey(ctx context.Context, userId int64) (*string, error) {
 	var pubKey sql.NullString
 	err := db.Pool.QueryRow(ctx, "SELECT public_key FROM users WHERE id = $1", userId).Scan(&pubKey)
 	if err != nil {
@@ -32,7 +32,7 @@ func (s *ChatService) resolveSenderPublicKey(ctx context.Context, userId int) (*
 }
 
 // GetOrCreatePrivateChat registers a new chat between two users if it does not exist
-func (s *ChatService) GetOrCreatePrivateChat(ctx context.Context, user1Id, user2Id int) (*models.PrivateChat, error) {
+func (s *ChatService) GetOrCreatePrivateChat(ctx context.Context, user1Id, user2Id int64) (*models.PrivateChat, error) {
 	// Check if other user exists
 	var otherExists bool
 	err := db.Pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", user2Id).Scan(&otherExists)
@@ -70,7 +70,7 @@ func (s *ChatService) GetOrCreatePrivateChat(ctx context.Context, user1Id, user2
 }
 
 type UserChatListItem struct {
-	ChatID                     int        `json:"chatId"`
+	ChatID                     int64      `json:"chatId"`
 	OtherUser                  *OtherUser `json:"otherUser"`
 	LastMessage                *string    `json:"lastMessage"`
 	LastMessageDate            time.Time  `json:"lastMessageDate"`
@@ -81,14 +81,14 @@ type UserChatListItem struct {
 }
 
 type OtherUser struct {
-	ID        int     `json:"id"`
+	ID        int64   `json:"id"`
 	Username  string  `json:"username"`
 	Login     string  `json:"login"`
 	PublicKey *string `json:"publicKey"`
 }
 
 // GetUserPrivateChats fetches the private chats list including metadata of the other participant and the last message
-func (s *ChatService) GetUserPrivateChats(ctx context.Context, userId int) ([]UserChatListItem, error) {
+func (s *ChatService) GetUserPrivateChats(ctx context.Context, userId int64) ([]UserChatListItem, error) {
 	// Fetch all private chats for user
 	rows, err := db.Pool.Query(ctx, "SELECT id, user1_id, user2_id, created_at FROM private_chats WHERE user1_id = $1 OR user2_id = $1", userId)
 	if err != nil {
@@ -97,8 +97,8 @@ func (s *ChatService) GetUserPrivateChats(ctx context.Context, userId int) ([]Us
 	defer rows.Close()
 
 	var chats []models.PrivateChat
-	var otherUserIds []int
-	var chatIds []int
+	var otherUserIds []int64
+	var chatIds []int64
 
 	for rows.Next() {
 		var chat models.PrivateChat
@@ -126,7 +126,7 @@ func (s *ChatService) GetUserPrivateChats(ctx context.Context, userId int) ([]Us
 	}
 	defer uRows.Close()
 
-	otherUsersById := make(map[int]*OtherUser)
+	otherUsersById := make(map[int64]*OtherUser)
 	for uRows.Next() {
 		var ou OtherUser
 		var pubKey sql.NullString
@@ -154,17 +154,18 @@ func (s *ChatService) GetUserPrivateChats(ctx context.Context, userId int) ([]Us
 	defer lmRows.Close()
 
 	type LastMsgInfo struct {
-		ID              int
+		ID              int64
 		Message         string
 		Date            time.Time
 		Nonce           *string
 		IsEncrypted     int
 		SenderPublicKey *string
 	}
-	lastMessagesByChatId := make(map[int]LastMsgInfo)
+	lastMessagesByChatId := make(map[int64]LastMsgInfo)
 
 	for lmRows.Next() {
-		var id, chatId, isEncrypted int
+		var id, chatId int64
+		var isEncrypted int
 		var message string
 		var date time.Time
 		var nonce, senderPublicKey sql.NullString
@@ -218,7 +219,7 @@ func (s *ChatService) GetUserPrivateChats(ctx context.Context, userId int) ([]Us
 }
 
 // validateReplyTarget ensures reply target message is valid for the current chat context
-func (s *ChatService) validateReplyTarget(ctx context.Context, replyToId *int, chatType string, chatId *int) error {
+func (s *ChatService) validateReplyTarget(ctx context.Context, replyToId *int64, chatType string, chatId *int64) error {
 	if replyToId == nil || *replyToId <= 0 {
 		return nil
 	}
@@ -233,7 +234,7 @@ func (s *ChatService) validateReplyTarget(ctx context.Context, replyToId *int, c
 	}
 
 	if chatType == "private" {
-		if targetChatType != "private" || !targetChatId.Valid || int(targetChatId.Int64) != *chatId {
+		if targetChatType != "private" || !targetChatId.Valid || targetChatId.Int64 != *chatId {
 			return errors.New("Reply target is outside the current chat")
 		}
 	} else {
@@ -248,8 +249,8 @@ func (s *ChatService) validateReplyTarget(ctx context.Context, replyToId *int, c
 
 // attachReplyTargets binds reply message previews to a list of messages
 func (s *ChatService) attachReplyTargets(ctx context.Context, messageList []models.Message) ([]models.MessageWithReply, error) {
-	var replyIds []int
-	seen := make(map[int]bool)
+	var replyIds []int64
+	seen := make(map[int64]bool)
 
 	for _, msg := range messageList {
 		if msg.ReplyToMessageID != nil && *msg.ReplyToMessageID > 0 {
@@ -261,7 +262,7 @@ func (s *ChatService) attachReplyTargets(ctx context.Context, messageList []mode
 		}
 	}
 
-	replyMap := make(map[int]*models.ReplyPreview)
+	replyMap := make(map[int64]*models.ReplyPreview)
 	if len(replyIds) > 0 {
 		query := `
 			SELECT id, user_id, username, message, is_encrypted, nonce, sender_public_key, recipient_id 
@@ -294,7 +295,7 @@ func (s *ChatService) attachReplyTargets(ctx context.Context, messageList []mode
 				preview.SenderPublicKey = &pubKey.String
 			}
 			if recipientId.Valid {
-				rId := int(recipientId.Int64)
+				rId := recipientId.Int64
 				preview.RecipientID = &rId
 			}
 
@@ -318,7 +319,7 @@ func (s *ChatService) attachReplyTargets(ctx context.Context, messageList []mode
 }
 
 // GetPrivateChatMessages retrieves messages history for private chat
-func (s *ChatService) GetPrivateChatMessages(ctx context.Context, chatId, userId int, lastMessageId *int, limit int) ([]models.MessageWithReply, error) {
+func (s *ChatService) GetPrivateChatMessages(ctx context.Context, chatId, userId int64, lastMessageId *int64, limit int) ([]models.MessageWithReply, error) {
 	// Verify chat membership
 	var chatExists bool
 	verifyQuery := "SELECT EXISTS(SELECT 1 FROM private_chats WHERE id = $1 AND (user1_id = $2 OR user2_id = $2))"
@@ -375,15 +376,15 @@ func (s *ChatService) GetPrivateChatMessages(ctx context.Context, chatId, userId
 			msg.SenderPublicKey = &pubKey.String
 		}
 		if replyId.Valid {
-			rId := int(replyId.Int64)
+			rId := replyId.Int64
 			msg.ReplyToMessageID = &rId
 		}
 		if recipientId.Valid {
-			rcpId := int(recipientId.Int64)
+			rcpId := recipientId.Int64
 			msg.RecipientID = &rcpId
 		}
 		if cId.Valid {
-			chatIdVal := int(cId.Int64)
+			chatIdVal := cId.Int64
 			msg.ChatID = &chatIdVal
 		}
 
@@ -394,7 +395,7 @@ func (s *ChatService) GetPrivateChatMessages(ctx context.Context, chatId, userId
 }
 
 // GetGroupMessages retrieves history for the global general chat
-func (s *ChatService) GetGroupMessages(ctx context.Context, lastMessageId *int, limit int) ([]models.MessageWithReply, error) {
+func (s *ChatService) GetGroupMessages(ctx context.Context, lastMessageId *int64, limit int) ([]models.MessageWithReply, error) {
 	var rows pgx.Rows
 	var err error
 
@@ -442,15 +443,15 @@ func (s *ChatService) GetGroupMessages(ctx context.Context, lastMessageId *int, 
 			msg.SenderPublicKey = &pubKey.String
 		}
 		if replyId.Valid {
-			rId := int(replyId.Int64)
+			rId := replyId.Int64
 			msg.ReplyToMessageID = &rId
 		}
 		if recipientId.Valid {
-			rcpId := int(recipientId.Int64)
+			rcpId := recipientId.Int64
 			msg.RecipientID = &rcpId
 		}
 		if cId.Valid {
-			chatIdVal := int(cId.Int64)
+			chatIdVal := cId.Int64
 			msg.ChatID = &chatIdVal
 		}
 
@@ -462,8 +463,8 @@ func (s *ChatService) GetGroupMessages(ctx context.Context, lastMessageId *int, 
 
 // SendPrivateMessage persists a new message inside a private chat
 func (s *ChatService) SendPrivateMessage(
-	ctx context.Context, chatId, userId int, username, message string, recipientId int,
-	nonce *string, isEncrypted int, replyToId *int,
+	ctx context.Context, chatId, userId int64, username, message string, recipientId int64,
+	nonce *string, isEncrypted int, replyToId *int64,
 ) (*models.MessageWithReply, error) {
 	// Verify chat membership
 	var chat models.PrivateChat
@@ -517,7 +518,7 @@ func (s *ChatService) SendPrivateMessage(
 	}
 	var replyToIdVal int64
 	if replyToId != nil {
-		replyToIdVal = int64(*replyToId)
+		replyToIdVal = *replyToId
 	}
 
 	err = db.Pool.QueryRow(ctx, insertQuery,
@@ -542,15 +543,15 @@ func (s *ChatService) SendPrivateMessage(
 		inserted.SenderPublicKey = &retPubKey.String
 	}
 	if retReplyId.Valid {
-		rId := int(retReplyId.Int64)
+		rId := retReplyId.Int64
 		inserted.ReplyToMessageID = &rId
 	}
 	if retRecipientId.Valid {
-		rcpId := int(retRecipientId.Int64)
+		rcpId := retRecipientId.Int64
 		inserted.RecipientID = &rcpId
 	}
 	if retChatId.Valid {
-		chatIdVal := int(retChatId.Int64)
+		chatIdVal := retChatId.Int64
 		inserted.ChatID = &chatIdVal
 	}
 
@@ -564,8 +565,8 @@ func (s *ChatService) SendPrivateMessage(
 
 // SendGroupMessage persists a new message inside the global group chat
 func (s *ChatService) SendGroupMessage(
-	ctx context.Context, userId int, username, message string,
-	nonce *string, isEncrypted int, replyToId *int,
+	ctx context.Context, userId int64, username, message string,
+	nonce *string, isEncrypted int, replyToId *int64,
 ) (*models.MessageWithReply, error) {
 	// Validate reply target
 	if err := s.validateReplyTarget(ctx, replyToId, "group", nil); err != nil {
@@ -600,7 +601,7 @@ func (s *ChatService) SendGroupMessage(
 	}
 	var replyToIdVal int64
 	if replyToId != nil {
-		replyToIdVal = int64(*replyToId)
+		replyToIdVal = *replyToId
 	}
 
 	err = db.Pool.QueryRow(ctx, insertQuery,
@@ -625,15 +626,15 @@ func (s *ChatService) SendGroupMessage(
 		inserted.SenderPublicKey = &retPubKey.String
 	}
 	if retReplyId.Valid {
-		rId := int(retReplyId.Int64)
+		rId := retReplyId.Int64
 		inserted.ReplyToMessageID = &rId
 	}
 	if retRecipientId.Valid {
-		rcpId := int(retRecipientId.Int64)
+		rcpId := retRecipientId.Int64
 		inserted.RecipientID = &rcpId
 	}
 	if retChatId.Valid {
-		chatIdVal := int(retChatId.Int64)
+		chatIdVal := retChatId.Int64
 		inserted.ChatID = &chatIdVal
 	}
 

@@ -9,7 +9,7 @@ import (
 )
 
 type TokenPayload struct {
-	UserID   int    `json:"userId"`
+	UserID   int64  `json:"userId"`
 	UserName string `json:"userName"`
 	UserRole int    `json:"userRole"`
 	Login    string `json:"login"`
@@ -43,7 +43,7 @@ func AssertJwtSecret(value string, name string) error {
 }
 
 // GenerateTokens creates access and refresh tokens for a user
-func GenerateTokens(userId int, userName string, userRole int, login string, accessSecret, refreshSecret string) (string, string, error) {
+func GenerateTokens(userId int64, userName string, userRole int, login string, accessSecret, refreshSecret string) (string, string, error) {
 	// Access Token (expires in 15 minutes)
 	accessClaims := &TokenPayload{
 		UserID:   userId,

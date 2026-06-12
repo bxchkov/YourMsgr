@@ -34,9 +34,9 @@ func LoadConfig() {
 	jwtAccess := os.Getenv("JWT_ACCESS_SECRET")
 	jwtRefresh := os.Getenv("JWT_REFRESH_SECRET")
 
-	// Ensure JWT secrets are provided
+	// Ensure JWT secrets are provided — fatal because auth is completely broken without them
 	if jwtAccess == "" || jwtRefresh == "" {
-		log.Println("WARNING: JWT_ACCESS_SECRET or JWT_REFRESH_SECRET is not set. Auth might fail.")
+		log.Fatal("FATAL: JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be set")
 	}
 
 	rateLimitWindowStr := os.Getenv("RATE_LIMIT_WINDOW")

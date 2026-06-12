@@ -23,11 +23,11 @@ func NewChatController() *ChatController {
 
 // CreatePrivateChatRequest represents the request payload to start a new direct chat
 type CreatePrivateChatRequest struct {
-	OtherUserID int `json:"otherUserId"`
+	OtherUserID int64 `json:"otherUserId"`
 }
 
 func (ctrl *ChatController) CreatePrivateChat(c *fiber.Ctx) error {
-	userId := c.Locals("userId").(int)
+	userId := c.Locals("userId").(int64)
 
 	var req CreatePrivateChatRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -50,7 +50,7 @@ func (ctrl *ChatController) CreatePrivateChat(c *fiber.Ctx) error {
 	// Publish sync_private_chats event for both participants
 	realtime.PublishRealtimeEvent(ctx, realtime.RealtimeEvent{
 		Type:    "sync_private_chats",
-		UserIDs: []int{userId, req.OtherUserID},
+		UserIDs: []int64{userId, req.OtherUserID},
 	})
 
 	return utils.SendSuccess(c, "Chat created", fiber.Map{
@@ -59,7 +59,7 @@ func (ctrl *ChatController) CreatePrivateChat(c *fiber.Ctx) error {
 }
 
 func (ctrl *ChatController) GetPrivateChats(c *fiber.Ctx) error {
-	userId := c.Locals("userId").(int)
+	userId := c.Locals("userId").(int64)
 
 	ctx := context.Background()
 	chats, err := ctrl.chatService.GetUserPrivateChats(ctx, userId)
@@ -73,19 +73,18 @@ func (ctrl *ChatController) GetPrivateChats(c *fiber.Ctx) error {
 }
 
 func (ctrl *ChatController) GetPrivateChatMessages(c *fiber.Ctx) error {
-	userId := c.Locals("userId").(int)
+	userId := c.Locals("userId").(int64)
 
-	chatIdStr := c.Params("chatId")
-	chatId, err := strconv.Atoi(chatIdStr)
+	chatId, err := strconv.ParseInt(c.Params("chatId"), 10, 64)
 	if err != nil || chatId <= 0 {
 		return utils.SendError(c, fiber.StatusBadRequest, "Invalid chat ID")
 	}
 
 	// Parse pagination queries
-	var lastMessageId *int
+	var lastMessageId *int64
 	lastMsgQuery := c.Query("lastMessageId")
 	if lastMsgQuery != "" {
-		val, err := strconv.Atoi(lastMsgQuery)
+		val, err := strconv.ParseInt(lastMsgQuery, 10, 64)
 		if err == nil && val > 0 {
 			lastMessageId = &val
 		}
@@ -116,10 +115,10 @@ func (ctrl *ChatController) GetPrivateChatMessages(c *fiber.Ctx) error {
 
 func (ctrl *ChatController) GetGroupMessages(c *fiber.Ctx) error {
 	// Parse pagination queries
-	var lastMessageId *int
+	var lastMessageId *int64
 	lastMsgQuery := c.Query("lastMessageId")
 	if lastMsgQuery != "" {
-		val, err := strconv.Atoi(lastMsgQuery)
+		val, err := strconv.ParseInt(lastMsgQuery, 10, 64)
 		if err == nil && val > 0 {
 			lastMessageId = &val
 		}
