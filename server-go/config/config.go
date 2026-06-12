@@ -13,6 +13,8 @@ type Config struct {
 	JWTRefreshSecret string
 	RateLimitWindow  int
 	RateLimitMax     int
+	RedisURL         string // Optional: set to enable Redis pub/sub adapter
+	PubSubAdapter    string // "postgres" (default) or "redis"
 }
 
 var AppConfig *Config
@@ -53,6 +55,13 @@ func LoadConfig() {
 		}
 	}
 
+	redisURL := os.Getenv("REDIS_URL")
+
+	pubSubAdapter := os.Getenv("PUBSUB_ADAPTER")
+	if pubSubAdapter == "" {
+		pubSubAdapter = "postgres"
+	}
+
 	AppConfig = &Config{
 		DatabaseURL:      dbURL,
 		Port:             port,
@@ -60,5 +69,7 @@ func LoadConfig() {
 		JWTRefreshSecret: jwtRefresh,
 		RateLimitWindow:  rateLimitWindow,
 		RateLimitMax:     rateLimitMax,
+		RedisURL:         redisURL,
+		PubSubAdapter:    pubSubAdapter,
 	}
 }

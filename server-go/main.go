@@ -55,8 +55,8 @@ func main() {
 	// Initialize real-time WebSockets Hub (Phase 5)
 	realtime.InitHub()
 
-	// Start horizontal scaling listener via PG LISTEN/NOTIFY
-	realtime.StartRealtimeListener()
+	// Start pub/sub listener — adapter selected via PUBSUB_ADAPTER env (postgres|redis)
+	realtime.InitPubSub()
 
 	app := fiber.New()
 
