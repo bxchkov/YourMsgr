@@ -17,10 +17,10 @@ This document outlines the planned improvement waves and milestones for the **Yo
 
 ## 📅 Future Milestones & Active Waves
 
-### **Wave 1: Advanced Cryptography Hardening & TOFU (Active)**
-* [ ] **Trust On First Use (TOFU):** Cache dialog public keys locally on the client and raise security flags if a public key changes.
-* [ ] **Local Storage Encryption:** Protect client-side local cache using key derivation functions (PBKDF2/scrypt).
-* [ ] **Message Decryption Refinement:** Fix edge cases in preview decryption for self-sent E2EE payloads.
+### **Wave 1: Advanced Cryptography Hardening & TOFU ✅ Completed**
+* [x] **Trust On First Use (TOFU):** Cache dialog public keys locally on the client and raise security flags if a public key changes.
+* [x] **In-Memory Private Key:** E2EE private key is kept only in JS module memory — never persisted to sessionStorage or localStorage.
+* [x] **Message Decryption Refinement:** Fix edge cases in preview decryption for self-sent E2EE payloads.
 
 ### **Wave 2: Clustering & High Availability**
 * [ ] **Redis Adapter:** Transition from PostgreSQL `LISTEN/NOTIFY` to Redis Pub/Sub for sub-millisecond cluster routing under heavy load.
