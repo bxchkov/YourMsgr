@@ -15,6 +15,7 @@ type Config struct {
 	RateLimitMax     int
 	RedisURL         string // Optional: set to enable Redis pub/sub adapter
 	PubSubAdapter    string // "postgres" (default) or "redis"
+	CookieSecure     bool
 }
 
 var AppConfig *Config
@@ -62,6 +63,17 @@ func LoadConfig() {
 		pubSubAdapter = "postgres"
 	}
 
+	cookieSecureStr := os.Getenv("COOKIE_SECURE")
+	cookieSecure := false
+	if cookieSecureStr == "true" {
+		cookieSecure = true
+	} else {
+		publicURL := os.Getenv("PUBLIC_URL")
+		if publicURL != "" && len(publicURL) >= 5 && publicURL[:5] == "https" {
+			cookieSecure = true
+		}
+	}
+
 	AppConfig = &Config{
 		DatabaseURL:      dbURL,
 		Port:             port,
@@ -71,5 +83,6 @@ func LoadConfig() {
 		RateLimitMax:     rateLimitMax,
 		RedisURL:         redisURL,
 		PubSubAdapter:    pubSubAdapter,
+		CookieSecure:     cookieSecure,
 	}
 }

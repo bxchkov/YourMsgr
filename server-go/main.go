@@ -49,6 +49,10 @@ func main() {
 	db.ConnectDB()
 	defer db.CloseDB()
 
+	// Connect to Redis (used for rate limiting if configured)
+	db.ConnectRedis()
+	defer db.CloseRedis()
+
 	// Run migrations (Goose)
 	db.RunMigrations()
 
@@ -61,7 +65,7 @@ func main() {
 	app := fiber.New()
 
 	// Rate Limiter middleware (Wave 1 / Audit recommendation)
-	app.Use(limiter.New(limiter.Config{
+	limiterCfg := limiter.Config{
 		Max:        config.AppConfig.RateLimitMax,
 		Expiration: time.Duration(config.AppConfig.RateLimitWindow) * time.Minute,
 		KeyGenerator: func(c *fiber.Ctx) string {
@@ -84,14 +88,24 @@ func main() {
 			// Skip rate limiting for health check endpoint
 			return c.Path() == "/api/health"
 		},
-	}))
+	}
+
+	// Use Redis storage for rate limiting if available
+	if redisStore := db.NewRedisStorage(); redisStore != nil {
+		limiterCfg.Storage = redisStore
+		log.Println("Rate Limiter: using Redis storage backend")
+	} else {
+		log.Println("Rate Limiter: using default in-memory storage backend")
+	}
+
+	app.Use(limiter.New(limiterCfg))
 
 	// CSRF Protection middleware (Wave 1 security requirement / Audit recommendation)
 	app.Use(csrf.New(csrf.Config{
 		KeyLookup:      "header:X-CSRF-Token",
 		CookieName:     "csrf_token",
 		CookieSameSite: "Lax",
-		CookieSecure:   false,
+		CookieSecure:   config.AppConfig.CookieSecure,
 		CookieHTTPOnly: false,
 		Expiration:     24 * time.Hour,
 		Next: func(c *fiber.Ctx) bool {
