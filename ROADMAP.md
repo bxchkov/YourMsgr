@@ -23,7 +23,7 @@ This document outlines the planned improvement waves and milestones for the **Yo
 * [x] **Message Decryption Refinement:** Fix edge cases in preview decryption for self-sent E2EE payloads.
 
 ### **Wave 2: Clustering & High Availability**
-* [ ] **Redis Adapter:** Transition from PostgreSQL `LISTEN/NOTIFY` to Redis Pub/Sub for sub-millisecond cluster routing under heavy load.
+* [x] **Redis Adapter:** Transition from PostgreSQL `LISTEN/NOTIFY` to Redis Pub/Sub for sub-millisecond cluster routing under heavy load (plus Redis-backed Rate Limiter).
 * [ ] **Media Assets S3 Storage:** Integrate S3-compatible cloud storage for encrypted attachments.
 
 ### **Wave 3: Anti-Censorship & Obfuscation**
