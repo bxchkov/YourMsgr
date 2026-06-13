@@ -27,8 +27,8 @@ func ConnectDB() {
 	}
 
 	// Tweak pool settings for performance
-	poolConfig.MaxConns = 25
-	poolConfig.MinConns = 5
+	poolConfig.MaxConns = int32(config.AppConfig.DbMaxConns)
+	poolConfig.MinConns = int32(config.AppConfig.DbMinConns)
 	poolConfig.MaxConnIdleTime = 30 * time.Minute
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)

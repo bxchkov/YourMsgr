@@ -16,6 +16,8 @@ type Config struct {
 	RedisURL         string // Optional: set to enable Redis pub/sub adapter
 	PubSubAdapter    string // "postgres" (default) or "redis"
 	CookieSecure     bool
+	DbMaxConns       int
+	DbMinConns       int
 }
 
 var AppConfig *Config
@@ -74,6 +76,22 @@ func LoadConfig() {
 		}
 	}
 
+	dbMaxConnsStr := os.Getenv("DB_MAX_CONNS")
+	dbMaxConns := 25
+	if dbMaxConnsStr != "" {
+		if val, err := strconv.Atoi(dbMaxConnsStr); err == nil {
+			dbMaxConns = val
+		}
+	}
+
+	dbMinConnsStr := os.Getenv("DB_MIN_CONNS")
+	dbMinConns := 5
+	if dbMinConnsStr != "" {
+		if val, err := strconv.Atoi(dbMinConnsStr); err == nil {
+			dbMinConns = val
+		}
+	}
+
 	AppConfig = &Config{
 		DatabaseURL:      dbURL,
 		Port:             port,
@@ -84,5 +102,7 @@ func LoadConfig() {
 		RedisURL:         redisURL,
 		PubSubAdapter:    pubSubAdapter,
 		CookieSecure:     cookieSecure,
+		DbMaxConns:       dbMaxConns,
+		DbMinConns:       dbMinConns,
 	}
 }
