@@ -3,8 +3,11 @@ package main
 import (
 	"flag"
 	"log"
+	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"yourmsgr/cli"
@@ -161,8 +164,26 @@ func main() {
 	messagesGroup := api.Group("/messages", controllers.JWTAuthMiddleware())
 	messagesGroup.Get("/group", chatCtrl.GetGroupMessages)
 
-	log.Printf("Starting Go server on port %s...", config.AppConfig.Port)
-	if err := app.Listen(":" + config.AppConfig.Port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	// Setup channel to listen for interrupt/termination signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	// Start server in a goroutine
+	go func() {
+		log.Printf("Starting Go server on port %s...", config.AppConfig.Port)
+		if err := app.Listen(":" + config.AppConfig.Port); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Failed to start server: %v", err)
+		}
+	}()
+
+	// Block until a signal is received
+	sig := <-sigChan
+	log.Printf("Received signal %v. Shutting down gracefully...", sig)
+
+	// Shutdown Fiber app with a 10s timeout
+	if err := app.ShutdownWithTimeout(10 * time.Second); err != nil {
+		log.Printf("Graceful shutdown error: %v", err)
+	} else {
+		log.Println("Server stopped successfully")
 	}
 }
