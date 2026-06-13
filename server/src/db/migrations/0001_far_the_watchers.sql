@@ -1,1 +1,0 @@
-ALTER TABLE "messages" ADD COLUMN "is_encrypted" integer DEFAULT 0 NOT NULL;
