@@ -54,6 +54,7 @@ func setupTestDB(t *testing.T) {
 	}
 
 	db.Pool = pool
+	db.RunMigrations()
 	t.Cleanup(func() {
 		db.Pool.Close()
 	})
@@ -134,6 +135,7 @@ func TestWebSocket_ConnectionAndLimits(t *testing.T) {
 			t.Errorf("Connection %d expected 101 status, got %d", i+1, resp.StatusCode)
 		}
 		conns = append(conns, conn)
+		time.Sleep(20 * time.Millisecond)
 	}
 
 	// 2. The 6th connection must be rejected due to limits

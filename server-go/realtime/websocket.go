@@ -140,6 +140,13 @@ func WebSocketUpgradeMiddleware() fiber.Handler {
 		c.Locals("username", claims.UserName)
 		c.Locals("refreshToken", refreshToken)
 
+		// Check connection limits (Wave 1 security requirement)
+		activeConns := GlobalHub.CountUserConnections(claims.UserID)
+		if activeConns >= MaxWsConnectionsPerUser {
+			slog.Warn("Rejected extra WS connection during upgrade", slog.String("username", claims.UserName), slog.Int64("userId", claims.UserID))
+			return c.Status(fiber.StatusForbidden).SendString("Too many active connections")
+		}
+
 		return c.Next()
 	}
 }
@@ -162,15 +169,6 @@ func CreateWebSocketHandler() fiber.Handler {
 			slog.Warn("WS session invalid during open", slog.String("username", username), slog.Int64("userId", userId))
 			conn.WriteJSON(fiber.Map{"type": "client_logout"})
 			conn.Close()
-			return
-		}
-
-		// Check connection limits
-		activeConns := GlobalHub.CountUserConnections(userId)
-		if activeConns >= MaxWsConnectionsPerUser {
-			conn.WriteJSON(fiber.Map{"type": "error", "message": "Too many active connections"})
-			conn.Close()
-			slog.Warn("Rejected extra WS connection", slog.String("username", username), slog.Int64("userId", userId))
 			return
 		}
 

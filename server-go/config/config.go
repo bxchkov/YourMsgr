@@ -1,6 +1,7 @@
 package config
 
 import (
+	"flag"
 	"log/slog"
 	"os"
 	"strconv"
@@ -40,8 +41,17 @@ func LoadConfig() {
 
 	// Ensure JWT secrets are provided — fatal because auth is completely broken without them
 	if jwtAccess == "" || jwtRefresh == "" {
-		slog.Error("FATAL: JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be set")
-		os.Exit(1)
+		if flag.Lookup("test.v") != nil {
+			if jwtAccess == "" {
+				jwtAccess = "dummy_jwt_access_secret_key_32_chars"
+			}
+			if jwtRefresh == "" {
+				jwtRefresh = "dummy_jwt_refresh_secret_key_32_chars"
+			}
+		} else {
+			slog.Error("FATAL: JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be set")
+			os.Exit(1)
+		}
 	}
 
 	rateLimitWindowStr := os.Getenv("RATE_LIMIT_WINDOW")

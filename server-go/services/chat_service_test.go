@@ -91,7 +91,7 @@ func TestChatService_SendAndGetMessages(t *testing.T) {
 		t.Fatalf("SendPrivateMessage failed: %v", err)
 	}
 
-	if newMsg.Message.Message != msgText || newMsg.ChatID != &chat.ID || newMsg.Nonce == nil || *newMsg.Nonce != nonce {
+	if newMsg.Message.Message != msgText || newMsg.ChatID == nil || *newMsg.ChatID != chat.ID || newMsg.Nonce == nil || *newMsg.Nonce != nonce {
 		t.Errorf("Sent message fields mismatch: %+v", newMsg)
 	}
 
@@ -105,8 +105,8 @@ func TestChatService_SendAndGetMessages(t *testing.T) {
 	for _, msg := range history {
 		if msg.ID == newMsg.ID {
 			found = true
-			if msg.Message != msgText {
-				t.Errorf("Expected message text %q, got %q", msgText, msg.Message)
+			if msg.Message.Message != msgText {
+				t.Errorf("Expected message text %q, got %q", msgText, msg.Message.Message)
 			}
 		}
 	}
@@ -132,8 +132,8 @@ func TestChatService_SendAndGetMessages(t *testing.T) {
 	for _, msg := range groupHistory {
 		if msg.ID == newGroupMsg.ID {
 			foundGroup = true
-			if msg.Message != groupMsgText {
-				t.Errorf("Expected group message text %q, got %q", groupMsgText, msg.Message)
+			if msg.Message.Message != groupMsgText {
+				t.Errorf("Expected group message text %q, got %q", groupMsgText, msg.Message.Message)
 			}
 		}
 	}

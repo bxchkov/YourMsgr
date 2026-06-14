@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"crypto/rand"
-	"fmt"
 	"testing"
 	"time"
 
@@ -50,6 +49,7 @@ func setupTestDB(t *testing.T) {
 	}
 
 	db.Pool = pool
+	db.RunMigrations()
 	t.Cleanup(func() {
 		db.Pool.Close()
 	})
