@@ -3,7 +3,8 @@ package realtime
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
+	"os"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -17,7 +18,8 @@ type redisPubSub struct {
 func newRedisPubSub(redisURL string) *redisPubSub {
 	opts, err := redis.ParseURL(redisURL)
 	if err != nil {
-		log.Fatalf("Redis PubSub: invalid REDIS_URL: %v", err)
+		slog.Error("Redis PubSub: invalid REDIS_URL", slog.Any("error", err))
+		os.Exit(1)
 	}
 
 	client := redis.NewClient(opts)
@@ -26,10 +28,11 @@ func newRedisPubSub(redisURL string) *redisPubSub {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := client.Ping(ctx).Err(); err != nil {
-		log.Fatalf("Redis PubSub: cannot connect to Redis: %v", err)
+		slog.Error("Redis PubSub: cannot connect to Redis", slog.Any("error", err))
+		os.Exit(1)
 	}
 
-	log.Println("Redis PubSub: connected successfully")
+	slog.Info("Redis PubSub: connected successfully")
 	return &redisPubSub{client: client}
 }
 
@@ -46,7 +49,7 @@ func (r *redisPubSub) StartListener() {
 	go func() {
 		for {
 			if err := r.subscribeLoop(); err != nil {
-				log.Printf("Redis PubSub listener error: %v. Reconnecting in 5s...", err)
+				slog.Error("Redis PubSub listener error", slog.Any("error", err))
 				time.Sleep(5 * time.Second)
 			}
 		}
@@ -63,13 +66,13 @@ func (r *redisPubSub) subscribeLoop() error {
 		return err
 	}
 
-	log.Printf("Redis PubSub subscribed to channel: %s", RealtimeChannel)
+	slog.Info("Redis PubSub subscribed to channel", slog.String("channel", RealtimeChannel))
 
 	ch := sub.Channel()
 	for msg := range ch {
 		var event RealtimeEvent
 		if err := json.Unmarshal([]byte(msg.Payload), &event); err != nil {
-			log.Printf("Redis PubSub: failed to parse event: %v", err)
+			slog.Error("Redis PubSub: failed to parse event", slog.Any("error", err))
 			continue
 		}
 

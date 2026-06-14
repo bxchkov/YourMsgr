@@ -1,7 +1,7 @@
 package realtime
 
 import (
-	"log"
+	"log/slog"
 	"sync"
 
 	"github.com/gofiber/websocket/v2"
@@ -40,14 +40,14 @@ func (h *Hub) run() {
 			h.mu.Lock()
 			h.clients[client] = true
 			h.mu.Unlock()
-			log.Printf("WebSocket client registered: %s (ID: %d)", client.Username, client.UserID)
+			slog.Info("WebSocket client registered", slog.String("username", client.Username), slog.Int64("userId", client.UserID))
 
 		case client := <-h.unregister:
 			h.mu.Lock()
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				client.Conn.Close()
-				log.Printf("WebSocket client unregistered: %s (ID: %d)", client.Username, client.UserID)
+				slog.Info("WebSocket client unregistered", slog.String("username", client.Username), slog.Int64("userId", client.UserID))
 			}
 			h.mu.Unlock()
 		}
@@ -62,7 +62,7 @@ func (h *Hub) BroadcastToAll(payload []byte) {
 	for client := range h.clients {
 		err := client.Conn.WriteMessage(websocket.TextMessage, payload)
 		if err != nil {
-			log.Printf("Failed to deliver payload to client: %v", err)
+			slog.Error("Failed to deliver payload to client", slog.Any("error", err))
 			go func(c *Client) { h.unregister <- c }(client)
 		}
 	}
@@ -82,7 +82,7 @@ func (h *Hub) BroadcastToUsers(userIds []int64, payload []byte) {
 		if targets[client.UserID] {
 			err := client.Conn.WriteMessage(websocket.TextMessage, payload)
 			if err != nil {
-				log.Printf("Failed to deliver payload to target user: %v", err)
+				slog.Error("Failed to deliver payload to target user", slog.Int64("userId", client.UserID), slog.Any("error", err))
 				go func(c *Client) { h.unregister <- c }(client)
 			}
 		}

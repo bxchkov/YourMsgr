@@ -3,7 +3,8 @@ package db
 import (
 	"database/sql"
 	"embed"
-	"log"
+	"log/slog"
+	"os"
 
 	"yourmsgr/config"
 
@@ -17,13 +18,15 @@ var embedMigrations embed.FS
 // RunMigrations executes all embedded SQL migrations against the database
 func RunMigrations() {
 	if config.AppConfig == nil {
-		log.Fatal("Configuration is not loaded. Call config.LoadConfig() first.")
+		slog.Error("Configuration is not loaded. Call config.LoadConfig() first.")
+		os.Exit(1)
 	}
 
 	// Open connection with standard SQL driver registered by pgx stdlib
 	db, err := sql.Open("pgx", config.AppConfig.DatabaseURL)
 	if err != nil {
-		log.Fatalf("Failed to open db connection for migrations: %v", err)
+		slog.Error("Failed to open db connection for migrations", slog.Any("error", err))
+		os.Exit(1)
 	}
 	defer db.Close()
 
@@ -31,12 +34,14 @@ func RunMigrations() {
 	goose.SetBaseFS(embedMigrations)
 
 	if err := goose.SetDialect("postgres"); err != nil {
-		log.Fatalf("goose failed to set dialect: %v", err)
+		slog.Error("goose failed to set dialect", slog.Any("error", err))
+		os.Exit(1)
 	}
 
-	log.Println("Running database migrations...")
+	slog.Info("Running database migrations...")
 	if err := goose.Up(db, "migrations"); err != nil {
-		log.Fatalf("goose failed to run Up: %v", err)
+		slog.Error("goose failed to run Up", slog.Any("error", err))
+		os.Exit(1)
 	}
-	log.Println("Database migrations completed successfully")
+	slog.Info("Database migrations completed successfully")
 }

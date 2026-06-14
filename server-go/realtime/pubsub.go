@@ -3,7 +3,7 @@ package realtime
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"time"
 
 	"yourmsgr/db"
@@ -39,7 +39,7 @@ func (p *postgresPubSub) StartListener() {
 	go func() {
 		for {
 			if err := p.listenLoop(); err != nil {
-				log.Printf("Postgres PubSub listener error: %v. Reconnecting in 5s...", err)
+				slog.Error("Postgres PubSub listener error", slog.Any("error", err))
 				time.Sleep(5 * time.Second)
 			}
 		}
@@ -58,7 +58,7 @@ func (p *postgresPubSub) listenLoop() error {
 		return err
 	}
 
-	log.Printf("Postgres PubSub subscribed to channel: %s", RealtimeChannel)
+	slog.Info("Postgres PubSub subscribed to channel", slog.String("channel", RealtimeChannel))
 
 	for {
 		notification, err := conn.Conn().WaitForNotification(ctx)
@@ -68,7 +68,7 @@ func (p *postgresPubSub) listenLoop() error {
 
 		var event RealtimeEvent
 		if err := json.Unmarshal([]byte(notification.Payload), &event); err != nil {
-			log.Printf("Postgres PubSub: failed to parse event: %v", err)
+			slog.Error("Postgres PubSub: failed to parse event", slog.Any("error", err))
 			continue
 		}
 

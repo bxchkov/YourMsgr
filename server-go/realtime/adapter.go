@@ -2,7 +2,7 @@ package realtime
 
 import (
 	"context"
-	"log"
+	"log/slog"
 
 	"yourmsgr/config"
 )
@@ -19,13 +19,13 @@ var activeAdapter PubSubAdapter
 // Falls back to Postgres if Redis URL is missing or adapter is unrecognised.
 func InitPubSub() {
 	if config.AppConfig.PubSubAdapter == "redis" && config.AppConfig.RedisURL != "" {
-		log.Println("PubSub: using Redis adapter")
+		slog.Info("PubSub: using Redis adapter")
 		activeAdapter = newRedisPubSub(config.AppConfig.RedisURL)
 	} else {
 		if config.AppConfig.PubSubAdapter == "redis" {
-			log.Println("PubSub: REDIS_URL is not set, falling back to Postgres adapter")
+			slog.Warn("PubSub: REDIS_URL is not set, falling back to Postgres adapter")
 		} else {
-			log.Println("PubSub: using Postgres adapter")
+			slog.Info("PubSub: using Postgres adapter")
 		}
 		activeAdapter = newPostgresPubSub()
 	}
@@ -36,11 +36,11 @@ func InitPubSub() {
 // PublishRealtimeEvent is the package-level wrapper — all existing callers remain unchanged.
 func PublishRealtimeEvent(ctx context.Context, event RealtimeEvent) {
 	if activeAdapter == nil {
-		log.Println("PubSub: adapter not initialised, dropping event")
+		slog.Warn("PubSub: adapter not initialised, dropping event")
 		return
 	}
 	if err := activeAdapter.Publish(ctx, event); err != nil {
-		log.Printf("PubSub: failed to publish event %q: %v", event.Type, err)
+		slog.Error("PubSub: failed to publish event", slog.String("type", event.Type), slog.Any("error", err))
 	}
 }
 

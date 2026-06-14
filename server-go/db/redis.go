@@ -2,7 +2,8 @@ package db
 
 import (
 	"context"
-	"log"
+	"log/slog"
+	"os"
 	"time"
 
 	"yourmsgr/config"
@@ -15,18 +16,20 @@ var RedisClient *redis.Client
 // ConnectRedis initializes the Redis client if REDIS_URL is configured
 func ConnectRedis() {
 	if config.AppConfig == nil {
-		log.Fatal("Configuration is not loaded. Call config.LoadConfig() first.")
+		slog.Error("Configuration is not loaded. Call config.LoadConfig() first.")
+		os.Exit(1)
 	}
 
 	redisURL := config.AppConfig.RedisURL
 	if redisURL == "" {
-		log.Println("Redis is not configured (REDIS_URL is empty). Skipping Redis connection.")
+		slog.Info("Redis is not configured (REDIS_URL is empty). Skipping Redis connection.")
 		return
 	}
 
 	opts, err := redis.ParseURL(redisURL)
 	if err != nil {
-		log.Fatalf("Failed to parse REDIS_URL: %v", err)
+		slog.Error("Failed to parse REDIS_URL", slog.Any("error", err))
+		os.Exit(1)
 	}
 
 	client := redis.NewClient(opts)
@@ -35,10 +38,11 @@ func ConnectRedis() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := client.Ping(ctx).Err(); err != nil {
-		log.Fatalf("Failed to connect to Redis: %v", err)
+		slog.Error("Failed to connect to Redis", slog.Any("error", err))
+		os.Exit(1)
 	}
 
-	log.Println("Connected to Redis successfully")
+	slog.Info("Connected to Redis successfully")
 	RedisClient = client
 }
 
@@ -46,9 +50,9 @@ func ConnectRedis() {
 func CloseRedis() {
 	if RedisClient != nil {
 		if err := RedisClient.Close(); err != nil {
-			log.Printf("Error closing Redis client: %v", err)
+			slog.Error("Error closing Redis client", slog.Any("error", err))
 		} else {
-			log.Println("Redis connection closed")
+			slog.Info("Redis connection closed")
 		}
 	}
 }

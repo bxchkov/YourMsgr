@@ -2,7 +2,8 @@ package db
 
 import (
 	"context"
-	"log"
+	"log/slog"
+	"os"
 	"time"
 
 	"yourmsgr/config"
@@ -15,7 +16,8 @@ var Pool *pgxpool.Pool
 // ConnectDB initializes the PostgreSQL connection pool using pgxpool
 func ConnectDB() {
 	if config.AppConfig == nil {
-		log.Fatal("Configuration is not loaded. Call config.LoadConfig() first.")
+		slog.Error("Configuration is not loaded. Call config.LoadConfig() first.")
+		os.Exit(1)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -23,7 +25,8 @@ func ConnectDB() {
 
 	poolConfig, err := pgxpool.ParseConfig(config.AppConfig.DatabaseURL)
 	if err != nil {
-		log.Fatalf("Failed to parse DATABASE_URL: %v", err)
+		slog.Error("Failed to parse DATABASE_URL", slog.Any("error", err))
+		os.Exit(1)
 	}
 
 	// Tweak pool settings for performance
@@ -33,15 +36,17 @@ func ConnectDB() {
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
 	if err != nil {
-		log.Fatalf("Failed to create connection pool: %v", err)
+		slog.Error("Failed to create connection pool", slog.Any("error", err))
+		os.Exit(1)
 	}
 
 	// Ping the database to verify connectivity
 	if err := pool.Ping(ctx); err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
+		slog.Error("Failed to ping database", slog.Any("error", err))
+		os.Exit(1)
 	}
 
-	log.Println("Connected to PostgreSQL successfully")
+	slog.Info("Connected to PostgreSQL successfully")
 	Pool = pool
 }
 
@@ -49,6 +54,6 @@ func ConnectDB() {
 func CloseDB() {
 	if Pool != nil {
 		Pool.Close()
-		log.Println("Database connection pool closed")
+		slog.Info("Database connection pool closed")
 	}
 }

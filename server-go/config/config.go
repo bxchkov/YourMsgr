@@ -1,7 +1,7 @@
 package config
 
 import (
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 )
@@ -26,7 +26,8 @@ var AppConfig *Config
 func LoadConfig() {
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		log.Fatal("DATABASE_URL environment variable is not set")
+		slog.Error("DATABASE_URL environment variable is not set")
+		os.Exit(1)
 	}
 
 	port := os.Getenv("PORT")
@@ -39,7 +40,8 @@ func LoadConfig() {
 
 	// Ensure JWT secrets are provided — fatal because auth is completely broken without them
 	if jwtAccess == "" || jwtRefresh == "" {
-		log.Fatal("FATAL: JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be set")
+		slog.Error("FATAL: JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be set")
+		os.Exit(1)
 	}
 
 	rateLimitWindowStr := os.Getenv("RATE_LIMIT_WINDOW")

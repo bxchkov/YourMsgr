@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -159,7 +159,7 @@ func CreateWebSocketHandler() fiber.Handler {
 		// Verify session initially
 		user, valid := getValidSession(ctx, authService, userId, refreshToken)
 		if !valid {
-			log.Printf("WS session invalid during open for %s (ID: %d)", username, userId)
+			slog.Warn("WS session invalid during open", slog.String("username", username), slog.Int64("userId", userId))
 			conn.WriteJSON(fiber.Map{"type": "client_logout"})
 			conn.Close()
 			return
@@ -170,7 +170,7 @@ func CreateWebSocketHandler() fiber.Handler {
 		if activeConns >= MaxWsConnectionsPerUser {
 			conn.WriteJSON(fiber.Map{"type": "error", "message": "Too many active connections"})
 			conn.Close()
-			log.Printf("Rejected extra WS connection for %s (ID: %d)", username, userId)
+			slog.Warn("Rejected extra WS connection", slog.String("username", username), slog.Int64("userId", userId))
 			return
 		}
 
@@ -240,7 +240,7 @@ func handleSendMessage(ctx context.Context, chatService *services.ChatService, a
 	// Re-verify session
 	user, valid := getValidSession(ctx, authService, client.UserID, client.RefreshToken)
 	if !valid {
-		log.Printf("WS send_message session is invalid for %s", client.Username)
+		slog.Warn("WS send_message session is invalid", slog.String("username", client.Username), slog.Int64("userId", client.UserID))
 		GlobalHub.ForceLogoutUser(client.UserID)
 		return
 	}

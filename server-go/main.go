@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -30,6 +31,15 @@ func main() {
 	// Load configuration
 	config.LoadConfig()
 
+	// Initialize structured logger (slog)
+	var handler slog.Handler
+	if os.Getenv("NODE_ENV") == "production" {
+		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
+	} else {
+		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
+	}
+	slog.SetDefault(slog.New(handler))
+
 	// If running CLI command, we connect to DB, run it, and exit
 	if *cliFlag {
 		db.ConnectDB()
@@ -42,10 +52,12 @@ func main() {
 
 	// Validate JWT secrets strength and placeholders (Wave 1 security requirement)
 	if err := utils.AssertJwtSecret(config.AppConfig.JWTAccessSecret, "JWT_ACCESS_SECRET"); err != nil {
-		log.Fatalf("JWT Access Secret assertion failed: %v", err)
+		slog.Error("JWT Access Secret assertion failed", slog.Any("error", err))
+		os.Exit(1)
 	}
 	if err := utils.AssertJwtSecret(config.AppConfig.JWTRefreshSecret, "JWT_REFRESH_SECRET"); err != nil {
-		log.Fatalf("JWT Refresh Secret assertion failed: %v", err)
+		slog.Error("JWT Refresh Secret assertion failed", slog.Any("error", err))
+		os.Exit(1)
 	}
 
 	// Connect to database
@@ -66,6 +78,41 @@ func main() {
 	realtime.InitPubSub()
 
 	app := fiber.New()
+
+	// Structured HTTP Logger middleware
+	app.Use(func(c *fiber.Ctx) error {
+		start := time.Now()
+		err := c.Next()
+		latency := time.Since(start)
+
+		status := c.Response().StatusCode()
+		method := c.Method()
+		path := c.Path()
+		ip := c.IP()
+
+		if err != nil {
+			slog.Error("HTTP request failed",
+				slog.String("method", method),
+				slog.String("path", path),
+				slog.Int("status", status),
+				slog.String("ip", ip),
+				slog.Duration("latency", latency),
+				slog.Any("error", err),
+			)
+		} else {
+			// Skip logging for health checks to keep logs clean
+			if path != "/api/health" {
+				slog.Info("HTTP request",
+					slog.String("method", method),
+					slog.String("path", path),
+					slog.Int("status", status),
+					slog.String("ip", ip),
+					slog.Duration("latency", latency),
+				)
+			}
+		}
+		return err
+	})
 
 	// Rate Limiter middleware (Wave 1 / Audit recommendation)
 	limiterCfg := limiter.Config{
@@ -96,9 +143,9 @@ func main() {
 	// Use Redis storage for rate limiting if available
 	if redisStore := db.NewRedisStorage(); redisStore != nil {
 		limiterCfg.Storage = redisStore
-		log.Println("Rate Limiter: using Redis storage backend")
+		slog.Info("Rate Limiter: using Redis storage backend")
 	} else {
-		log.Println("Rate Limiter: using default in-memory storage backend")
+		slog.Info("Rate Limiter: using default in-memory storage backend")
 	}
 
 	app.Use(limiter.New(limiterCfg))
@@ -170,20 +217,21 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		log.Printf("Starting Go server on port %s...", config.AppConfig.Port)
+		slog.Info("Starting Go server", slog.String("port", config.AppConfig.Port))
 		if err := app.Listen(":" + config.AppConfig.Port); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server: %v", err)
+			slog.Error("Failed to start server", slog.Any("error", err))
+			os.Exit(1)
 		}
 	}()
 
 	// Block until a signal is received
 	sig := <-sigChan
-	log.Printf("Received signal %v. Shutting down gracefully...", sig)
+	slog.Info("Received OS signal. Shutting down gracefully...", slog.String("signal", sig.String()))
 
 	// Shutdown Fiber app with a 10s timeout
 	if err := app.ShutdownWithTimeout(10 * time.Second); err != nil {
-		log.Printf("Graceful shutdown error: %v", err)
+		slog.Error("Graceful shutdown error", slog.Any("error", err))
 	} else {
-		log.Println("Server stopped successfully")
+		slog.Info("Server stopped successfully")
 	}
 }
