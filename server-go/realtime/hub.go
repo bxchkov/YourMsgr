@@ -15,7 +15,7 @@ type Client struct {
 }
 
 type Hub struct {
-	clients    map[*Client]bool
+	clients    map[int64][]*Client
 	register   chan *Client
 	unregister chan *Client
 	mu         sync.RWMutex
@@ -26,7 +26,7 @@ var GlobalHub *Hub
 // InitHub initializes the global WebSocket Hub
 func InitHub() {
 	GlobalHub = &Hub{
-		clients:    make(map[*Client]bool),
+		clients:    make(map[int64][]*Client),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 	}
@@ -38,16 +38,33 @@ func (h *Hub) run() {
 		select {
 		case client := <-h.register:
 			h.mu.Lock()
-			h.clients[client] = true
+			h.clients[client.UserID] = append(h.clients[client.UserID], client)
 			h.mu.Unlock()
 			slog.Info("WebSocket client registered", slog.String("username", client.Username), slog.Int64("userId", client.UserID))
 
 		case client := <-h.unregister:
 			h.mu.Lock()
-			if _, ok := h.clients[client]; ok {
-				delete(h.clients, client)
-				client.Conn.Close()
-				slog.Info("WebSocket client unregistered", slog.String("username", client.Username), slog.Int64("userId", client.UserID))
+			clientList, ok := h.clients[client.UserID]
+			if ok {
+				newIdx := -1
+				for i, c := range clientList {
+					if c == client {
+						newIdx = i
+						break
+					}
+				}
+				if newIdx != -1 {
+					// Close connection
+					client.Conn.Close()
+					// Remove from slice
+					clientList = append(clientList[:newIdx], clientList[newIdx+1:]...)
+					if len(clientList) == 0 {
+						delete(h.clients, client.UserID)
+					} else {
+						h.clients[client.UserID] = clientList
+					}
+					slog.Info("WebSocket client unregistered", slog.String("username", client.Username), slog.Int64("userId", client.UserID))
+				}
 			}
 			h.mu.Unlock()
 		}
@@ -59,11 +76,13 @@ func (h *Hub) BroadcastToAll(payload []byte) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for client := range h.clients {
-		err := client.Conn.WriteMessage(websocket.TextMessage, payload)
-		if err != nil {
-			slog.Error("Failed to deliver payload to client", slog.Any("error", err))
-			go func(c *Client) { h.unregister <- c }(client)
+	for _, clientList := range h.clients {
+		for _, client := range clientList {
+			err := client.Conn.WriteMessage(websocket.TextMessage, payload)
+			if err != nil {
+				slog.Error("Failed to deliver payload to client", slog.Any("error", err))
+				go func(c *Client) { h.unregister <- c }(client)
+			}
 		}
 	}
 }
@@ -73,17 +92,14 @@ func (h *Hub) BroadcastToUsers(userIds []int64, payload []byte) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	targets := make(map[int64]bool)
 	for _, id := range userIds {
-		targets[id] = true
-	}
-
-	for client := range h.clients {
-		if targets[client.UserID] {
-			err := client.Conn.WriteMessage(websocket.TextMessage, payload)
-			if err != nil {
-				slog.Error("Failed to deliver payload to target user", slog.Int64("userId", client.UserID), slog.Any("error", err))
-				go func(c *Client) { h.unregister <- c }(client)
+		if clientList, ok := h.clients[id]; ok {
+			for _, client := range clientList {
+				err := client.Conn.WriteMessage(websocket.TextMessage, payload)
+				if err != nil {
+					slog.Error("Failed to deliver payload to target user", slog.Int64("userId", client.UserID), slog.Any("error", err))
+					go func(c *Client) { h.unregister <- c }(client)
+				}
 			}
 		}
 	}
@@ -94,13 +110,7 @@ func (h *Hub) CountUserConnections(userId int64) int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	count := 0
-	for client := range h.clients {
-		if client.UserID == userId {
-			count++
-		}
-	}
-	return count
+	return len(h.clients[userId])
 }
 
 // ForceLogoutUser disconnects all sockets of a user and notifies them
@@ -110,8 +120,8 @@ func (h *Hub) ForceLogoutUser(userId int64) {
 
 	logoutPayload := []byte(`{"type":"client_logout"}`)
 
-	for client := range h.clients {
-		if client.UserID == userId {
+	if clientList, ok := h.clients[userId]; ok {
+		for _, client := range clientList {
 			// Notify client and unregister
 			client.Conn.WriteMessage(websocket.TextMessage, logoutPayload)
 			go func(c *Client) { h.unregister <- c }(client)
