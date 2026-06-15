@@ -22,12 +22,30 @@ services:
           memory: 256M
     restart: ${RESTART_POLICY:-unless-stopped}
 
+  pgbouncer:
+    image: edoburu/pgbouncer:1.22.0
+    environment:
+      DB_USER: ${POSTGRES_USER:-chat_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-chat_password}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-chat}
+      POOL_MODE: session
+      MAX_CLIENT_CONN: 10000
+      DEFAULT_POOL_SIZE: 50
+      MIN_POOL_SIZE: 5
+      RESERVE_POOL_SIZE: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: ${RESTART_POLICY:-unless-stopped}
+
   server:
     build:
       context: ./server-go
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-chat_user}:${POSTGRES_PASSWORD:-chat_password}@postgres:5432/${POSTGRES_DB:-chat}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-chat_user}:${POSTGRES_PASSWORD:-chat_password}@pgbouncer:6432/${POSTGRES_DB:-chat}
       PORT: 3000
       PUBSUB_ADAPTER: ${PUBSUB_ADAPTER:-postgres}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
@@ -36,8 +54,8 @@ services:
     env_file:
       - ./server-go/.env
     depends_on:
-      postgres:
-        condition: service_healthy
+      pgbouncer:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/api/health || exit 1"]
       interval: 10s
